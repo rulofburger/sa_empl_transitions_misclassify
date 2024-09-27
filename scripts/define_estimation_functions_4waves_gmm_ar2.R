@@ -1,3 +1,7 @@
+# DEFINE FUNCTIONS ====
+
+#> General functions that restrict parameter values to unit interval
+
 logit_transform <- function(param0) {
   param_input <- log(param0/(1 - param0))
   return(param_input)
@@ -8,6 +12,7 @@ logit_inverse <- function(param_input0) {
   return(param)
 }
 
+# FUNCTIONS FOR AR(2) GMM ESTIMATOR OVER 4 WAVES WITH MISCLASSIFICATION ERROR ====
 
 calc_gmm_moments_4waves <- function(param_transformed, df_x) {
 
@@ -313,7 +318,7 @@ calc_gmm_derivatives_4waves <- function(param_transformed, df_x) {
   
 }
 
-
+# FUNCTIONS FOR AR(2) GMM ESTIMATOR OVER 4 WAVES WITH NO MISCLASSIFICATION ERROR ====
 
 calc_gmm_moments_4waves_pi0 <- function(param_transformed, df_x) {
   

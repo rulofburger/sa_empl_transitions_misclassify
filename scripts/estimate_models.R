@@ -231,12 +231,18 @@ df_probs_temp_ar1_pi0 <- df_template %>%
 
 df_probs_temp_ar1_pi0 %>% 
   group_by(y1_star, y4_star) %>% 
-  summarise(joint_p = sum(joint_p), .groups = "drop")
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  filter(y1_star == 0) %>% 
+  mutate(tot_sum = sum(joint_p)) %>% 
+  mutate(cond_p = joint_p/tot_sum)
 
 df_probs_temp_ar1_pi0 %>% 
   mutate(ever_found = pmax(y2_star, y3_star, y4_star)) %>% 
   group_by(y1_star, ever_found) %>% 
-  summarise(joint_p = sum(joint_p), .groups = "drop")
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  filter(y1_star == 0) %>% 
+  mutate(tot_sum = sum(joint_p)) %>% 
+  mutate(cond_p = joint_p/tot_sum)
 
 
 #> AR(1) model, ME ====
@@ -356,15 +362,31 @@ df_probs_temp_ar2 <- df_template %>%
     p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
     p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
     joint_p = p12_star*p1*p2*p3_star*p3*p4_star*p4
-  )  %>% 
-  group_by(y1_star, y2_star, y3_star, y4_star) %>%
-  summarise(joint_p = sum(joint_p), .groups = "drop")
+  )  
+
+
 
 df_probs_temp_ar2 %>% 
+  group_by(y1_star, y2_star, y3_star, y4_star) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
   group_by(y1_star, y4_star) %>% 
   summarise(joint_p = sum(joint_p), .groups = "drop")
 
 df_probs_temp_ar2 %>% 
+  group_by(y1_star, y2_star, y3_star, y4_star) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
   mutate(ever_found = pmax(y2_star, y3_star, y4_star)) %>% 
   group_by(y1_star, ever_found) %>% 
+  summarise(joint_p = sum(joint_p), .groups = "drop")
+
+
+df_estimate %>% 
+  group_by(y1, y2, y3, y4) %>% 
+  summarise(weight = sum(weight)) %>% 
+  ungroup() %>% 
+  mutate(totsum = sum(weight)) %>% 
+  mutate(joint_p = weight/totsum)
+
+df_probs_temp_ar2 %>% 
+  group_by(y1, y2, y3, y4) %>% 
   summarise(joint_p = sum(joint_p), .groups = "drop")

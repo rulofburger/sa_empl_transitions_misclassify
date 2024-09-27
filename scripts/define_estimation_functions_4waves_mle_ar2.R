@@ -1,3 +1,7 @@
+# DEFINE FUNCTIONS ====
+
+#> General functions that restrict parameter values to unit interval
+
 logit_transform <- function(param0) {
   param_input <- log(param0/(1 - param0))
   return(param_input)
@@ -8,6 +12,7 @@ logit_inverse <- function(param_input0) {
   return(param)
 }
 
+# FUNCTIONS FOR AR(2) ML ESTIMATOR OVER 4 WAVES WITH MISCLASSIFICATION ERROR ====
 
 calc_lli_4waves <- function(param_transformed) {
   
@@ -272,6 +277,9 @@ calc_mle_derivatives_4waves <- function(param_transformed) {
   lg <- colSums(calc_lli_derivatives_4waves(param_transformed))
   return(lg)
 }
+
+
+# FUNCTIONS FOR AR(2) ML ESTIMATOR OVER 4 WAVES WITH NO MISCLASSIFICATION ERROR ====
 
 calc_lli_4waves_pi0 <- function(param_transformed) {
   
