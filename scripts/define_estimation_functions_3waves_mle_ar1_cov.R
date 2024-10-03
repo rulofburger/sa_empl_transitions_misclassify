@@ -270,4 +270,14 @@ calc_lli_derivatives_3waves_ar1_cov <- function(param_transformed, df_x) {
 }
 
 
+calc_mle_3waves_ar1_cov <- function(param_transformed) {
+  ll <- sum(calc_lli_3waves_ar1_cov(param_transformed))
+  return(ll)
+}
+
+calc_mle_derivatives_3waves_ar1_cov <- function(param_transformed) {
+  lg <- colSums(calc_lli_derivatives_3waves_ar1_cov(param_transformed))
+  return(lg)
+}
+
 
