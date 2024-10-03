@@ -247,8 +247,8 @@ calc_lli_derivatives_3waves_ar1_cov <- function(param_transformed, df_x) {
       joint_d_beta_02 = sum(joint_d_beta_02), 
       joint_d_beta_1  = sum(joint_d_beta_1), 
       joint_d_beta_2  = sum(joint_d_beta_2), 
-      joint_d_beta_3B = sum(joint_d_beta_3A), 
-      joint_d_beta_02 = sum(joint_d_beta_3B), 
+      joint_d_beta_3A = sum(joint_d_beta_3A), 
+      joint_d_beta_3B = sum(joint_d_beta_3B), 
       joint_d_pi      = sum(joint_d_pi),
       joint_p         = sum(joint_p),
       .groups         = "drop")
