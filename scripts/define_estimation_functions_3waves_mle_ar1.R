@@ -53,6 +53,8 @@ calc_lli_3waves_ar1 <- function(param_transformed) {
     left_join(df_probs, by = c('y1', 'y2', 'y3')) %>% 
     mutate(lli = weight*log(joint_p)) %>%
     pull(lli)
+  
+  df_lli
 
 }
 
@@ -157,6 +159,8 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, df_x) {
       lgi_pi = weight*joint_d_pi/joint_p) %>% 
     select(lgi_theta_1, lgi_theta_2, lgi_pi)
 
+  df_gi
+  
 }
   
 
@@ -220,6 +224,8 @@ calc_lli_3waves_ar1_pi0 <- function(param_transformed) {
     left_join(df_probs, by = c('y1', 'y2', 'y3')) %>% 
     mutate(lli = weight*log(joint_p)) %>%
     pull(lli)
+  
+  df_lli
   
 }
 
@@ -319,6 +325,8 @@ calc_lli_derivatives_3waves_ar1_pi0 <- function(param_transformed, df_x) {
       lgi_theta_2 = weight*joint_d_theta_2/joint_p,
     ) %>% 
     select(lgi_theta_1, lgi_theta_2)
+  
+  df_gi
 }
 
 

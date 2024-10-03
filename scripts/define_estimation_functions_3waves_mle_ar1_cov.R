@@ -283,6 +283,8 @@ calc_lli_derivatives_3waves_ar1_cov <- function(param_transformed, df_x) {
       lgi_pi      = weight*lgi_pi/joint_p) |>
     select(contains("lgi"))
   
+  df_gi
+  
 }
 
 

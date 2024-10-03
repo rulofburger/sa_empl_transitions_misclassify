@@ -274,7 +274,7 @@ calc_lli_derivatives_3waves_ar1_cov_durdep <- function(param_transformed, df_x) 
       
       joint_d_beta_4B = 
         joint_d_theta_1*0 +
-        joint_d_theta_2*(timegap1 + timegap2 + timegap3)))
+        joint_d_theta_2*(timegap1 + timegap2 + timegap3))
   
   df_grad <- df_probs_temp |>
     group_by(y1, y2, y3) |>
@@ -306,6 +306,8 @@ calc_lli_derivatives_3waves_ar1_cov_durdep <- function(param_transformed, df_x) 
       lgi_beta_4B = weight*lgi_beta_4B/joint_p,
       lgi_pi      = weight*lgi_pi/joint_p) |>
     select(contains("lgi"))
+  
+  df_gi
   
 }
 
