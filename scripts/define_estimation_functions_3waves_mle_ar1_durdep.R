@@ -116,7 +116,16 @@ calc_lli_derivatives_3waves_ar1_durdep <- function(param_transformed, df_x) {
                              param_transformed$beta4A*tenure1) + 
                logit_inverse(param_transformed$beta02 + 
                                param_transformed$beta4A*tenure1)),
-        y1_star == 0 ~ param$theta_2/((param$theta_1 + param$theta_2)^2) - 1/(param$theta_1 + param$theta_2)
+        y1_star == 0 ~ logit_inverse(param_transformed$beta02 + 
+                                       param_transformed$beta4A*tenure1)/
+          ((logit_inverse(param_transformed$beta01 + 
+                            param_transformed$beta4A*tenure1) + 
+              logit_inverse(param_transformed$beta02 + 
+                              param_transformed$beta4A*tenure1))^2) - 
+          1/(logit_inverse(param_transformed$beta01 + 
+                             param_transformed$beta4A*tenure1) + 
+               logit_inverse(param_transformed$beta02 + 
+                               param_transformed$beta4A*tenure1))
       ),
       d2_star_theta_1 = case_when(
         y2_star == 0 & y1_star == 0 ~ 0,
