@@ -16,25 +16,40 @@ calc_lli_3waves_ar1 <- function(param_transformed) {
   
   df_probs_temp <- df_template %>% 
     mutate(
-      p1_star = if_else(y1_star == 1, mu, 1 - mu),
-      p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_2, 1 - param$theta_2)),
-      p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_2, 1 - param$theta_2)),
-      # p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_2, 1 - param$theta_2)),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
-      # p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
-      # joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+      p1_star = if_else(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = if_else(y1_star == 1, 
+                        if_else(y2_star == 1, 
+                                1 - param$theta_1,
+                                param$theta_1), # theta_1 ==> job exit rate
+                        if_else(y2_star == 1, 
+                                param$theta_2,  # theta_2 ==> job entry rate 
+                                1 - param$theta_2)),
+      p3_star = if_else(y2_star == 1, 
+                        if_else(y3_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y3_star == 1,
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p1 = if_else(y1 == y1_star, 
+                   1 - param$pi, 
+                   param$pi),
+      p2 = if_else(y2 == y2_star, 
+                   1 - param$pi, 
+                   param$pi),
+      p3 = if_else(y3 == y3_star, 
+                   1 - param$pi, 
+                   param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) 
   
   df_probs <- df_probs_temp %>% 
-    # group_by(y1, y2, y3, y4) %>% 
     group_by(y1, y2, y3) %>% 
     summarise(joint_p = sum(joint_p), .groups = "drop")
   
   df_lli <- df_estimate %>% 
-    # left_join(df_probs, by = c('y1', 'y2', 'y3', 'y4')) %>% 
     left_join(df_probs, by = c('y1', 'y2', 'y3')) %>% 
     mutate(lli = weight*log(joint_p)) %>%
     pull(lli)
@@ -49,15 +64,32 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, df_x) {
   
   df_probs_temp <- df_template %>% 
     mutate(
-      p1_star = if_else(y1_star == 1, mu, 1 - mu),
-      p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_2, 1 - param$theta_2)),
-      p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_2, 1 - param$theta_2)),
-      # p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_2, 1 - param$theta_2)),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
-      # p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
-      # joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+      p1_star = if_else(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = if_else(y1_star == 1, 
+                        if_else(y2_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y2_star == 1, 
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p3_star = if_else(y2_star == 1, 
+                        if_else(y3_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y3_star == 1, 
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p1 = if_else(y1 == y1_star, 
+                   1 - param$pi, 
+                   param$pi),
+      p2 = if_else(y2 == y2_star, 
+                   1 - param$pi, 
+                   param$pi),
+      p3 = if_else(y3 == y3_star, 
+                   1 - param$pi, 
+                   param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3,
       d1_star_theta_1 = case_when(
         y1_star == 1 ~ -param$theta_2/((param$theta_1 + param$theta_2)^2),
@@ -91,22 +123,9 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, df_x) {
         y3_star == 1 & y2_star == 0 ~ 1,
         y3_star == 1 & y2_star == 1 ~ 0
       ),
-      # d4_star_theta_1 = case_when(
-      #   y4_star == 0 & y3_star == 0 ~ 0,
-      #   y4_star == 0 & y3_star == 1 ~ 1,
-      #   y4_star == 1 & y3_star == 0 ~ 0,
-      #   y4_star == 1 & y3_star == 1 ~ -1
-      # ),
-      # d4_star_theta_2 = case_when(
-      #   y4_star == 0 & y3_star == 0 ~ -1,
-      #   y4_star == 0 & y3_star == 1 ~ 0,
-      #   y4_star == 1 & y3_star == 0 ~ 1,
-      #   y4_star == 1 & y3_star == 1 ~ 0
-      # ),
       d1_pi = if_else(y1 == y1_star, -1, 1),
       d2_pi = if_else(y2 == y2_star, -1, 1),
       d3_pi = if_else(y3 == y3_star, -1, 1),
-      # d4_pi = if_else(y4 == y4_star, -1, 1),
       joint_d_theta_1 = 
         d1_star_theta_1*p1*p2_star*p2*p3_star*p3 + 
         p1_star*p1*d2_star_theta_1*p2*p3_star*p3 + 
@@ -123,7 +142,6 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, df_x) {
   
   df_grad <- df_probs_temp %>% 
     group_by(y1, y2, y3) %>% 
-    # group_by(y1, y2, y3, y4) %>% 
     summarise(
       joint_d_theta_1 = sum(joint_d_theta_1),
       joint_d_theta_2 = sum(joint_d_theta_2), 
@@ -133,19 +151,10 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, df_x) {
   
   df_gi <- df_estimate %>% 
     left_join(df_grad, by = c('y1', 'y2', 'y3')) %>% 
-    # left_join(df_grad, by = c('y1', 'y2', 'y3', 'y4')) %>% 
     mutate(
       lgi_theta_1 = weight*joint_d_theta_1/joint_p,
       lgi_theta_2 = weight*joint_d_theta_2/joint_p,
-      # lgi_theta_10 = weight*joint_d_theta_10/joint_p,
-      # lgi_theta_1 = weight*joint_d_theta_1/joint_p,
-      lgi_pi = weight*joint_d_pi/joint_p
-      # lgi_theta_0 = joint_d_theta_0/joint_p,
-      # lgi_theta_01 =joint_d_theta_01/joint_p,
-      # lgi_theta_10 = joint_d_theta_10/joint_p,
-      # lgi_theta_1 = joint_d_theta_1/joint_p,
-      # lgi_pi = joint_d_pi/joint_p
-      ) %>% 
+      lgi_pi = weight*joint_d_pi/joint_p) %>% 
     select(lgi_theta_1, lgi_theta_2, lgi_pi)
 
 }
@@ -172,15 +181,32 @@ calc_lli_3waves_ar1_pi0 <- function(param_transformed) {
   
   df_probs_temp <- df_template %>% 
     mutate(
-      p1_star = if_else(y1_star == 1, mu, 1 - mu),
-      p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_2, 1 - param$theta_2)),
-      p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_2, 1 - param$theta_2)),
-      # p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_2, 1 - param$theta_2)),
-      p1 = if_else(y1 == y1_star, 1 - pi, pi),
-      p2 = if_else(y2 == y2_star, 1 - pi, pi),
-      p3 = if_else(y3 == y3_star, 1 - pi, pi),
-      # p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
-      # joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+      p1_star = if_else(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = if_else(y1_star == 1, 
+                        if_else(y2_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y2_star == 1, 
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p3_star = if_else(y2_star == 1, 
+                        if_else(y3_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1),
+                        if_else(y3_star == 1, 
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p1 = if_else(y1 == y1_star, 
+                   1 - pi, 
+                   pi),
+      p2 = if_else(y2 == y2_star, 
+                   1 - pi, 
+                   pi),
+      p3 = if_else(y3 == y3_star, 
+                   1 - pi, 
+                   pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) 
   
@@ -205,15 +231,32 @@ calc_lli_derivatives_3waves_ar1_pi0 <- function(param_transformed, df_x) {
   
   df_probs_temp <- df_template %>% 
     mutate(
-      p1_star = if_else(y1_star == 1, mu, 1 - mu),
-      p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_2, 1 - param$theta_2)),
-      p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_2, 1 - param$theta_2)),
-      # p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_2, 1 - param$theta_2)),
-      p1 = if_else(y1 == y1_star, 1 - pi, pi),
-      p2 = if_else(y2 == y2_star, 1 - pi, pi),
-      p3 = if_else(y3 == y3_star, 1 - pi, pi),
-      # p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
-      # joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+      p1_star = if_else(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = if_else(y1_star == 1, 
+                        if_else(y2_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y2_star == 1, 
+                                param$theta_2, 
+                                1 - param$theta_2)),
+      p3_star = if_else(y2_star == 1, 
+                        if_else(y3_star == 1, 
+                                1 - param$theta_1, 
+                                param$theta_1), 
+                        if_else(y3_star == 1, 
+                                param$theta_2, 1
+                                - param$theta_2)),
+      p1 = if_else(y1 == y1_star, 
+                   1 - pi, 
+                   pi),
+      p2 = if_else(y2 == y2_star, 
+                   1 - pi, 
+                   pi),
+      p3 = if_else(y3 == y3_star, 
+                   1 - pi, 
+                   pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3,
       d1_star_theta_1 = case_when(
         y1_star == 1 ~ -param$theta_2/((param$theta_1 + param$theta_2)^2),
@@ -247,22 +290,9 @@ calc_lli_derivatives_3waves_ar1_pi0 <- function(param_transformed, df_x) {
         y3_star == 1 & y2_star == 0 ~ 1,
         y3_star == 1 & y2_star == 1 ~ 0
       ),
-      # d4_star_theta_1 = case_when(
-      #   y4_star == 0 & y3_star == 0 ~ 0,
-      #   y4_star == 0 & y3_star == 1 ~ 1,
-      #   y4_star == 1 & y3_star == 0 ~ 0,
-      #   y4_star == 1 & y3_star == 1 ~ -1
-      # ),
-      # d4_star_theta_2 = case_when(
-      #   y4_star == 0 & y3_star == 0 ~ -1,
-      #   y4_star == 0 & y3_star == 1 ~ 0,
-      #   y4_star == 1 & y3_star == 0 ~ 1,
-      #   y4_star == 1 & y3_star == 1 ~ 0
-      # ),
       d1_pi = if_else(y1 == y1_star, -1, 1),
       d2_pi = if_else(y2 == y2_star, -1, 1),
       d3_pi = if_else(y3 == y3_star, -1, 1),
-      # d4_pi = if_else(y4 == y4_star, -1, 1),
       joint_d_theta_1 = 
         d1_star_theta_1*p1*p2_star*p2*p3_star*p3 + 
         p1_star*p1*d2_star_theta_1*p2*p3_star*p3 +
@@ -275,7 +305,6 @@ calc_lli_derivatives_3waves_ar1_pi0 <- function(param_transformed, df_x) {
   
   df_grad <- df_probs_temp %>% 
     group_by(y1, y2, y3) %>% 
-    # group_by(y1, y2, y3, y4) %>% 
     summarise(
       joint_d_theta_1 = sum(joint_d_theta_1),
       joint_d_theta_2 = sum(joint_d_theta_2),
@@ -283,19 +312,11 @@ calc_lli_derivatives_3waves_ar1_pi0 <- function(param_transformed, df_x) {
       .groups = "drop")
   
   df_gi <- df_estimate %>% 
-    left_join(df_grad, by = c('y1', 'y2', 'y3')) %>% 
-    # left_join(df_grad, by = c('y1', 'y2', 'y3', 'y4')) %>% 
+    left_join(df_grad, 
+              by = c('y1', 'y2', 'y3')) %>% 
     mutate(
       lgi_theta_1 = weight*joint_d_theta_1/joint_p,
       lgi_theta_2 = weight*joint_d_theta_2/joint_p,
-      # lgi_theta_10 = weight*joint_d_theta_10/joint_p,
-      # lgi_theta_1 = weight*joint_d_theta_1/joint_p,
-      # lgi_pi = weight*joint_d_pi/joint_p
-      # lgi_theta_0 = joint_d_theta_0/joint_p,
-      # lgi_theta_01 =joint_d_theta_01/joint_p,
-      # lgi_theta_10 = joint_d_theta_10/joint_p,
-      # lgi_theta_1 = joint_d_theta_1/joint_p,
-      # lgi_pi = joint_d_pi/joint_p
     ) %>% 
     select(lgi_theta_1, lgi_theta_2)
 }
