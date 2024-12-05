@@ -34,6 +34,13 @@ dt_nigeria_panel_3waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_mi
   mutate(y = if_else(y, 1L , 0L)) %>% 
   pivot_wider(id_cols = c("id", "weight"), values_from = "y", names_from = "wave", names_prefix = "y")
 
+dt_nigeria_panel_3waves %>%
+  srvyr::as_survey(weights = c(weight)) %>%
+  summarise(
+    y1 = srvyr::survey_mean(y1, na.rm = T),
+    y2 = srvyr::survey_mean(y2, na.rm = T),
+    y3 = srvyr::survey_mean(y3, na.rm = T))
+
 dt_nigeria_panel_4waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_misclassify/data/raw/dt_nigeria_panel_4waves.Rds") %>% 
   select(
     id = hhid,
@@ -44,6 +51,40 @@ dt_nigeria_panel_4waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_mi
   ) %>% 
   mutate(y = if_else(y, 1L , 0L)) %>% 
   pivot_wider(id_cols = c("id", "weight"), values_from = "y", names_from = "wave", names_prefix = "y")
+
+dt_nigeria_panel_4waves %>%
+  srvyr::as_survey(weights = c(weight)) %>%
+  summarise(
+    y1 = srvyr::survey_mean(y1, na.rm = T),
+    y2 = srvyr::survey_mean(y2, na.rm = T),
+    y3 = srvyr::survey_mean(y3, na.rm = T),
+    y4 = srvyr::survey_mean(y4, na.rm = T)
+    )
+
+df_2w_transitions <- df_estimate %>% 
+  srvyr::as_survey(weights = c(weight)) %>%
+  group_by(y1) %>% 
+  summarise(y2 = srvyr::survey_mean(y2)) %>% 
+  bind_cols(
+    df_estimate %>% 
+      srvyr::as_survey(weights = c(weight)) %>%
+      group_by(y2) %>% 
+      summarise(y3 = srvyr::survey_mean(y3)) %>% 
+      select(y3, y3_se)
+  ) %>% 
+  bind_cols(
+    df_estimate %>% 
+      srvyr::as_survey(weights = c(weight)) %>%
+      group_by(y3) %>% 
+      summarise(y4 = srvyr::survey_mean(y4)) %>% 
+      select(y4, y4_se)
+  ) %>% 
+  mutate(y2 = if_else(y1 == 1, 1 - y2, y2)) %>%
+  mutate(y3 = if_else(y1 == 1, 1 - y3, y3)) %>% 
+  mutate(y4 = if_else(y1 == 1, 1 - y4, y4)) %>% 
+  select(-y1)
+
+df_2w_transitions
 
 df_x <- dt_nigeria_panel_4waves %>% 
   mutate(
@@ -255,6 +296,32 @@ df_probs_temp_ar1_pi0 %>%
   mutate(tot_sum = sum(joint_p)) %>% 
   mutate(cond_p = joint_p/tot_sum)
 
+df_template %>% 
+  mutate(
+    p1_star = if_else(y1_star == 1, mu, 1 - mu),
+    p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_0, 1 - param$theta_0)),
+    p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_0, 1 - param$theta_0)),
+    p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_0, 1 - param$theta_0)),
+    p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
+    p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
+    p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+    p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
+    joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+  )  %>% 
+  group_by(y1, y2, y3, y4) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  left_join(
+    df_estimate %>% 
+      group_by(y1, y2, y3, y4) %>% 
+      summarise(freq = sum(weight, na.rm = TRUE)) %>% 
+      ungroup %>% 
+      mutate(tot = sum(freq)) %>% 
+      mutate(freq = freq/tot) %>% 
+      select(-tot),
+    by = c('y1', 'y2', 'y3', 'y4')
+  )
+
+
 
 #> AR(1) model, ME ====
 
@@ -289,6 +356,32 @@ df_probs_temp_ar1 %>%
   filter(y1_star == 0) %>% 
   mutate(tot_sum = sum(joint_p)) %>% 
   mutate(cond_p = joint_p/tot_sum)
+
+df_template %>% 
+  mutate(
+    p1_star = if_else(y1_star == 1, mu, 1 - mu),
+    p2_star = if_else(y1_star == 1, if_else(y2_star == 1, 1 - param$theta_1, param$theta_1), if_else(y2_star == 1, param$theta_0, 1 - param$theta_0)),
+    p3_star = if_else(y2_star == 1, if_else(y3_star == 1, 1 - param$theta_1, param$theta_1), if_else(y3_star == 1, param$theta_0, 1 - param$theta_0)),
+    p4_star = if_else(y3_star == 1, if_else(y4_star == 1, 1 - param$theta_1, param$theta_1), if_else(y4_star == 1, param$theta_0, 1 - param$theta_0)),
+    p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
+    p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
+    p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+    p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
+    joint_p = p1*p1_star*p2*p2_star*p3*p3_star*p4_star*p4
+  )  %>% 
+  group_by(y1, y2, y3, y4) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  left_join(
+    df_estimate %>% 
+      group_by(y1, y2, y3, y4) %>% 
+      summarise(freq = sum(weight, na.rm = TRUE)) %>% 
+      ungroup %>% 
+      mutate(tot = sum(freq)) %>% 
+      mutate(freq = freq/tot) %>% 
+      select(-tot),
+    by = c('y1', 'y2', 'y3', 'y4')
+  )
+
 
 #> AR(2) model, no ME ====
 
@@ -347,8 +440,55 @@ df_probs_temp_ar2_pi0 %>%
   mutate(tot_sum = sum(joint_p)) %>% 
   mutate(cond_p = joint_p/tot_sum)
 
+df_template %>% 
+  mutate(
+    p12_star = case_when(
+      y2_star == 0 & y1_star == 0 ~ param$theta_1*(param$theta_0 + param$theta_01 - 1)/Theta,
+      y2_star == 0 & y1_star == 1 ~ -param$theta_1*param$theta_0/Theta,
+      y2_star == 1 & y1_star == 0 ~ -param$theta_1*param$theta_0/Theta,
+      y2_star == 1 & y1_star == 1 ~ param$theta_0*(param$theta_1 + param$theta_10 - 1)/Theta
+    ),
+    p3_star = case_when(
+      y3_star == 1 & y2_star == 0 & y1_star == 0 ~ param$theta_0,
+      y3_star == 1 & y2_star == 0 & y1_star == 1 ~ param$theta_0 + param$theta_01,
+      y3_star == 1 & y2_star == 1 & y1_star == 0 ~ 1 - param$theta_1 - param$theta_10,
+      y3_star == 1 & y2_star == 1 & y1_star == 1 ~ 1 - param$theta_1,
+      y3_star == 0 & y2_star == 0 & y1_star == 0 ~ 1 - param$theta_0,
+      y3_star == 0 & y2_star == 0 & y1_star == 1 ~ 1 - param$theta_0 - param$theta_01,
+      y3_star == 0 & y2_star == 1 & y1_star == 0 ~ param$theta_1 + param$theta_10,
+      y3_star == 0 & y2_star == 1 & y1_star == 1 ~ param$theta_1,
+    ),
+    p4_star = case_when(
+      y4_star == 1 & y3_star == 0 & y2_star == 0 ~ param$theta_0,
+      y4_star == 1 & y3_star == 0 & y2_star == 1 ~ param$theta_0 + param$theta_01,
+      y4_star == 1 & y3_star == 1 & y2_star == 0 ~ 1 - param$theta_1 - param$theta_10,
+      y4_star == 1 & y3_star == 1 & y2_star == 1 ~ 1 - param$theta_1,
+      y4_star == 0 & y3_star == 0 & y2_star == 0 ~ 1 - param$theta_0,
+      y4_star == 0 & y3_star == 0 & y2_star == 1 ~ 1 - param$theta_0 - param$theta_01,
+      y4_star == 0 & y3_star == 1 & y2_star == 0 ~ param$theta_1 + param$theta_10,
+      y4_star == 0 & y3_star == 1 & y2_star == 1 ~ param$theta_1,
+    ),
+    p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
+    p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
+    p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+    p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
+    joint_p = p12_star*p1*p2*p3_star*p3*p4_star*p4
+  )  %>% 
+  group_by(y1, y2, y3, y4) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  left_join(
+    df_estimate %>% 
+      group_by(y1, y2, y3, y4) %>% 
+      summarise(freq = sum(weight, na.rm = TRUE)) %>% 
+      ungroup %>% 
+      mutate(tot = sum(freq)) %>% 
+      mutate(freq = freq/tot) %>% 
+      select(-tot),
+    by = c('y1', 'y2', 'y3', 'y4')
+  )
 
-#> AR(1) model, ME ====
+
+#> AR(2) model, ME ====
 
 param <- logit_inverse(model_mle_4w_ar2$estimate)
 Theta = param$theta_0*(param$theta_10 - 1) + param$theta_1*(param$theta_01 - 1)
@@ -420,6 +560,53 @@ df_probs_temp_ar2 %>%
   group_by(y1, y2, y3, y4) %>% 
   summarise(joint_p = sum(joint_p), .groups = "drop")
 
+df_template %>% 
+  mutate(
+    p12_star = case_when(
+      y2_star == 0 & y1_star == 0 ~ param$theta_1*(param$theta_0 + param$theta_01 - 1)/Theta,
+      y2_star == 0 & y1_star == 1 ~ -param$theta_1*param$theta_0/Theta,
+      y2_star == 1 & y1_star == 0 ~ -param$theta_1*param$theta_0/Theta,
+      y2_star == 1 & y1_star == 1 ~ param$theta_0*(param$theta_1 + param$theta_10 - 1)/Theta
+    ),
+    p3_star = case_when(
+      y3_star == 1 & y2_star == 0 & y1_star == 0 ~ param$theta_0,
+      y3_star == 1 & y2_star == 0 & y1_star == 1 ~ param$theta_0 + param$theta_01,
+      y3_star == 1 & y2_star == 1 & y1_star == 0 ~ 1 - param$theta_1 - param$theta_10,
+      y3_star == 1 & y2_star == 1 & y1_star == 1 ~ 1 - param$theta_1,
+      y3_star == 0 & y2_star == 0 & y1_star == 0 ~ 1 - param$theta_0,
+      y3_star == 0 & y2_star == 0 & y1_star == 1 ~ 1 - param$theta_0 - param$theta_01,
+      y3_star == 0 & y2_star == 1 & y1_star == 0 ~ param$theta_1 + param$theta_10,
+      y3_star == 0 & y2_star == 1 & y1_star == 1 ~ param$theta_1,
+    ),
+    p4_star = case_when(
+      y4_star == 1 & y3_star == 0 & y2_star == 0 ~ param$theta_0,
+      y4_star == 1 & y3_star == 0 & y2_star == 1 ~ param$theta_0 + param$theta_01,
+      y4_star == 1 & y3_star == 1 & y2_star == 0 ~ 1 - param$theta_1 - param$theta_10,
+      y4_star == 1 & y3_star == 1 & y2_star == 1 ~ 1 - param$theta_1,
+      y4_star == 0 & y3_star == 0 & y2_star == 0 ~ 1 - param$theta_0,
+      y4_star == 0 & y3_star == 0 & y2_star == 1 ~ 1 - param$theta_0 - param$theta_01,
+      y4_star == 0 & y3_star == 1 & y2_star == 0 ~ param$theta_1 + param$theta_10,
+      y4_star == 0 & y3_star == 1 & y2_star == 1 ~ param$theta_1,
+    ),
+    p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
+    p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
+    p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+    p4 = if_else(y4 == y4_star, 1 - param$pi, param$pi),
+    joint_p = p12_star*p1*p2*p3_star*p3*p4_star*p4
+  )  %>% 
+  group_by(y1, y2, y3, y4) %>%
+  summarise(joint_p = sum(joint_p), .groups = "drop") %>% 
+  left_join(
+    df_estimate %>% 
+      group_by(y1, y2, y3, y4) %>% 
+      summarise(freq = sum(weight, na.rm = TRUE)) %>% 
+      ungroup %>% 
+      mutate(tot = sum(freq)) %>% 
+      mutate(freq = freq/tot) %>% 
+      select(-tot),
+    by = c('y1', 'y2', 'y3', 'y4')
+  )
+
 
 
 # CREATE LATEX TABLE ====
@@ -428,7 +615,7 @@ lm_model <- lm(data = df_estimate, y4 ~ y1 + y2)
 
 #> AR(1) model, 3 waves, ME ====
 coefficients <- unlist(logit_inverse(model_mle_3w_ar1$estimate))
-std_errors_1 <- unlist(model_mle_3w_ar1_se)
+std_errors <- unlist(model_mle_3w_ar1_se)
 obs <- 3*nrow(df_estimate)
 model_1 <- list(
   coefficients = coefficients,  # Coefficient estimates
