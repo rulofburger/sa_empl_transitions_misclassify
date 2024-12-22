@@ -12,82 +12,39 @@ library(tidyverse)
 # DEFINE FUNCTIONS ====
 
 # Load functions
-source("scripts/define_estimation_functions_4waves_gmm_ar2.R")
-source("scripts/define_estimation_functions_4waves_mle_ar2.R")
+# source("scripts/define_estimation_functions_4waves_gmm_ar2.R")
+
 source("scripts/define_estimation_functions_3waves_mle_ar1.R")
 source("scripts/define_estimation_functions_4waves_mle_ar1.R")
-
+source("scripts/define_estimation_functions_4waves_mle_ar2.R")
 
 df_template <- data.table::CJ(y1 = c(0, 1), y1_star = c(0, 1), y2 = c(0, 1), y2_star = c(0, 1), y3 = c(0, 1), y3_star = c(0, 1), y4 = c(0, 1), y4_star = c(0, 1)) 
 
 
 # INGEST DATA ====
 
-dt_nigeria_panel_3waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_misclassify/data/raw/dt_nigeria_panel_3waves.rds") %>% 
-  select(
-    id = hhid,
-    wave,
-    weight = pweights_w3,
-    # y = poor_ext
-    y = poor_lmic
-  ) %>% 
-  mutate(y = if_else(y, 1L , 0L)) %>% 
-  pivot_wider(id_cols = c("id", "weight"), values_from = "y", names_from = "wave", names_prefix = "y")
 
-dt_nigeria_panel_3waves %>%
-  srvyr::as_survey(weights = c(weight)) %>%
-  summarise(
-    y1 = srvyr::survey_mean(y1, na.rm = T),
-    y2 = srvyr::survey_mean(y2, na.rm = T),
-    y3 = srvyr::survey_mean(y3, na.rm = T))
+# INGEST DATA ====
 
-dt_nigeria_panel_4waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_misclassify/data/raw/dt_nigeria_panel_4waves.Rds") %>% 
-  select(
-    id = hhid,
-    wave,
-    weight = pweights_w4,
-    # y = poor_ext
-    y = poor_lmic
-  ) %>% 
-  mutate(y = if_else(y, 1L , 0L)) %>% 
-  pivot_wider(id_cols = c("id", "weight"), values_from = "y", names_from = "wave", names_prefix = "y")
+source("scripts/ingest_data_3waves_SA.R")
 
-dt_nigeria_panel_4waves %>%
-  srvyr::as_survey(weights = c(weight)) %>%
-  summarise(
-    y1 = srvyr::survey_mean(y1, na.rm = T),
-    y2 = srvyr::survey_mean(y2, na.rm = T),
-    y3 = srvyr::survey_mean(y3, na.rm = T),
-    y4 = srvyr::survey_mean(y4, na.rm = T)
-    )
+df_qlfs_3w <- df_qlfs %>% 
+  filter(period1 >= 30 & period1 <= 32) %>% 
+  mutate(weight_total = sum(weight)) 
 
-df_estimate <- dt_nigeria_panel_4waves
-df_2w_transitions <- df_estimate %>% 
-  srvyr::as_survey(weights = c(weight)) %>%
-  group_by(y1) %>% 
-  summarise(y2 = srvyr::survey_mean(y2)) %>% 
-  bind_cols(
-    df_estimate %>% 
-      srvyr::as_survey(weights = c(weight)) %>%
-      group_by(y2) %>% 
-      summarise(y3 = srvyr::survey_mean(y3)) %>% 
-      select(y3, y3_se)
-  ) %>% 
-  bind_cols(
-    df_estimate %>% 
-      srvyr::as_survey(weights = c(weight)) %>%
-      group_by(y3) %>% 
-      summarise(y4 = srvyr::survey_mean(y4)) %>% 
-      select(y4, y4_se)
-  ) %>% 
-  mutate(y2 = if_else(y1 == 1, 1 - y2, y2)) %>%
-  mutate(y3 = if_else(y1 == 1, 1 - y3, y3)) %>% 
-  mutate(y4 = if_else(y1 == 1, 1 - y4, y4)) %>% 
-  select(-y1)
+df_qlfs_3w <- df_qlfs_3w %>% 
+  mutate(weight = dim(df_qlfs)[1]*weight/weight_total) 
 
-df_2w_transitions
+source("scripts/ingest_data_4waves_SA.R")
 
-df_x <- dt_nigeria_panel_4waves %>% 
+df_qlfs_4w <- df_qlfs %>% 
+  filter(period1 >= 30 & period1 <= 32) %>% 
+  mutate(weight_total = sum(weight)) 
+
+df_qlfs_4w <- df_qlfs_4w %>% 
+  mutate(weight = dim(df_qlfs)[1]*weight/weight_total) 
+
+df_x <- df_qlfs_4w %>% 
   mutate(
     y0000 = if_else(y1 == 0 & y2 == 0 & y3 == 0 & y4 == 0, 1L, 0L),
     y0001 = if_else(y1 == 0 & y2 == 0 & y3 == 0 & y4 == 1, 1L, 0L),
@@ -119,17 +76,29 @@ df_template <- data.table::CJ(y1 = c(0, 1), y1_star = c(0, 1), y2 = c(0, 1), y2_
 
 #>> Three waves, no ME ----
 
+df_estimate <- df_qlfs_3w
 param_init <- data.frame(theta_1 = 0.085, theta_0 = 0.085)
 param_init_transformed <- logit_transform(param_init)
+
+
 
 model_mle_3w_ar1_pi0 <- maxLik::maxLik(
   calc_mle_3waves_ar1_pi0,
   grad = calc_mle_derivatives_3waves_ar1_pi0,
   start = param_init_transformed,
-  method = "NM",
+  method = "BFGS",
   reltol = 0,
   gradtol = 0
 )
+model_mle_3w_ar1_pi0 <- maxLik::maxLik(
+  calc_mle_3waves_ar1_pi0,
+  grad = calc_mle_derivatives_3waves_ar1_pi0,
+  start = param_init_transformed,
+  method = "NR",
+  reltol = 0,
+  gradtol = 0
+)
+
 model_mle_3w_ar1_pi0_se <- sqrt(((exp(model_mle_3w_ar1_pi0$estimate)/((1 + exp(model_mle_3w_ar1_pi0$estimate))^2))^2)*diag(vcov(model_mle_3w_ar1_pi0)))
 
 print(logit_inverse(model_mle_3w_ar1_pi0$estimate))
@@ -137,8 +106,6 @@ print(model_mle_3w_ar1_pi0_se)
 print(logit_inverse(model_mle_3w_ar1_pi0$estimate)/model_mle_3w_ar1_pi0_se)
 
 #>> Three waves, ME ----
-
-df_estimate <- dt_nigeria_panel_3waves
 
 param_init <- data.frame(theta_1 = 0.085, theta_0 = 0.085, pi = 0.01)
 param_init_transformed <- logit_transform(param_init)
@@ -182,7 +149,7 @@ print(logit_inverse(model_mle_3w_ar2_pi0$estimate)/model_mle_3w_ar2_pi0_se)
 #>> Four waves, no ME ----
 
 df_template <- data.table::CJ(y1 = c(0, 1), y1_star = c(0, 1), y2 = c(0, 1), y2_star = c(0, 1), y3 = c(0, 1), y3_star = c(0, 1), y4 = c(0, 1), y4_star = c(0, 1)) 
-df_estimate <- dt_nigeria_panel_4waves
+df_estimate <- df_qlfs_4w
 
 param_init <- data.frame(theta_1 = 0.085, theta_0 = 0.085)
 param_init_transformed <- logit_transform(param_init)
@@ -223,26 +190,26 @@ print(logit_inverse(model_mle_4w_ar1$estimate)/model_mle_4w_ar1_se)
 #> AR(2) model ====
 
 #>> GMM, ME ----
-
-param_init <-  data.frame(theta_0 = 0.04440373, theta_01 = 0.2745643, theta_10 = 0.3716039, theta_1 = 0.04090615, pi = 0.01351413)
-param_init_transformed <- logit_transform(param_init)
-model_gmm_4w_ar2 <- gmm::gmm(calc_gmm_moments_4waves, df_x, unlist(param_init_transformed), gradv = calc_gmm_derivatives_4waves, traceIter = TRUE, prewhite = 0)
-model_gmm_4w_ar2_se <- sqrt(((exp(model_gmm_4w_ar2$coefficients)/((1 + exp(model_gmm_4w_ar2$coefficients))^2))^2)*diag(vcov(model_gmm_4w_ar2)))
-
-print(logit_inverse(model_gmm_4w_ar2$coefficients))
-print(model_gmm_4w_ar2_se)
-print(logit_inverse(model_gmm_4w_ar2$coefficients)/model_gmm_4w_ar2_se)
-
-#>> GMM, no ME ----
-
-param_init <-  data.frame(theta_0 = 0.04440373, theta_01 = 0.2745643, theta_10 = 0.3716039, theta_1 = 0.04090615)
-param_init_transformed <- logit_transform(param_init)
-model_gmm_4w_ar2_pi0 <- gmm::gmm(calc_gmm_moments_4waves_pi0, df_x, unlist(param_init_transformed), gradv = calc_gmm_derivatives_4waves_pi0, traceIter = TRUE, prewhite = 0)
-model_gmm_4w_ar2_pi0_se <- sqrt(((exp(model_gmm_4w_ar2_pi0$coefficients)/((1 + exp(model_gmm_4w_ar2_pi0$coefficients))^2))^2)*diag(vcov(model_gmm_4w_ar2_pi0)))
-
-print(logit_inverse(model_gmm_4w_ar2_pi0$coefficients))
-print(model_gmm_4w_ar2_pi0_se)
-print(logit_inverse(model_gmm_4w_ar2_pi0$coefficients)/model_gmm_4w_ar2_pi0_se)
+# 
+# param_init <-  data.frame(theta_0 = 0.04440373, theta_01 = 0.2745643, theta_10 = 0.3716039, theta_1 = 0.04090615, pi = 0.01351413)
+# param_init_transformed <- logit_transform(param_init)
+# model_gmm_4w_ar2 <- gmm::gmm(calc_gmm_moments_4waves, df_x, unlist(param_init_transformed), gradv = calc_gmm_derivatives_4waves, traceIter = TRUE, prewhite = 0)
+# model_gmm_4w_ar2_se <- sqrt(((exp(model_gmm_4w_ar2$coefficients)/((1 + exp(model_gmm_4w_ar2$coefficients))^2))^2)*diag(vcov(model_gmm_4w_ar2)))
+# 
+# print(logit_inverse(model_gmm_4w_ar2$coefficients))
+# print(model_gmm_4w_ar2_se)
+# print(logit_inverse(model_gmm_4w_ar2$coefficients)/model_gmm_4w_ar2_se)
+# 
+# #>> GMM, no ME ----
+# 
+# param_init <-  data.frame(theta_0 = 0.04440373, theta_01 = 0.2745643, theta_10 = 0.3716039, theta_1 = 0.04090615)
+# param_init_transformed <- logit_transform(param_init)
+# model_gmm_4w_ar2_pi0 <- gmm::gmm(calc_gmm_moments_4waves_pi0, df_x, unlist(param_init_transformed), gradv = calc_gmm_derivatives_4waves_pi0, traceIter = TRUE, prewhite = 0)
+# model_gmm_4w_ar2_pi0_se <- sqrt(((exp(model_gmm_4w_ar2_pi0$coefficients)/((1 + exp(model_gmm_4w_ar2_pi0$coefficients))^2))^2)*diag(vcov(model_gmm_4w_ar2_pi0)))
+# 
+# print(logit_inverse(model_gmm_4w_ar2_pi0$coefficients))
+# print(model_gmm_4w_ar2_pi0_se)
+# print(logit_inverse(model_gmm_4w_ar2_pi0$coefficients)/model_gmm_4w_ar2_pi0_se)
 
 #>> MLE, no ME ----
 
@@ -727,6 +694,8 @@ df_estimate_probs_4w %>%
 
 
 # CREATE LATEX TABLE ====
+obs <- dim(df_estimate)[1]
+
 
 #> AR(1) model, 3 waves, no ME ====
 lm_model_3w_ar1_pi0 <- lm(data = df_estimate, y4 ~ y1)
@@ -735,15 +704,15 @@ std_errors_3w_ar1_pi0 <- unlist(model_mle_3w_ar1_pi0_se)
 obs_3w_ar1_pi0 <- 3*nrow(df_estimate)
 ll_3w_ar1_pi0 <- model_mle_3w_ar1_pi0$maximum 
 lm_model_3w_ar1_pi0$coefficients <- coefficients_3w_ar1_pi0
-lm_model_3w_ar1_pi0$residuals <- rnorm(obs)
-stargazer::stargazer(lm_model_3w_ar1_pi0, type = "text", se = list(std_errors_1), keep.stat = c("n"))
+lm_model_3w_ar1_pi0$residuals <- rnorm(obs_3w_ar1_pi0)
+stargazer::stargazer(lm_model_3w_ar1_pi0, type = "text", se = list(std_errors_3w_ar1_pi0), keep.stat = c("n"))
 
 
 #> AR(1) model, 3 waves, ME ====
 lm_model_3w_ar1 <- lm(data = df_estimate, y4 ~ y1 + y2)
 coefficients_3w_ar1 <- unlist(logit_inverse(model_mle_3w_ar1$estimate))
 std_errors_3w_ar1 <- unlist(model_mle_3w_ar1_se)
-obs_3w_ar1 <- 3*nrow(df_estimate)
+obs_3w_ar1 <- nrow(df_estimate)
 ll_3w_ar1 <- model_mle_3w_ar1$maximum
 lm_model_3w_ar1$coefficients <- coefficients_3w_ar1
 lm_model_3w_ar1$residuals <- rnorm(obs)
@@ -754,7 +723,7 @@ lm_model_3w_ar2_pi0 <- lm(data = df_estimate, y4 ~ y1 + y2 + y3 + y1:y3)
 coefficients_3w_ar2_pi0 <- unlist(logit_inverse(model_mle_3w_ar2_pi0$estimate))
 std_errors_3w_ar2_pi0 <- unlist(model_mle_3w_ar2_pi0_se)
 ll_3w_ar2_pi0 <- model_mle_3w_ar2_pi0$maximum
-obs_3w_ar2_pi0 <- 3*nrow(df_estimate)
+obs_3w_ar2_pi0 <- nrow(df_estimate)
 lm_model_3w_ar2_pi0$coefficients <- coefficients_3w_ar2_pi0
 lm_model_3w_ar2_pi0$residuals <- rnorm(obs)
 stargazer::stargazer(lm_model_3w_ar2_pi0, type = "text", se = list(std_errors_3w_ar2_pi0), keep.stat = c("n"))
@@ -778,9 +747,9 @@ stargazer::stargazer(
 
 #> AR(1) model, 4 waves, ME ====
 model_4w_ar1 <- lm(data = df_estimate, y4 ~ y1 + y2)
-coefficients_4w_ar1 <- unlist(logit_inverse(model_mle_4w_ar1$estimate))
-std_errors_4w_ar1 <- unlist(model_mle_4w_ar1_se)
-obs_4w_ar1 <- 3*nrow(df_estimate)
+coefficients_4w_ar1 <- unlist(logit_inverse(model_mle_4w_ar1$estimate))*100
+std_errors_4w_ar1 <- unlist(model_mle_4w_ar1_se)*100
+obs_4w_ar1 <- nrow(df_estimate)
 ll_4w_ar1 <- model_mle_4w_ar1$maximum
 model_4w_ar1$coefficients <- coefficients_4w_ar1
 model_4w_ar1$residuals <- rnorm(obs)
@@ -788,9 +757,9 @@ stargazer::stargazer(model_4w_ar1, type = "text", se = list(std_errors_4w_ar1), 
 
 #> AR(1) model, 4 waves, no ME ====
 model_4w_ar1_pi0 <- lm(data = df_estimate, y4 ~ y1)
-coefficients_4w_ar1_pi0 <- unlist(logit_inverse(model_mle_4w_ar1_pi0$estimate))
-std_errors_4w_ar1_pi0 <- unlist(model_mle_4w_ar1_pi0_se)
-obs_4w_ar1_pi0 <- 3*nrow(df_estimate)
+coefficients_4w_ar1_pi0 <- unlist(logit_inverse(model_mle_4w_ar1_pi0$estimate))*100
+std_errors_4w_ar1_pi0 <- unlist(model_mle_4w_ar1_pi0_se)*100
+obs_4w_ar1_pi0 <- nrow(df_estimate)
 ll_4w_ar1_pi0 <- model_mle_4w_ar1_pi0$maximum
 model_4w_ar1_pi0$coefficients <- coefficients_4w_ar1_pi0
 model_4w_ar1_pi0$residuals <- rnorm(obs)
@@ -800,47 +769,76 @@ stargazer::stargazer(model_4w_ar1_pi0, type = "text", se = list(std_errors_4w_ar
 
 #> AR(2) model, MLE, ME ====
 model_4w_ar2 <- lm(data = df_estimate, y4 ~ y1 + y2 + y3 + y1:y2)
-coefficients_4w_ar2 <- unlist(logit_inverse(model_mle_4w_ar2$estimate))
-std_errors_4w_ar2 <- unlist(model_mle_4w_ar2_se)
-obs_4w_ar2 <- 3*nrow(df_estimate)
+coefficients_4w_ar2 <- unlist(logit_inverse(model_mle_4w_ar2$estimate))*100
+std_errors_4w_ar2 <- unlist(model_mle_4w_ar2_se)*100
+obs_4w_ar2 <- nrow(df_estimate)
 ll_4w_ar2 <- model_mle_4w_ar2$maximum
 model_4w_ar2$coefficients <- coefficients_4w_ar2
-model_4w_ar2$residuals <- rnorm(obs)
+model_4w_ar2$residuals <- rnorm(obs_4w_ar2)
 stargazer::stargazer(model_4w_ar2, type = "text", se = list(std_errors_4w_ar2), keep.stat = c("n"))
 
 #> AR(2) model, MLE, no ME ====
 model_4w_ar2_pi0 <- lm(data = df_estimate, y4 ~ y1 + y2 + y3 + y1:y2)
-coefficients_4w_ar2_pi0 <- unlist(logit_inverse(model_mle_4w_ar2_pi0$estimate))
-std_errors_4w_ar2_pi0 <- unlist(model_mle_4w_ar2_pi0_se)
-obs_4w_ar2_pi0 <- 3*nrow(df_estimate)
+coefficients_4w_ar2_pi0 <- unlist(logit_inverse(model_mle_4w_ar2_pi0$estimate))*100
+std_errors_4w_ar2_pi0 <- unlist(model_mle_4w_ar2_pi0_se)*100
+obs_4w_ar2_pi0 <- nrow(df_estimate)
 ll_4w_ar2_pi0 <- model_mle_4w_ar2_pi0$maximum
 model_4w_ar2_pi0$coefficients <- coefficients_4w_ar2_pi0
 model_4w_ar2_pi0$residuals <- rnorm(obs)
 stargazer::stargazer(model_4w_ar2_pi0, type = "text", se = list(std_errors_4w_ar2_pi0), keep.stat = c("n"))
 
 
-stargazer::stargazer(
+
+table_4w_implied <- stargazer::stargazer(
   list(model_4w_ar1_pi0, model_4w_ar1, model_4w_ar2_pi0, model_4w_ar2),
-  type = "text",
+  type = "latex",
+  no.space = TRUE,
+  label = "table_4w_implied",
+  digits = 2,
   order = c("theta_1", "theta_10", "theta_0", "theta_01", "pi"),
   se = list(std_errors_4w_ar1_pi0, std_errors_4w_ar1, std_errors_4w_ar2_pi0, std_errors_4w_ar2),
   keep.stat = c("n"),
   covariate.labels = c("Exit rate", "Surplus exit rate", "Entry rate", "Surplus entry rate", "Misclassification rate"),
-  dep.var.labels = "Poverty",
   add.lines = list(
+    c("Waves", "4", "4", "4", "4"),
     c("Model", "AR(1)", "AR(1)", "AR(2)", "AR(2)"),
     c("Misclassification", "No", "Yes", "No", "Yes"),
-    c("LL", round(ll_4w_ar1_pi0), round(ll_4w_ar1), round(ll_4w_ar2_pi0), round(ll_4w_ar2))
-  )
+    c("LL", round(ll_4w_ar1_pi0, 1), round(ll_4w_ar1, 1), round(ll_4w_ar2_pi0, 1), round(ll_4w_ar2, 1))
+  ),
+  dep.var.labels.include = FALSE,
+  dep.var.caption = "",
+  title = ""
 )
 
+
+output_file <- "./output/tables/SA/table_4w_implied.tex"
+cat(table_4w_implied, file = output_file, sep = "\n")
+
+
+
 df_true_transition_tables <- data.frame(
-  ar1_pi0 = round(c(prob_w4_ar1_pi0[1], prob_ever_ar1_pi0[1], prob_w4_ar1_pi0[2], prob_ever_ar1_pi0[2]), 3),
-  ar1 = round(c(prob_w4_ar1[1], prob_ever_ar1[1], prob_w4_ar1[2], prob_ever_ar1[2]), 3),
-  ar2_pi0 = round(c(prob_w4_ar2_pi0[1], prob_ever_ar2_pi0[1], prob_w4_ar2_pi0[2], prob_ever_ar2_pi0[2]), 3),
-  ar2 = round(c(prob_w4_ar2[1], prob_ever_ar2[1], prob_w4_ar2[2], prob_ever_ar2[2]), 3)
-) %>% t()
+  ar1_pi0 = round(c(prob_w4_ar1_pi0[1], prob_ever_ar1_pi0[1], prob_w4_ar1_pi0[2], prob_ever_ar1_pi0[2]), 5),
+  ar1 = round(c(prob_w4_ar1[1], prob_ever_ar1[1], prob_w4_ar1[2], prob_ever_ar1[2]), 5),
+  ar2_pi0 = round(c(prob_w4_ar2_pi0[1], prob_ever_ar2_pi0[1], prob_w4_ar2_pi0[2], prob_ever_ar2_pi0[2]), 5),
+  ar2 = round(c(prob_w4_ar2[1], prob_ever_ar2[1], prob_w4_ar2[2], prob_ever_ar2[2]), 5)
+) %>% 
+  mutate(
+    ar1_pi0 = ar1_pi0*100,
+    ar1 = ar1*100,
+    ar2_pi0 = ar2_pi0*100,
+    ar2 = ar2*100
+    ) %>% 
+  t()
 
-colnames(df_true_transition_tables) <- c("Wave 4 enter", "Ever enter", "Wave 4 exit", "Ever exit")
+colnames(df_true_transition_tables) <- c("Wave 4 Employed", "Ever Employed", "Wave 4 Non-employed", "Ever Non-employed")
+rownames(df_true_transition_tables) <- c("AR(1), no ME", "AR(1), with ME", "AR(2), no ME", "AR(2), with ME")
 
-stargazer::stargazer(df_true_transition_tables, type = "latex")
+table_implied_transitions <- stargazer::stargazer(
+  df_true_transition_tables, 
+  type = "latex",
+  label = "table_implied_transitions",
+  digits = 2
+  )
+
+output_file <- "./output/tables/SA/table_implied_transitions.tex"
+cat(table_implied_transitions, file = output_file, sep = "\n")

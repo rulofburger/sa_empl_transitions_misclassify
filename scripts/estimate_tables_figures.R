@@ -475,6 +475,21 @@ calc_s1s2s3_probs_theta0_pi <- function(theta_0, theta_1, pi) {
     summarise(joint_p = sum(joint_p), .groups = "drop") 
 }
 
+calc_s1s2s3_probs_theta0_theta01_pi <- function(theta_0, theta_1, theta_01, theta_10, pi) {
+  
+  param <- data.frame(theta_0 = 0.023, theta_01 = 0, theta_10 = 0, theta_1 = 0.023, pi = 0.0255)
+  param$theta_0 <- theta_0
+  param$theta_1 <- theta_1
+  param$theta_01 <- theta_01
+  param$theta_10 <- theta_10
+  param$pi <- pi
+  
+  create_probs_temp(param) %>% 
+    group_by(y1, y2, y3) %>% 
+    filter(y1 == 0) %>% 
+    summarise(joint_p = sum(joint_p), .groups = "drop") 
+}
+
 # AR1 model with no misclassification
 calc_s1s2s3_probs_theta0_pi(0.03, 0.03, 0)
 
@@ -482,6 +497,11 @@ calc_s1s2s3_probs_theta0_pi(0.03, 0.03, 0)
 calc_s1s2s3_probs_theta0_pi(0.03, 0.03, 0.03)
 
 calc_s1s2s3_probs_theta0_pi(0.03, 0.03, 0.03)$joint_p/calc_s1s2s3_probs_theta0_pi(0.03, 0.03, 0)$joint_p
+
+
+# AR2 model with 0% misclassification
+calc_s1s2s3_probs_theta0_theta01_pi(0.03, 0.03, 0.30, 0.30, 0)
+
 
 calc_s1s2s3_conNNE_probs_theta0_pi <- function(theta_0, pi) {
   
