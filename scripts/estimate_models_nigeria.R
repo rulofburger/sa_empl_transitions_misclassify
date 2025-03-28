@@ -23,7 +23,7 @@ df_template <- data.table::CJ(y1 = c(0, 1), y1_star = c(0, 1), y2 = c(0, 1), y2_
 
 # INGEST DATA ====
 
-dt_nigeria_panel_3waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_misclassify/data/raw/dt_nigeria_panel_3waves.rds") %>% 
+dt_nigeria_panel_3waves <- readRDS("data/raw/dt_nigeria_panel_3waves.rds") %>% 
   select(
     id = hhid,
     wave,
@@ -41,7 +41,7 @@ dt_nigeria_panel_3waves %>%
     y2 = srvyr::survey_mean(y2, na.rm = T),
     y3 = srvyr::survey_mean(y3, na.rm = T))
 
-dt_nigeria_panel_4waves <- readRDS("C:/Users/rulof/Gitlab/sa_empl_transitions_misclassify/data/raw/dt_nigeria_panel_4waves.Rds") %>% 
+dt_nigeria_panel_4waves <- readRDS("data/raw/dt_nigeria_panel_4waves.Rds") %>% 
   select(
     id = hhid,
     wave,
@@ -735,8 +735,8 @@ std_errors_3w_ar1_pi0 <- unlist(model_mle_3w_ar1_pi0_se)
 obs_3w_ar1_pi0 <- 3*nrow(df_estimate)
 ll_3w_ar1_pi0 <- model_mle_3w_ar1_pi0$maximum 
 lm_model_3w_ar1_pi0$coefficients <- coefficients_3w_ar1_pi0
-lm_model_3w_ar1_pi0$residuals <- rnorm(obs)
-stargazer::stargazer(lm_model_3w_ar1_pi0, type = "text", se = list(std_errors_1), keep.stat = c("n"))
+lm_model_3w_ar1_pi0$residuals <- rnorm(obs_3w_ar1_pi0)
+stargazer::stargazer(lm_model_3w_ar1_pi0, type = "text", se = list(std_errors_3w_ar1_pi0), keep.stat = c("n"))
 
 
 #> AR(1) model, 3 waves, ME ====
@@ -746,7 +746,7 @@ std_errors_3w_ar1 <- unlist(model_mle_3w_ar1_se)
 obs_3w_ar1 <- 3*nrow(df_estimate)
 ll_3w_ar1 <- model_mle_3w_ar1$maximum
 lm_model_3w_ar1$coefficients <- coefficients_3w_ar1
-lm_model_3w_ar1$residuals <- rnorm(obs)
+lm_model_3w_ar1$residuals <- rnorm(obs_3w_ar1)
 stargazer::stargazer(lm_model_3w_ar1, type = "text", se = list(std_errors_3w_ar1), keep.stat = c("n"))
 
 #> AR(2) model, 3 waves, no ME ====
@@ -756,7 +756,7 @@ std_errors_3w_ar2_pi0 <- unlist(model_mle_3w_ar2_pi0_se)
 ll_3w_ar2_pi0 <- model_mle_3w_ar2_pi0$maximum
 obs_3w_ar2_pi0 <- 3*nrow(df_estimate)
 lm_model_3w_ar2_pi0$coefficients <- coefficients_3w_ar2_pi0
-lm_model_3w_ar2_pi0$residuals <- rnorm(obs)
+lm_model_3w_ar2_pi0$residuals <- rnorm(obs_3w_ar2_pi0)
 stargazer::stargazer(lm_model_3w_ar2_pi0, type = "text", se = list(std_errors_3w_ar2_pi0), keep.stat = c("n"))
 
 stargazer::stargazer(
@@ -783,7 +783,7 @@ std_errors_4w_ar1 <- unlist(model_mle_4w_ar1_se)
 obs_4w_ar1 <- 3*nrow(df_estimate)
 ll_4w_ar1 <- model_mle_4w_ar1$maximum
 model_4w_ar1$coefficients <- coefficients_4w_ar1
-model_4w_ar1$residuals <- rnorm(obs)
+model_4w_ar1$residuals <- rnorm(obs_4w_ar1)
 stargazer::stargazer(model_4w_ar1, type = "text", se = list(std_errors_4w_ar1), keep.stat = c("n"))
 
 #> AR(1) model, 4 waves, no ME ====
@@ -793,7 +793,7 @@ std_errors_4w_ar1_pi0 <- unlist(model_mle_4w_ar1_pi0_se)
 obs_4w_ar1_pi0 <- 3*nrow(df_estimate)
 ll_4w_ar1_pi0 <- model_mle_4w_ar1_pi0$maximum
 model_4w_ar1_pi0$coefficients <- coefficients_4w_ar1_pi0
-model_4w_ar1_pi0$residuals <- rnorm(obs)
+model_4w_ar1_pi0$residuals <- rnorm(obs_4w_ar1_pi0)
 stargazer::stargazer(model_4w_ar1_pi0, type = "text", se = list(std_errors_4w_ar1_pi0), keep.stat = c("n"))
 
 
@@ -805,7 +805,7 @@ std_errors_4w_ar2 <- unlist(model_mle_4w_ar2_se)
 obs_4w_ar2 <- 3*nrow(df_estimate)
 ll_4w_ar2 <- model_mle_4w_ar2$maximum
 model_4w_ar2$coefficients <- coefficients_4w_ar2
-model_4w_ar2$residuals <- rnorm(obs)
+model_4w_ar2$residuals <- rnorm(obs_4w_ar2)
 stargazer::stargazer(model_4w_ar2, type = "text", se = list(std_errors_4w_ar2), keep.stat = c("n"))
 
 #> AR(2) model, MLE, no ME ====
@@ -815,7 +815,7 @@ std_errors_4w_ar2_pi0 <- unlist(model_mle_4w_ar2_pi0_se)
 obs_4w_ar2_pi0 <- 3*nrow(df_estimate)
 ll_4w_ar2_pi0 <- model_mle_4w_ar2_pi0$maximum
 model_4w_ar2_pi0$coefficients <- coefficients_4w_ar2_pi0
-model_4w_ar2_pi0$residuals <- rnorm(obs)
+model_4w_ar2_pi0$residuals <- rnorm(obs_4w_ar2_pi0)
 stargazer::stargazer(model_4w_ar2_pi0, type = "text", se = list(std_errors_4w_ar2_pi0), keep.stat = c("n"))
 
 
