@@ -17,6 +17,7 @@ library(data.table)
 source("scripts/define_estimation_functions_3waves_mle_ar1.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_covariates.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_misclassification_symptoms.R")
+source("scripts/define_estimation_functions_3waves_mle_ar1_fmm_hessian.R")
 
 create_stargazer_table <- function(model_object, df, formula) {
   # Ensure required libraries are loaded
@@ -722,7 +723,7 @@ logit_inverse(model_mle_3w_ar1_covariates_age_educ_female_race_contract$estimate
 
 #>> No ME ----
 
-param_init <- data.frame(intercept_0 = -9.480411, age_0 = 0.3578881, age2_0 = -0.004708052, educ_0 = 0.007591136, female_0 = 0, race2_0 = 0, race3_0 = 0, race4_0 = 0, intercept_1 = 0.3971249, age_1 = -0.06975788, age2_1 = 0.0002472373, educ_1 = -0.1404834, female_1 = 0, race2_1 = 0, race3_1 = 0, race4_1 = 0)
+param_init <- data.frame(intercept_0 = -9.480411, age_0 = 0.3578881, age2_0 = -0.004708052, educ_0 = 0.007591136, female_0 = 0, race2_0 = 0, race3_0 = 0, race4_0 = 0, intercept_1 = 0.3971249, age_1 = -0.06975788, age2_1 = 0.0002472373, educ_1 = -0.1404834, female_1 = 0, race2_1 = 0, race3_1 = 0, race4_1 = 0, contract = 1, contract_missing = 0.67)
 param_init_transformed <- param_init
 
 model_mle_3w_ar1_covariates_age_educ_female_race_contract_pi0 <- maxLik::maxLik(
@@ -792,7 +793,7 @@ table_covariates_implied <- stargazer::stargazer(
 output_file <- "./output/tables/SA/table_covariates_implied.tex"
 cat(table_covariates_implied, file = output_file, sep = "\n")
 
-model_covariates_age_educ_unrestricted <- lm(data = df_estimate, y4 ~ y1 + y2 + y3 + educ1 + educ2 + educ3 + age1 + age2)
+model_covariates_age_educ_unrestricted <- lm(data = df_estimate, y3 ~ y1 + y2 + y3 + educ1 + educ2 + educ3 + age1 + age2 + age3)
 coefficients_covariates_age_educ_unrestricted <- unlist(model_mle_3w_ar1_covariates_age_educ$estimate)
 std_errors_covariates_age_educ_unrestricted <- unlist(sqrt(diag(vcov(model_mle_3w_ar1_covariates_age_educ))))
 obs_covariates_age_educ_unrestricted <- 3*nrow(df_estimate)
@@ -802,7 +803,7 @@ model_covariates_age_educ_unrestricted$residuals <- rnorm(obs_covariates_age_edu
 model_covariates_age_educ_unrestricted$ll <- ll_covariates_age_educ_unrestricted
 stargazer::stargazer(model_covariates_age_educ_unrestricted, type = "text", se = list(std_errors_covariates_age_educ_unrestricted), keep.stat = c("n"))
 
-model_covariates_age_educ_female_race_unrestricted <- lm(data = df_estimate, y4 ~ y1 + y2 + y3 + educ1 + educ2 + educ3 + age1 + age2 + I(race1 == 2)+ I(race1 == 3)+ I(race1 == 4) + I(race2 == 2)+ I(race2 == 3)+ I(race2 == 4) + female1 + female2)
+model_covariates_age_educ_female_race_unrestricted <- lm(data = df_estimate, y3 ~ y1 + y2 + educ1 + educ2 + educ3 + age1 + age2 + age3 + I(race1 == 2)+ I(race1 == 3)+ I(race1 == 4) + I(race2 == 2)+ I(race2 == 3)+ I(race2 == 4) + female1 + female2)
 coefficients_covariates_age_educ_female_race_unrestricted <- unlist(model_mle_3w_ar1_covariates_age_educ_female_race$estimate)
 std_errors_covariates_age_educ_female_race_unrestricted <- unlist(sqrt(diag(vcov(model_mle_3w_ar1_covariates_age_educ_female_race))))
 obs_covariates_age_educ_female_race_unrestricted <- 3*nrow(df_estimate)
@@ -1109,7 +1110,7 @@ model_mle_3w_ar1_misclassifiction_symptoms_educ$estimate
 model_mle_3w_ar1_misclassifiction_symptoms_educ$maximum
 
 model_mle_3w_ar1_misclassifiction_symptoms_educ <- maxLik::maxLik(
-  calc_mle_3waves_ar1_misclassifiction_symptoms_age_educ,
+  calc_mle_3waves_ar1_misclassifiction_symptoms_educ,
   grad = calc_mle_derivatives_3waves_ar1_misclassifiction_symptoms_educ,
   start = model_mle_3w_ar1_misclassifiction_symptoms_educ$estimate,
   method = "NR",
@@ -1273,12 +1274,12 @@ table_symptoms_implied <- stargazer::stargazer(
   label = "table_symptoms_implied",
   digits = 2,
   order = c("theta_0", "theta_1", "Constant", "age_inconsistent", "educ_inconsistent"),
-  se = list(lm_model_model_mle_3w_ar1_misclassifiction_symptoms_age$se_list, lm_model_model_mle_3w_ar1_misclassifiction_symptoms_educ$se_list, lm_model_model_mle_3w_ar1_misclassifiction_symptoms$se_list),
+  se = list(lm_model_symptoms_age$se_list, lm_model_symptoms_educ$se_list, lm_model_symptoms$se_list),
   keep.stat = c("n"),
   covariate.labels = c("Entry rate", "Exit rate", "Miscl. rate: no incon.", "Miscl. rate: age incon.", "Miscl. rate: educ incon."),
   add.lines = list(
     c("Inconsistencies", "Age", "Educ", "Age + Educ"),
-    c("LL", round(lm_model_model_mle_3w_ar1_misclassifiction_symptoms_age$ll, 1), round(lm_model_model_mle_3w_ar1_misclassifiction_symptoms_educ$ll, 1), round(lm_model_model_mle_3w_ar1_misclassifiction_symptoms$ll, 1))
+    c("LL", round(lm_model_symptoms_age$ll, 1), round(lm_model_symptoms_educ$ll, 1), round(lm_model_symptoms$ll, 1))
   ),
   dep.var.labels.include = FALSE,
   dep.var.caption = "",
