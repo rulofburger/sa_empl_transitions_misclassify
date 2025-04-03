@@ -1,3 +1,11 @@
+# METADATA =====================================================================
+# DESCRIPTION: Estimate 3 wave models for SA
+# CREATED: 2025-02-13 (rulofburger)
+
+# SUMMARY:
+
+# INITIALISE ====
+
 # INITIALISE ====
 # Source environment/functions
 
@@ -13,12 +21,13 @@ library(data.table)
 
 # DEFINE FUNCTIONS ====
 
-# Load functions
+#> Load estimation functions defined in other scripts ----
 source("scripts/define_estimation_functions_3waves_mle_ar1.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_covariates.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_misclassification_symptoms.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_fmm_hessian.R")
 
+#> Define functions to create output tables ----
 create_stargazer_table <- function(model_object, df, formula) {
   # Ensure required libraries are loaded
   if (!requireNamespace("maxLik", quietly = TRUE) || 
@@ -187,6 +196,7 @@ create_stargazer_table_symptoms <- function(model_object, df, formula) {
 
 # INGEST DATA ====
 
+# Run script that loads 3 wave SA data as df_qlfs
 source("scripts/ingest_data_3waves_SA.R")
 
 df_qlfs <- df_qlfs %>% 
@@ -421,30 +431,30 @@ lm_model_mle_3w_ar1_covariates_age_educ <- create_stargazer_table_covariates(
 )
 
 
-# df_educ_age_grid <- data.table::CJ(
-#   age = seq(18,55), 
-#   educ = seq(0, 17) 
-# ) %>% 
-#   mutate(
-#     theta_0 = logit_inverse(param_temp$intercept_0 + param_temp$age_0*age + param_temp$age2_0*age^2 + param_temp$educ_0*educ),
-#     theta_1 = logit_inverse(param_temp$intercept_1 + param_temp$age_1*age + param_temp$age2_1*age^2 + param_temp$educ_1*educ),
-#     mu = theta_0/(theta_1 + theta_0)
-#   )
-#   
-# df_educ_age_grid %>% 
-#   mutate(educ = as.factor(educ)) %>% 
-#   ggplot(aes(x = age, y = theta_0, color = educ, group = educ)) + 
-#   geom_line()
-# 
-# df_educ_age_grid %>% 
-#   mutate(educ = as.factor(educ)) %>% 
-#   ggplot(aes(x = age, y = theta_1, color = educ, group = educ)) + 
-#   geom_line()
-# 
-# df_educ_age_grid %>% 
-#   mutate(educ = as.factor(educ)) %>% 
-#   ggplot(aes(x = age, y = mu, color = educ, group = educ)) + 
-#   geom_line()
+df_educ_age_grid <- data.table::CJ(
+  age = seq(18,55),
+  educ = seq(0, 17)
+) %>%
+  mutate(
+    theta_0 = logit_inverse(param_temp$intercept_0 + param_temp$age_0*age + param_temp$age2_0*age^2 + param_temp$educ_0*educ),
+    theta_1 = logit_inverse(param_temp$intercept_1 + param_temp$age_1*age + param_temp$age2_1*age^2 + param_temp$educ_1*educ),
+    mu = theta_0/(theta_1 + theta_0)
+  )
+
+df_educ_age_grid %>%
+  mutate(educ = as.factor(educ)) %>%
+  ggplot(aes(x = age, y = theta_0, color = educ, group = educ)) +
+  geom_line()
+
+df_educ_age_grid %>%
+  mutate(educ = as.factor(educ)) %>%
+  ggplot(aes(x = age, y = theta_1, color = educ, group = educ)) +
+  geom_line()
+
+df_educ_age_grid %>%
+  mutate(educ = as.factor(educ)) %>%
+  ggplot(aes(x = age, y = mu, color = educ, group = educ)) +
+  geom_line()
 
 #>> No ME ----
 
@@ -834,59 +844,59 @@ table_covariates_unrestricted <- stargazer::stargazer(
 output_file <- "./output/tables/SA/table_covariates_unrestricted.tex"
 cat(table_covariates_unrestricted, file = output_file, sep = "\n")
 
-# 
-# #>> Duration dependence (timegap and tenure) ----
-# 
-# df_estimate <- df_qlfs_tenure_timegap
-# 
-# df_covariate_combos <- df_estimate %>% 
-#   select(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>% 
-#   unique() %>% 
-#   na.omit %>% 
-#   data.table()
-# 
-# df_template_employment <- data.table::CJ(
-#   y1_star = c(0, 1), 
-#   y2_star = c(0, 1), 
-#   y3_star = c(0, 1)
-# ) 
-# 
-# # Add a temporary key column without overwriting any existing data
-# df_covariate_combos[, k := 1]
-# df_template_employment[, k := 1]
-# 
-# # Perform the join while ensuring no columns are omitted
-# df_template_covariates <- df_covariate_combos[df_template_employment, on = "k", allow.cartesian = TRUE]
-# 
-# # Remove the temporary key column `k` from the result
-# df_template_covariates[, k := NULL]
-# 
-# # param_init <- data.frame(intercept_0 = -2.524934, timegap = -0.1300759, intercept_1 = 1.02172, tenure = -0.6729012, pi = 0.02924524)
-# param_init <- data.frame(intercept_0 = -3.47, timegap = 0, intercept_1 = -3.47, tenure = 0, pi = 0.02924524)
-# param_init_transformed <- param_init
-# param_init_transformed$pi <- logit_transform(param_init$pi)
-# 
-# 
-# model_mle_3w_ar1_covariates2 <- maxLik::maxLik(
-#   calc_mle_3waves_ar1_covariates2,
-#   grad = calc_mle_derivatives_3waves_ar1_covariates2,
-#   start = param_init_transformed,
-#   method = "BFGS",
-#   reltol = 0,
-#   gradtol = 0
-# )
-# 
-# model_mle_3w_ar1_covariates2$estimate
-# model_mle_3w_ar1_covariates2$maximum
-# 
-# model_mle_3w_ar1_covariates2 <- maxLik::maxLik(
-#   calc_mle_3waves_ar1_covariates2,
-#   grad = calc_mle_derivatives_3waves_ar1_covariates2,
-#   start = model_mle_3w_ar1_covariates2$estimate,
-#   method = "NR",
-#   reltol = 0,
-#   gradtol = 0
-# )
+
+#>> Duration dependence (timegap and tenure) ----
+
+df_estimate <- df_qlfs_tenure_timegap
+
+df_covariate_combos <- df_estimate %>%
+  select(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>%
+  unique() %>%
+  na.omit %>%
+  data.table()
+
+df_template_employment <- data.table::CJ(
+  y1_star = c(0, 1),
+  y2_star = c(0, 1),
+  y3_star = c(0, 1)
+)
+
+# Add a temporary key column without overwriting any existing data
+df_covariate_combos[, k := 1]
+df_template_employment[, k := 1]
+
+# Perform the join while ensuring no columns are omitted
+df_template_covariates <- df_covariate_combos[df_template_employment, on = "k", allow.cartesian = TRUE]
+
+# Remove the temporary key column `k` from the result
+df_template_covariates[, k := NULL]
+
+# param_init <- data.frame(intercept_0 = -2.524934, timegap = -0.1300759, intercept_1 = 1.02172, tenure = -0.6729012, pi = 0.02924524)
+param_init <- data.frame(intercept_0 = -3.47, timegap = 0, intercept_1 = -3.47, tenure = 0, pi = 0.02924524)
+param_init_transformed <- param_init
+param_init_transformed$pi <- logit_transform(param_init$pi)
+
+
+model_mle_3w_ar1_covariates2 <- maxLik::maxLik(
+  calc_lli_3waves_ar1_covariates_duration,
+  grad = calc_mle_derivatives_3waves_ar1_covariates_duration,
+  start = param_init_transformed,
+  method = "BFGS",
+  reltol = 0,
+  gradtol = 0
+)
+
+model_mle_3w_ar1_covariates2$estimate
+model_mle_3w_ar1_covariates2$maximum
+
+model_mle_3w_ar1_covariates2 <- maxLik::maxLik(
+  calc_mle_3waves_ar1_covariates2,
+  grad = calc_mle_derivatives_3waves_ar1_covariates2,
+  start = model_mle_3w_ar1_covariates2$estimate,
+  method = "NR",
+  reltol = 0,
+  gradtol = 0
+)
 # 
 # model_mle_3w_ar1_covariates2$estimate
 # model_mle_3w_ar1_covariates2$maximum
