@@ -28,6 +28,11 @@ source("scripts/define_estimation_functions_3waves_mle_ar1_misclassification_sym
 source("scripts/define_estimation_functions_3waves_mle_ar1_fmm_hessian.R")
 
 #> Define functions to create output tables ----
+
+# These are used because I couldnt find a better way to output maxLik
+# coefficients and the other useful statistics into a Latex table. 
+
+# Latex output table for simple models without covariates
 create_stargazer_table <- function(model_object, df, formula) {
   # Ensure required libraries are loaded
   if (!requireNamespace("maxLik", quietly = TRUE) || 
@@ -59,6 +64,7 @@ create_stargazer_table <- function(model_object, df, formula) {
   
 }
 
+# Latex output table for simple models with covariates that determine transition rates
 create_stargazer_table_covariates <- function(model_object, df, df_transition_probs, mean_transition_rates, formula1, formula2) {
   
   mat_X1 <- model.matrix(as.formula(formula1), df)
@@ -133,6 +139,7 @@ create_stargazer_table_covariates <- function(model_object, df, df_transition_pr
   return(lm_model)
 }
 
+# Latex output table for simple models with covariates that determine misclassification prob
 create_stargazer_table_symptoms <- function(model_object, df, formula) {
   
   formula <- as.formula(formula)
@@ -199,13 +206,13 @@ create_stargazer_table_symptoms <- function(model_object, df, formula) {
 # Run script that loads 3 wave SA data as df_qlfs
 source("scripts/ingest_data_3waves_SA.R")
 
+# Limit survey rounds and calculate weights to be consistent within panel and to sum to 1
 df_qlfs <- df_qlfs %>% 
   filter(period1 >= 30 & period1 <= 32) %>% 
-  mutate(weight_total = sum(weight)) 
-
-df_qlfs <- df_qlfs %>% 
+  mutate(weight_total = sum(weight))  %>% 
   mutate(weight = dim(df_qlfs)[1]*weight/weight_total) 
 
+# Create data set with covariates for specific models estimated below
 df_qlfs_age_educ <- df_qlfs %>% 
   filter(!is.na(age1) & !is.na(age2) & !is.na(age3)) %>% 
   filter(!is.na(educ1) & !is.na(educ2) & !is.na(educ3))
@@ -643,6 +650,17 @@ mean_transition_rates <- df_transition_probs %>%
     theta1_2 = weighted.mean(theta1_2, weight)
   )
 
+
+
+# lm_model_mle_3w_ar1_covariates_age_educ_female_race_contract <- create_stargazer_table_covariates(
+#   model_object = model_mle_3w_ar1_covariates_age_educ_female_race_contract, 
+#   df = df_estimate, 
+#   df_transition_probs, 
+#   mean_transition_rates,
+#   formula1 = "~ age1 +  I(age1^2) + educ1 + female1 + I(race1 == 2) + I(race1 == 3) + I(race1 == 4)", 
+#   formula2 = "~ age2 +  I(age2^2) + educ2 + female1 + I(race1 == 2) + I(race1 == 3) + I(race1 == 4)"
+# )
+
 #>> Covariates (age, educ, female, race & contract) & ME ----
 
 df_estimate <- df_qlfs_age_educ_female_race_contract
@@ -672,7 +690,7 @@ df_template_covariates_age_educ_female_race_contract <- df_covariate_combos[df_t
 # Remove the temporary key column `k` from the result
 df_template_covariates_age_educ_female_race_contract[, k := NULL]
 
-param_init <- data.frame(intercept_0 = -9.200884, age_0 = 0.353941, age2_0 = -0.004574609, educ_0 = 0.02526308, female_0 = -0.75322, race2_0 = 0.1216257, race3_0 = -1.188118, race4_0 = -0.7020223, intercept_1 = 0.6947394, age_1 = -0.09688445, age2_1 = 0.000684121, educ_1 = -0.1141063, female_1 = 0.02715901, race2_1 = -0.2864189, race3_1 = -1.388325, race4_1 = -1.507239, contract = 1, contract_missing = 0.67, pi = 0.0222393)
+param_init <- data.frame(intercept_0 = -11.09761, age_0 = 0.4816279, age2_0 = -0.006445747, educ_0 = 0.009268962 , female_0 = -0.4586408, race2_0 = 0.006957785, race3_0 = -1.202247, race4_0 = -0.5641202, intercept_1 = 7.782345, age_1 = 0.2402219, age2_1 = -0.003885501, educ_1 = -0.08984728, female_1 = 0.05677661, race2_1 = -0.1199074 , race3_1 = -1.575087, race4_1 = -1.800444 , contract = 0.807705, contract_missing = 4.848624, pi = 0.01719847)
 param_init_transformed <- param_init
 param_init_transformed$pi <- logit_transform(param_init$pi)
 
@@ -733,7 +751,9 @@ logit_inverse(model_mle_3w_ar1_covariates_age_educ_female_race_contract$estimate
 
 #>> No ME ----
 
-param_init <- data.frame(intercept_0 = -9.480411, age_0 = 0.3578881, age2_0 = -0.004708052, educ_0 = 0.007591136, female_0 = 0, race2_0 = 0, race3_0 = 0, race4_0 = 0, intercept_1 = 0.3971249, age_1 = -0.06975788, age2_1 = 0.0002472373, educ_1 = -0.1404834, female_1 = 0, race2_1 = 0, race3_1 = 0, race4_1 = 0, contract = 1, contract_missing = 0.67)
+param_init <- data.frame(intercept_0 = -9.480411, age_0 = 0.3694859, age2_0 = -0.004521592, educ_0 = 0.08960009, female_0 = -1.162182 , race2_0 = 0.2146799, race3_0 = -0.0138424, race4_0 = 0.2491305,
+                         intercept_1 = 0.3905569, age_1 = -0.1650995, age2_1 = 0.001647857, educ_1 = -0.1005749, female_1 = 0.9313917 , race2_1 = -0.1968393 , race3_1 = -0.06141175, race4_1 = -0.3832552, 
+                         contract = 0.4761247, contract_missing = 5.966967)
 param_init_transformed <- param_init
 
 model_mle_3w_ar1_covariates_age_educ_female_race_contract_pi0 <- maxLik::maxLik(
@@ -777,7 +797,6 @@ df_estimate %>%
     theta1_1 = weighted.mean(theta1_1, weight),
     theta1_2 = weighted.mean(theta1_2, weight)
   )
-
 #>> Creat Latex table ====
 
 # Generate the stargazer table
