@@ -2,9 +2,15 @@
 
 #> General functions that restrict parameter values to unit interval
 
+# Transform parameter from (0,1) to (-Inf,Inf) using logit transformation
+# This allows optimization over unconstrained parameters
+
 logit_transform <- function(param0) {
   log(param0/(1 - param0))
 }
+
+# Transform parameter from (-Inf,Inf) to (0,1) using inverse logit (sigmoid)
+# This maps optimized unconstrained parameters back to constrained space
 
 logit_inverse <- function(param_input0) {
   1/(1 + exp(-param_input0))
@@ -15,6 +21,8 @@ logit_inverse <- function(param_input0) {
 calc_lli_3waves_ar1_covariates_age_educ <- function(param_transformed, pi0 = FALSE) {
   
   param <- param_transformed
+  
+  # Force misclassification probability to zero if specified
   if(pi0) param$pi <- 0
   if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
