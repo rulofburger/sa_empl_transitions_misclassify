@@ -4,9 +4,9 @@
 
 # SUMMARY:
 
-# INITIALISE ====
-
-# INITIALISE ====
+#-------------------------------------------------------------------------------
+# 1) INITIALISE-----------------------------------------------------------------
+#-------------------------------------------------------------------------------
 # Source environment/functions
 
 # Load libraries
@@ -239,9 +239,20 @@ df_qlfs_age_educ_female_race_contract <- df_qlfs_age_educ_female_race %>%
 
 # ESTIMATE MODELS ====
 
+
+
+#-------------------------------------------------------------------------------
+# 2) THREE WAVES AR(1)----------------------------------------------------------
+#-------------------------------------------------------------------------------
+
 #> 3 waves, AR(1), no covariates ==== 
 
-df_template <- data.table::CJ(y1 = c(0, 1), y1_star = c(0, 1), y2 = c(0, 1), y2_star = c(0, 1), y3 = c(0, 1), y3_star = c(0, 1)) 
+df_template <- data.table::CJ(y1      = c(0, 1), 
+                              y1_star = c(0, 1), 
+                              y2      = c(0, 1), 
+                              y2_star = c(0, 1), 
+                              y3      = c(0, 1), 
+                              y3_star = c(0, 1)) 
 df_estimate <- df_qlfs
 
 #>> No ME ----
@@ -348,61 +359,79 @@ table_simple_implied <- stargazer::stargazer(
 output_file <- "./output/tables/SA/table_simple_implied.tex"
 cat(table_simple_implied, file = output_file, sep = "\n")
 
+
+
+#-------------------------------------------------------------------------------
+# 3) COVARIATES: AGE & EDUC-----------------------------------------------------
+#-------------------------------------------------------------------------------
+
 #> Covariates that affect transitions ====
 
 #>> Covariates (age and educ) & ME ----
 
 df_estimate <- df_qlfs_age_educ
 
-df_covariate_combos <- df_qlfs_age_educ %>% 
-  select(age1, age2, educ1, educ2) %>% 
+df_covariate_combos <- 
+  df_qlfs_age_educ %>% 
+  select(age1, 
+         age2, 
+         educ1, 
+         educ2) %>% 
   unique() %>% 
   na.omit %>% 
   data.table()
 
 df_template_employment <- data.table::CJ(
-  y1 = c(0, 1), 
+  y1      = c(0, 1), 
   y1_star = c(0, 1), 
-  y2 = c(0, 1), 
+  y2      = c(0, 1), 
   y2_star = c(0, 1), 
-  y3 = c(0, 1), 
-  y3_star = c(0, 1)
-  ) 
+  y3      = c(0, 1), 
+  y3_star = c(0, 1)) 
 
 # Add a temporary key column without overwriting any existing data
 df_covariate_combos[, k := 1]
 df_template_employment[, k := 1]
 
 # Perform the join while ensuring no columns are omitted
-df_template_covariates_age_educ <- df_covariate_combos[df_template_employment, on = "k", allow.cartesian = TRUE]
+df_template_covariates_age_educ <- 
+  df_covariate_combos[df_template_employment, 
+                      on              = "k", 
+                      allow.cartesian = TRUE]
 
 # Remove the temporary key column `k` from the result
 df_template_covariates_age_educ[, k := NULL]
 
-param_init <- data.frame(intercept_0 = -9.480411, age_0 = 0.3578881, age2_0 = -0.004708052, educ_0 = 0.007591136, intercept_1 = 0.3971249, age_1 = -0.06975788, age2_1 = 0.0002472373, educ_1 = -0.1404834, pi = 0.02375949)
-param_init_transformed <- param_init
+param_init <- data.frame(intercept_0 = -9.480411, 
+                         age_0       = 0.3578881, 
+                         age2_0      = -0.004708052, 
+                         educ_0      = 0.007591136, 
+                         intercept_1 = 0.3971249, 
+                         age_1       = -0.06975788, 
+                         age2_1      = 0.0002472373, 
+                         educ_1      = -0.1404834, 
+                         pi          = 0.02375949)
+param_init_transformed    <- param_init
 param_init_transformed$pi <- logit_transform(param_init$pi)
 
 model_mle_3w_ar1_covariates_age_educ <- maxLik::maxLik(
   calc_mle_3waves_ar1_covariates_age_educ,
-  grad = calc_mle_derivatives_3waves_ar1_covariates_age_educ,
-  start = param_init_transformed,
-  method = "BFGS",
-  reltol = 0,
-  gradtol = 0
-)
+  grad    = calc_mle_derivatives_3waves_ar1_covariates_age_educ,
+  start   = param_init_transformed,
+  method  = "BFGS",
+  reltol  = 0,
+  gradtol = 0)
 
 model_mle_3w_ar1_covariates_age_educ$estimate
 model_mle_3w_ar1_covariates_age_educ$maximum
 
 model_mle_3w_ar1_covariates_age_educ <- maxLik::maxLik(
   calc_mle_3waves_ar1_covariates_age_educ,
-  grad = calc_mle_derivatives_3waves_ar1_covariates_age_educ,
-  start = model_mle_3w_ar1_covariates_age_educ$estimate,
-  method = "NR",
-  reltol = 0,
-  gradtol = 0
-)
+  grad    = calc_mle_derivatives_3waves_ar1_covariates_age_educ,
+  start   = model_mle_3w_ar1_covariates_age_educ$estimate,
+  method  = "NR",
+  reltol  = 0,
+  gradtol = 0)
 
 model_mle_3w_ar1_covariates_age_educ$estimate
 model_mle_3w_ar1_covariates_age_educ$maximum
@@ -410,84 +439,112 @@ model_mle_3w_ar1_covariates_age_educ$maximum
 param_temp <- model_mle_3w_ar1_covariates_age_educ$estimate
 
 df_transition_probs <- df_estimate %>% 
-  mutate(
-    theta0_1 = logit_inverse(param_temp$intercept_0 + param_temp$age_0*age1 + param_temp$age2_0*age1^2 + param_temp$educ_0*educ1),
-    theta0_2 = logit_inverse(param_temp$intercept_0 + param_temp$age_0*age2 + param_temp$age2_0*age2^2 + param_temp$educ_0*educ2),
-    theta1_1 = logit_inverse(param_temp$intercept_1 + param_temp$age_1*age1 + param_temp$age2_1*age1^2 + param_temp$educ_1*educ1),
-    theta1_2 = logit_inverse(param_temp$intercept_1 + param_temp$age_1*age2 + param_temp$age2_1*age2^2 + param_temp$educ_1*educ2),
-    mu_1 = theta0_1/(theta1_1 + theta0_1)
-  )
+  fmutate(
+    theta0_1 = logit_inverse(param_temp$intercept_0 + 
+                               param_temp$age_0*age1 + 
+                               param_temp$age2_0*age1^2 + 
+                               param_temp$educ_0*educ1),
+    theta0_2 = logit_inverse(param_temp$intercept_0 + 
+                               param_temp$age_0*age2 + 
+                               param_temp$age2_0*age2^2 + 
+                               param_temp$educ_0*educ2),
+    theta1_1 = logit_inverse(param_temp$intercept_1 + 
+                               param_temp$age_1*age1 + 
+                               param_temp$age2_1*age1^2 + 
+                               param_temp$educ_1*educ1),
+    theta1_2 = logit_inverse(param_temp$intercept_1 + 
+                               param_temp$age_1*age2 + 
+                               param_temp$age2_1*age2^2 + 
+                               param_temp$educ_1*educ2),
+    mu_1     = theta0_1/(theta1_1 + theta0_1))
 
 mean_transition_rates <- df_transition_probs %>% 
-  summarise(
-    theta0_1 = weighted.mean(theta0_1, weight),
-    theta0_2 = weighted.mean(theta0_2, weight),
-    theta1_1 = weighted.mean(theta1_1, weight),
-    theta1_2 = weighted.mean(theta1_2, weight)
-  )
+  fsummarise(
+    theta0_1 = fmean(theta0_1, weight),
+    theta0_2 = fmean(theta0_2, weight),
+    theta1_1 = fmean(theta1_1, weight),
+    theta1_2 = fmean(theta1_2, weight))
 
 logit_inverse(model_mle_3w_ar1_covariates_age_educ$estimate$pi)
 
 lm_model_mle_3w_ar1_covariates_age_educ <- create_stargazer_table_covariates(
   model_object = model_mle_3w_ar1_covariates_age_educ, 
-  df = df_estimate, 
+  df           = df_estimate, 
   df_transition_probs, 
   mean_transition_rates,
-  formula1 = "~ age1 +  I(age1^2) + educ1", 
-  formula2 = "~ age2 +  I(age2^2) + educ2"
-)
+  formula1     = "~ age1 +  I(age1^2) + educ1", 
+  formula2     = "~ age2 +  I(age2^2) + educ2")
 
 
 df_educ_age_grid <- data.table::CJ(
   age = seq(18,55),
-  educ = seq(0, 17)
-) %>%
-  mutate(
-    theta_0 = logit_inverse(param_temp$intercept_0 + param_temp$age_0*age + param_temp$age2_0*age^2 + param_temp$educ_0*educ),
-    theta_1 = logit_inverse(param_temp$intercept_1 + param_temp$age_1*age + param_temp$age2_1*age^2 + param_temp$educ_1*educ),
-    mu = theta_0/(theta_1 + theta_0)
-  )
+  educ = seq(0, 17)) %>%
+  fmutate(
+    theta_0 = logit_inverse(param_temp$intercept_0 + 
+                              param_temp$age_0*age + 
+                              param_temp$age2_0*age^2 + 
+                              param_temp$educ_0*educ),
+    theta_1 = logit_inverse(param_temp$intercept_1 + 
+                              param_temp$age_1*age + 
+                              param_temp$age2_1*age^2 + 
+                              param_temp$educ_1*educ),
+    mu      = theta_0/(theta_1 + theta_0))
 
 df_educ_age_grid %>%
   mutate(educ = as.factor(educ)) %>%
-  ggplot(aes(x = age, y = theta_0, color = educ, group = educ)) +
+  ggplot(aes(x     = age, 
+             y     = theta_0, 
+             color = educ, 
+             group = educ)) +
   geom_line()
 
 df_educ_age_grid %>%
   mutate(educ = as.factor(educ)) %>%
-  ggplot(aes(x = age, y = theta_1, color = educ, group = educ)) +
+  ggplot(aes(x     = age, 
+             y     = theta_1, 
+             color = educ, 
+             group = educ)) +
   geom_line()
 
 df_educ_age_grid %>%
   mutate(educ = as.factor(educ)) %>%
-  ggplot(aes(x = age, y = mu, color = educ, group = educ)) +
+  ggplot(aes(x     = age, 
+             y     = mu, 
+             color = educ, 
+             group = educ)) +
   geom_line()
 
 #>> No ME ----
 
-param_init <- data.frame(intercept_0 = -7.517197, age_0 = 0.263745, age2_0 = -0.003260282, educ_0 = 0.03267523, intercept_1 = 2.445478, age_1 = -0.1652242, age2_1 = 0.001691698, educ_1 = -0.1187962)
+param_init <- data.frame(intercept_0 = -7.517197, 
+                         age_0       = 0.263745, 
+                         age2_0      = -0.003260282, 
+                         educ_0      = 0.03267523, 
+                         intercept_1 = 2.445478, 
+                         age_1       = -0.1652242, 
+                         age2_1      = 0.001691698, 
+                         educ_1      = -0.1187962)
 param_init_transformed <- param_init
+
 
 model_mle_3w_ar1_covariates_age_educ_pi0 <- maxLik::maxLik(
   calc_mle_3waves_ar1_covariates_age_educ_pi0,
-  grad = calc_mle_derivatives_3waves_ar1_covariates_age_educ_pi0,
-  start = param_init_transformed,
-  method = "BFGS",
-  reltol = 0,
-  gradtol = 0
-)
+  grad    = calc_mle_derivatives_3waves_ar1_covariates_age_educ_pi0,
+  start   = param_init_transformed,
+  method  = "BFGS",
+  reltol  = 0,
+  gradtol = 0)
 
 model_mle_3w_ar1_covariates_age_educ_pi0$estimate
 model_mle_3w_ar1_covariates_age_educ_pi0$maximum
 
 model_mle_3w_ar1_covariates_age_educ_pi0 <- maxLik::maxLik(
   calc_mle_3waves_ar1_covariates_age_educ_pi0,
-  grad = calc_mle_derivatives_3waves_ar1_covariates_age_educ_pi0,
-  start = model_mle_3w_ar1_covariates_age_educ_pi0$estimate,
-  method = "NR",
-  reltol = 0,
-  gradtol = 0
-)
+  grad    = calc_mle_derivatives_3waves_ar1_covariates_age_educ_pi0,
+  start   = model_mle_3w_ar1_covariates_age_educ_pi0$estimate,
+  method  = "NR",
+  reltol  = 0,
+  gradtol = 0)
 
 model_mle_3w_ar1_covariates_age_educ_pi0$estimate
 model_mle_3w_ar1_covariates_age_educ_pi0$maximum
@@ -513,6 +570,9 @@ mean_transition_rates <- df_transition_probs %>%
   )
 
 #>> Covariates (age, educ, female & race) & ME ----
+#-------------------------------------------------------------------------------
+# 4) COVARIATES: AGE & EDUC & FEMALE & RACE-------------------------------------
+#-------------------------------------------------------------------------------
 
 df_estimate <- df_qlfs_age_educ_female_race
 
