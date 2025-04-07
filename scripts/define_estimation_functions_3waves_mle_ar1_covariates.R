@@ -372,6 +372,7 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race <- function(para
   
   # Conditional probabilities
   with(df_template_covariates_age_educ_female_race, {
+    
     p1_star <- fifelse(y1_star == 1, mu_1, 1 - mu_1)
     p2_star <- (1 - theta0_1) * (y1_star == 0 & y2_star == 0) +
       theta0_1 * (y1_star == 0 & y2_star == 1) +
@@ -407,7 +408,7 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race <- function(para
     joint_d_theta1_1 <- (d1_star_theta1_1 / p1_star + d2_star_theta1_1 / p2_star) * joint_p
     joint_d_theta0_2 <- d3_star_theta0_2 / p3_star * joint_p
     joint_d_theta1_2 <- d3_star_theta1_2 / p3_star * joint_p
-    joint_d_pi <- (d1_pi / p1 + d2_pi / p2 + d3_pi / p3) * joint_p
+    joint_d_pi       <- (d1_pi / p1 + d2_pi / p2 + d3_pi / p3) * joint_p
     
     # Collapse-based grouped summary
     df_grad <- fgroup_by(df_template_covariates_age_educ_female_race, 
@@ -438,28 +439,27 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race <- function(para
     # Chain second-stage derivs
     fmutate(
       df_grad,
-      joint_d_theta0_1 = joint_d_theta0_1 * theta0_1 * (1 - theta0_1),
-      joint_d_theta0_2 = joint_d_theta0_2 * theta0_2 * (1 - theta0_2),
-      joint_d_theta1_1 = joint_d_theta1_1 * theta1_1 * (1 - theta1_1),
-      joint_d_theta1_2 = joint_d_theta1_2 * theta1_2 * (1 - theta1_2),
-      joint_d_pi = joint_d_pi * param$pi * (1 - param$pi),
+      joint_d_theta0_1    = joint_d_theta0_1 * theta0_1 * (1 - theta0_1),
+      joint_d_theta0_2    = joint_d_theta0_2 * theta0_2 * (1 - theta0_2),
+      joint_d_theta1_1    = joint_d_theta1_1 * theta1_1 * (1 - theta1_1),
+      joint_d_theta1_2    = joint_d_theta1_2 * theta1_2 * (1 - theta1_2),
+      joint_d_pi          = joint_d_pi * param$pi * (1 - param$pi),
       joint_d_intercept_0 = joint_d_theta0_1 + joint_d_theta0_2,
-      joint_d_age_0 = joint_d_theta0_1 * age1 + joint_d_theta0_2 * age2,
-      joint_d_age2_0 = joint_d_theta0_1 * (age1^2) + joint_d_theta0_2 * (age2^2),
-      joint_d_educ_0 = joint_d_theta0_1 * educ1 + joint_d_theta0_2 * educ2,
-      joint_d_female_0 = joint_d_theta0_1 * female1 + joint_d_theta0_2 * female2,
-      joint_d_race2_0 = joint_d_theta0_1 * (race1 == 2) + joint_d_theta0_2 * (race2 == 2),
-      joint_d_race3_0 = joint_d_theta0_1 * (race1 == 3) + joint_d_theta0_2 * (race2 == 3),
-      joint_d_race4_0 = joint_d_theta0_1 * (race1 == 4) + joint_d_theta0_2 * (race2 == 4),
+      joint_d_age_0       = joint_d_theta0_1 * age1 + joint_d_theta0_2 * age2,
+      joint_d_age2_0      = joint_d_theta0_1 * (age1^2) + joint_d_theta0_2 * (age2^2),
+      joint_d_educ_0      = joint_d_theta0_1 * educ1 + joint_d_theta0_2 * educ2,
+      joint_d_female_0    = joint_d_theta0_1 * female1 + joint_d_theta0_2 * female2,
+      joint_d_race2_0     = joint_d_theta0_1 * (race1 == 2) + joint_d_theta0_2 * (race2 == 2),
+      joint_d_race3_0     = joint_d_theta0_1 * (race1 == 3) + joint_d_theta0_2 * (race2 == 3),
+      joint_d_race4_0     = joint_d_theta0_1 * (race1 == 4) + joint_d_theta0_2 * (race2 == 4),
       joint_d_intercept_1 = joint_d_theta1_1 + joint_d_theta1_2,
-      joint_d_age_1 = joint_d_theta1_1 * age1 + joint_d_theta1_2 * age2,
-      joint_d_age2_1 = joint_d_theta1_1 * (age1^2) + joint_d_theta1_2 * (age2^2),
-      joint_d_educ_1 = joint_d_theta1_1 * educ1 + joint_d_theta1_2 * educ2,
-      joint_d_female_1 = joint_d_theta1_1 * female1 + joint_d_theta1_2 * female2,
-      joint_d_race2_1 = joint_d_theta1_1 * (race1 == 2) + joint_d_theta1_2 * (race2 == 2),
-      joint_d_race3_1 = joint_d_theta1_1 * (race1 == 3) + joint_d_theta1_2 * (race2 == 3),
-      joint_d_race4_1 = joint_d_theta1_1 * (race1 == 4) + joint_d_theta1_2 * (race2 == 4)
-    ) |>
+      joint_d_age_1       = joint_d_theta1_1 * age1 + joint_d_theta1_2 * age2,
+      joint_d_age2_1      = joint_d_theta1_1 * (age1^2) + joint_d_theta1_2 * (age2^2),
+      joint_d_educ_1      = joint_d_theta1_1 * educ1 + joint_d_theta1_2 * educ2,
+      joint_d_female_1    = joint_d_theta1_1 * female1 + joint_d_theta1_2 * female2,
+      joint_d_race2_1     = joint_d_theta1_1 * (race1 == 2) + joint_d_theta1_2 * (race2 == 2),
+      joint_d_race3_1     = joint_d_theta1_1 * (race1 == 3) + joint_d_theta1_2 * (race2 == 3),
+      joint_d_race4_1     = joint_d_theta1_1 * (race1 == 4) + joint_d_theta1_2 * (race2 == 4)) |>
       join(df_estimate, 
            on = c("y1", 
                   "y2", 
@@ -516,209 +516,339 @@ calc_mle_derivatives_3waves_ar1_covariates_age_educ_female_race_pi0 <- function(
 }
 
 # COVARIATE DEPENDENT TRANSITION RATES: EDUC + AGE + RACE + FEMALE + CONTRACT ====
-
-calc_lli_3waves_ar1_covariates_age_educ_female_race_contract <- function(param_transformed, pi0 = FALSE) {
+calc_lli_3waves_ar1_covariates_age_educ_female_race_contract_ <- function(param_transformed, pi0 = FALSE) {
+  param    <- param_transformed
+  param$pi <- if (pi0) 0 else logit_inverse(param$pi)
   
-  param <- param_transformed
-  if(pi0) param$pi <- 0
-  if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
+  df <- df_template_covariates_age_educ_female_race_contract
   
-  df_probs_temp <- df_template_covariates_age_educ_female_race_contract %>% 
-    mutate(
-      theta0_1 = logit_inverse(param$intercept_0 + param$age_0*age1 + param$age2_0*age1^2 + param$educ_0*educ1 + param$female_0*female1 + param$race2_0*(race1 == 2) + param$race3_0*(race1 == 3) + param$race4_0*(race1 == 4)),
-      theta0_2 = logit_inverse(param$intercept_0 + param$age_0*age2 + param$age2_0*age2^2 + param$educ_0*educ2 + param$female_0*female2 + param$race2_0*(race2 == 2) + param$race3_0*(race2 == 3) + param$race4_0*(race2 == 4)),
-      theta1_1 = logit_inverse(param$intercept_1 + param$age_1*age1 + param$age2_1*age1^2 + param$educ_1*educ1 + param$female_1*female1 + param$race2_1*(race1 == 2) + param$race3_1*(race1 == 3) + param$race4_1*(race1 == 4) + param$contract*contracttype1 + param$contract*param$contract_missing*contracttype1_missing),
-      theta1_2 = logit_inverse(param$intercept_1 + param$age_1*age2 + param$age2_1*age2^2 + param$educ_1*educ2 + param$female_1*female2 + param$race2_1*(race2 == 2) + param$race3_1*(race2 == 3) + param$race4_1*(race2 == 4) + param$contract*contracttype2 + param$contract*param$contract_missing*contracttype2_missing),
-      mu_1 = theta0_1/(theta1_1 + theta0_1)
-    ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
-      ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
-      ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
-      joint_p = p1_star*p1*p2_star*p2*p3_star*p3
-    ) 
+  # Precompute linear predictors
+  linpred <- ftransform(
+    df,
+    lp00 = param$intercept_0 + 
+      param$age_0 * age1 + 
+      param$age2_0 * age1^2 + 
+      param$educ_0 * educ1 +
+      param$female_0 * female1 +
+      param$race2_0 * (race1 == 2) + 
+      param$race3_0 * (race1 == 3) + 
+      param$race4_0 * (race1 == 4),
+    lp01 = param$intercept_0 + 
+      param$age_0 * age2 + 
+      param$age2_0 * age2^2 + 
+      param$educ_0 * educ2 +
+      param$female_0 * female2 + 
+      param$race2_0 * (race2 == 2) +
+      param$race3_0 * (race2 == 3) + 
+      param$race4_0 * (race2 == 4),
+    lp10 = param$intercept_1 + 
+      param$age_1 * age1 + 
+      param$age2_1 * age1^2 + 
+      param$educ_1 * educ1 +
+      param$female_1 * female1 + 
+      param$race2_1 * (race1 == 2) + 
+      param$race3_1 * (race1 == 3) + 
+      param$race4_1 * (race1 == 4) +
+      param$contract * contracttype1 + 
+      param$contract * param$contract_missing * contracttype1_missing,
+    lp11 = param$intercept_1 + 
+      param$age_1 * age2 + 
+      param$age2_1 * age2^2 + 
+      param$educ_1 * educ2 +
+      param$female_1 * female2 + 
+      param$race2_1 * (race2 == 2) + 
+      param$race3_1 * (race2 == 3) + 
+      param$race4_1 * (race2 == 4) +
+      param$contract * contracttype2 + 
+      param$contract * param$contract_missing * contracttype2_missing)
   
-  df_probs <- df_probs_temp %>% 
-    group_by(y1, y2, y3, age1, age2, educ1, educ2, female1, female2, race1, race2, contracttype1, contracttype2, contracttype1_missing , contracttype2_missing) %>% 
-    summarise(joint_p = sum(joint_p), .groups = "drop")
+  # Compute transition probabilities
+  linpred <- linpred |> 
+    fmutate(
+      th00 = logit_inverse(lp00),
+      th01 = logit_inverse(lp01),
+      th10 = logit_inverse(lp10),
+      th11 = logit_inverse(lp11),
+      mu1  = th00 / (th00 + th10))
   
-  df_lli <- df_estimate %>% 
-    left_join(df_probs, by = c('y1', 'y2', 'y3', 'age1', 'age2', 'educ1', 'educ2', 'female1', 'female2', 'race1', 'race2', 'contracttype1', 'contracttype2', 'contracttype1_missing', 'contracttype2_missing')) %>% 
-    mutate(lli = weight*log(joint_p)) %>%
+  # Indexed transitions
+  idx12 <- linpred$y1_star * 2 + linpred$y2_star + 1L
+  idx23 <- linpred$y2_star * 2 + linpred$y3_star + 1L
+  
+  mat_p2 <- cbind(1 - linpred$th00, 
+                  linpred$th00, 
+                  linpred$th10, 
+                  1 - linpred$th10)
+  mat_p3 <- cbind(1 - linpred$th01, 
+                  linpred$th01, 
+                  linpred$th11, 
+                  1 - linpred$th11)
+  
+  df_probs_temp <- linpred |> 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu1, 1 - mu1),
+      p2_star = mat_p2[cbind(seq_len(nrow(df)), idx12)],
+      p3_star = mat_p3[cbind(seq_len(nrow(df)), idx23)],
+      p1      = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2      = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3      = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
+      joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3)
+  
+  # Collapse-style group summarise
+  df_probs <- fgroup_by(
+    df_probs_temp,
+    y1, 
+    y2, 
+    y3, 
+    age1, 
+    age2, 
+    educ1, 
+    educ2, 
+    female1, 
+    female2, 
+    race1, 
+    race2,
+    contracttype1, 
+    contracttype2, 
+    contracttype1_missing, 
+    contracttype2_missing) |> 
+    fsummarise(joint_p = fsum(joint_p)) |> 
+    fungroup()
+  
+  # Final log-likelihood vector
+  ftransform(
+    join(df_estimate, df_probs,
+         on = c("y1", 
+                "y2", 
+                "y3", 
+                "age1",
+                "age2", 
+                "educ1", 
+                "educ2", 
+                "female1", 
+                "female2",
+                "race1", 
+                "race2", 
+                "contracttype1", 
+                "contracttype2", 
+                "contracttype1_missing", 
+                "contracttype2_missing"),
+         verbose  = FALSE, 
+         validate = F),
+    lli = weight * log(joint_p)
+  ) |> 
     pull(lli)
-  
-  
 }
 
-calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract <- function(param_transformed, pi0 = FALSE) {
+
+
+calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract_fst <- function(param_transformed, pi0 = FALSE) {
   
   param <- param_transformed
-  if(pi0) param$pi <- 0
-  if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
+  param$pi <- if (pi0) 0 else logit_inverse(param$pi)
   
-  df_probs_temp <- df_template_covariates_age_educ_female_race_contract %>% 
-    mutate(
-      theta0_1 = logit_inverse(param$intercept_0 + param$age_0*age1 + param$age2_0*age1^2 + param$educ_0*educ1 + param$female_0*female1 + param$race2_0*(race1 == 2) + param$race3_0*(race1 == 3) + param$race4_0*(race1 == 4)),
-      theta0_2 = logit_inverse(param$intercept_0 + param$age_0*age2 + param$age2_0*age2^2 + param$educ_0*educ2 + param$female_0*female2 + param$race2_0*(race2 == 2) + param$race3_0*(race2 == 3) + param$race4_0*(race2 == 4)),
-      theta1_1 = logit_inverse(param$intercept_1 + param$age_1*age1 + param$age2_1*age1^2 + param$educ_1*educ1 + param$female_1*female1 + param$race2_1*(race1 == 2) + param$race3_1*(race1 == 3) + param$race4_1*(race1 == 4) + param$contract*contracttype1 + param$contract*param$contract_missing*contracttype1_missing),
-      theta1_2 = logit_inverse(param$intercept_1 + param$age_1*age2 + param$age2_1*age2^2 + param$educ_1*educ2 + param$female_1*female2 + param$race2_1*(race2 == 2) + param$race3_1*(race2 == 3) + param$race4_1*(race2 == 4) + param$contract*contracttype2 + param$contract*param$contract_missing*contracttype2_missing),
-      mu_1 = theta0_1/(theta1_1 + theta0_1)
-    ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
-      ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
-      ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
-      joint_p = p1_star*p1*p2_star*p2*p3_star*p3
-    ) %>% 
-    mutate(
-      d1_star_theta0_1 = case_when(
-        y1_star == 0 ~ -theta1_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ theta1_1/((theta1_1 + theta0_1)^2)
-      ),
-      d1_star_theta1_1 = case_when(
-        y1_star == 0 ~ theta0_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ -theta0_1/((theta1_1 + theta0_1)^2)
-      ),
-      d2_star_theta0_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ -1,
-        y1_star == 0 & y2_star == 1 ~ 1,
-        y1_star == 1 & y2_star == 0 ~ 0,
-        y1_star == 1 & y2_star == 1 ~ 0
-      ),
-      d2_star_theta1_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ 0,
-        y1_star == 0 & y2_star == 1 ~ 0,
-        y1_star == 1 & y2_star == 0 ~ 1,
-        y1_star == 1 & y2_star == 1 ~ -1
-      ),
-      d3_star_theta0_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ -1,
-        y2_star == 0 & y3_star == 1 ~ 1,
-        y2_star == 1 & y3_star == 0 ~ 0,
-        y2_star == 1 & y3_star == 1 ~ 0
-      ),
-      d3_star_theta1_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ 0,
-        y2_star == 0 & y3_star == 1 ~ 0,
-        y2_star == 1 & y3_star == 0 ~ 1,
-        y2_star == 1 & y3_star == 1 ~ -1
-      ),
-      d1_pi = if_else(y1 == y1_star, -1, 1),
-      d2_pi = if_else(y2 == y2_star, -1, 1),
-      d3_pi = if_else(y3 == y3_star, -1, 1),
-      joint_d_theta0_1 = 
-        d1_star_theta0_1*joint_p/p1_star + 
-        d2_star_theta0_1*joint_p/p2_star,
-      joint_d_theta0_2 = 
-        d3_star_theta0_2*joint_p/p3_star,
-      joint_d_theta1_1 = 
-        d1_star_theta1_1*joint_p/p1_star + 
-        d2_star_theta1_1*joint_p/p2_star,
-      joint_d_theta1_2 = 
-        d3_star_theta1_2*joint_p/p3_star,
-      joint_d_pi = 
-        d1_pi*joint_p/p1 + 
-        d2_pi*joint_p/p2 + 
-        d3_pi*joint_p/p3
-    ) 
+  df <- df_template_covariates_age_educ_female_race_contract
   
-  df_grad <- df_probs_temp %>% 
-    group_by(y1, y2, y3, age1, age2, educ1, educ2, female1, female2, race1, race2, contracttype1, contracttype2, contracttype1_missing, contracttype2_missing) %>% 
-    summarise(
-      joint_d_theta0_1 = sum(joint_d_theta0_1),
-      joint_d_theta0_2 = sum(joint_d_theta0_2),
-      joint_d_theta1_1 = sum(joint_d_theta1_1),
-      joint_d_theta1_2 = sum(joint_d_theta1_2), 
-      joint_d_pi = sum(joint_d_pi),
-      joint_p = sum(joint_p),
-      theta0_1 = mean(theta0_1),
-      theta0_2 = mean(theta0_2),
-      theta1_1 = mean(theta1_1),
-      theta1_2 = mean(theta1_2),
-      .groups = "drop") %>% 
-    mutate(
-      joint_d_theta0_1 = joint_d_theta0_1*theta0_1*(1 - theta0_1), 
-      joint_d_theta0_2 = joint_d_theta0_2*theta0_2*(1 - theta0_2),
-      joint_d_theta1_1 = joint_d_theta1_1*theta1_1*(1 - theta1_1), 
-      joint_d_theta1_2 = joint_d_theta1_2*theta1_2*(1 - theta1_2),
-      joint_d_pi = joint_d_pi*param$pi*(1 - param$pi)
-    ) %>%
-    mutate(
-      joint_d_intercept_0 = joint_d_theta0_1 + joint_d_theta0_2,
-      joint_d_age_0 = joint_d_theta0_1*age1 + joint_d_theta0_2*age2,
-      joint_d_age2_0 = joint_d_theta0_1*(age1^2) + joint_d_theta0_2*(age2^2),
-      joint_d_educ_0 = joint_d_theta0_1*educ1 + joint_d_theta0_2*educ2,
-      joint_d_female_0 = joint_d_theta0_1*female1 + joint_d_theta0_2*female2,
-      joint_d_race2_0 = joint_d_theta0_1*(race1 == 2) + joint_d_theta0_2*(race2 == 2),
-      joint_d_race3_0 = joint_d_theta0_1*(race1 == 3) + joint_d_theta0_2*(race2 == 3),
-      joint_d_race4_0 = joint_d_theta0_1*(race1 == 4) + joint_d_theta0_2*(race2 == 4),
-      joint_d_intercept_1 = joint_d_theta1_1 + joint_d_theta1_2,
-      joint_d_age_1 = joint_d_theta1_1*age1 + joint_d_theta1_2*age2,
-      joint_d_age2_1 = joint_d_theta1_1*(age1^2) + joint_d_theta1_2*(age2^2),
-      joint_d_educ_1 = joint_d_theta1_1*educ1 + joint_d_theta1_2*educ2,
-      joint_d_female_1 = joint_d_theta1_1*female1 + joint_d_theta1_2*female2,
-      joint_d_race2_1 = joint_d_theta1_1*(race1 == 2) + joint_d_theta1_2*(race2 == 2),
-      joint_d_race3_1 = joint_d_theta1_1*(race1 == 3) + joint_d_theta1_2*(race2 == 3),
-      joint_d_race4_1 = joint_d_theta1_1*(race1 == 4) + joint_d_theta1_2*(race2 == 4),
-      joint_d_race4_1 = joint_d_theta1_1*(race1 == 4) + joint_d_theta1_2*(race2 == 4),
-      joint_d_contract = joint_d_theta1_1*contracttype1* + joint_d_theta1_1*param$contract_missing*contracttype1_missing + joint_d_theta1_2*contracttype2 + joint_d_theta1_2*param$contract_missing*contracttype2_missing,
-      joint_d_contract_missing = joint_d_theta1_1*param$contract*contracttype1_missing + joint_d_theta1_2*param$contract*contracttype2_missing
-    )
+  # Precompute linear predictors
+  linpred <- df |> 
+    ftransform(
+    lp00 = param$intercept_0 + 
+      param$age_0 * age1 + 
+      param$age2_0 * age1^2 + 
+      param$educ_0 * educ1 +
+      param$female_0 * female1 + 
+      param$race2_0 * (race1 == 2) + 
+      param$race3_0 * (race1 == 3) + 
+      param$race4_0 * (race1 == 4),
+    lp01 = param$intercept_0 + 
+      param$age_0 * age2 + 
+      param$age2_0 * age2^2 + 
+      param$educ_0 * educ2 +
+      param$female_0 * female2 + 
+      param$race2_0 * (race2 == 2) +
+      param$race3_0 * (race2 == 3) +
+      param$race4_0 * (race2 == 4),
+    lp10 = param$intercept_1 + 
+      param$age_1 * age1 + 
+      param$age2_1 * age1^2 + 
+      param$educ_1 * educ1 +
+      param$female_1 * female1 + 
+      param$race2_1 * (race1 == 2) + 
+      param$race3_1 * (race1 == 3) + 
+      param$race4_1 * (race1 == 4) +
+      param$contract * contracttype1 + 
+      param$contract * param$contract_missing * contracttype1_missing,
+    lp11 = param$intercept_1 + 
+      param$age_1 * age2 + 
+      param$age2_1 * age2^2 + 
+      param$educ_1 * educ2 +
+      param$female_1 * female2 + 
+      param$race2_1 * (race2 == 2) +
+      param$race3_1 * (race2 == 3) + 
+      param$race4_1 * (race2 == 4) +
+      param$contract * contracttype2 + 
+      param$contract * param$contract_missing * contracttype2_missing
+  )
   
-  df_gi <- df_estimate %>% 
-    left_join(df_grad, by = c('y1', 'y2', 'y3', 'age1', 'age2', 'educ1', 'educ2', 'female1', 'female2', 'race1', 'race2', 'contracttype1', 'contracttype2', 'contracttype1_missing', 'contracttype2_missing')) %>% 
-    mutate(
-      lgi_intercept_0 = weight*joint_d_intercept_0/joint_p,
-      lgi_age_0 = weight*joint_d_age_0/joint_p,
-      lgi_age2_0 = weight*joint_d_age2_0/joint_p,
-      lgi_educ_0 = weight*joint_d_educ_0/joint_p,
-      lgi_female_0 = weight*joint_d_female_0/joint_p,
-      lgi_race2_0 = weight*joint_d_race2_0/joint_p,
-      lgi_race3_0 = weight*joint_d_race3_0/joint_p,
-      lgi_race4_0 = weight*joint_d_race4_0/joint_p,
-      lgi_intercept_1 = weight*joint_d_intercept_1/joint_p,
-      lgi_age_1 = weight*joint_d_age_1/joint_p,
-      lgi_age2_1 = weight*joint_d_age2_1/joint_p,
-      lgi_educ_1 = weight*joint_d_educ_1/joint_p,
-      lgi_female_1 = weight*joint_d_female_1/joint_p,
-      lgi_race2_1 = weight*joint_d_race2_1/joint_p,
-      lgi_race3_1 = weight*joint_d_race3_1/joint_p,
-      lgi_race4_1 = weight*joint_d_race4_1/joint_p,
-      lgi_contract = weight*joint_d_contract/joint_p,
-      lgi_contract_missing = weight*joint_d_contract_missing/joint_p,
-      lgi_pi = weight*joint_d_pi/joint_p
-    ) %>%
-    select(lgi_intercept_0, lgi_age_0, lgi_age2_0, lgi_educ_0, lgi_female_0, lgi_race2_0, lgi_race3_0, lgi_race4_0, lgi_intercept_1, lgi_age_1, lgi_age2_1, lgi_educ_1, lgi_female_1, lgi_race2_1, lgi_race3_1, lgi_race4_1, lgi_contract, lgi_contract_missing, lgi_pi)
+  # Transition probabilities
+  linpred <- linpred |> 
+    fmutate(
+      th00 = logit_inverse(lp00),
+      th01 = logit_inverse(lp01),
+      th10 = logit_inverse(lp10),
+      th11 = logit_inverse(lp11),
+      mu1  = th00 / (th00 + th10))
   
-  if(pi0) df_gi <- df_gi %>% select(-lgi_pi)
+  # Indices for lookup
+  idx12 <- linpred$y1_star * 2 + linpred$y2_star + 1L
+  idx23 <- linpred$y2_star * 2 + linpred$y3_star + 1L
+  
+  mat_p2 <- cbind(1 - linpred$th00, 
+                  linpred$th00, 
+                  linpred$th10, 
+                  1 - linpred$th10)
+  mat_p3 <- cbind(1 - linpred$th01,
+                  linpred$th01, 
+                  linpred$th11, 
+                  1 - linpred$th11)
+  
+  # Likelihood components
+  df_probs_temp <- linpred |> 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu1, 1 - mu1),
+      p2_star = mat_p2[cbind(seq_len(nrow(df)), idx12)],
+      p3_star = mat_p3[cbind(seq_len(nrow(df)), idx23)],
+      p1      = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2      = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3      = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
+      joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3)
+  
+  # Derivatives of latent probs
+  df_probs_temp <- df_probs_temp |> 
+    fmutate(
+      d1_star_theta0_1 = (2 * y1_star - 1) * th10 / (th00 + th10)^2,
+      d1_star_theta1_1 = -(2 * y1_star - 1) * th00 / (th00 + th10)^2,
+      d2_star_theta0_1 = (y1_star == 0) * (2 * y2_star - 1),
+      d2_star_theta1_1 = (y1_star == 1) * (1 - 2 * y2_star),
+      d3_star_theta0_2 = (y2_star == 0) * (2 * y3_star - 1),
+      d3_star_theta1_2 = (y2_star == 1) * (1 - 2 * y3_star),
+      d1_pi            = ifelse(y1 == y1_star, -1, 1),
+      d2_pi            = ifelse(y2 == y2_star, -1, 1),
+      d3_pi            = ifelse(y3 == y3_star, -1, 1),
+      joint_d_theta0_1 = d1_star_theta0_1 * joint_p / p1_star + d2_star_theta0_1 * joint_p / p2_star,
+      joint_d_theta0_2 = d3_star_theta0_2 * joint_p / p3_star,
+      joint_d_theta1_1 = d1_star_theta1_1 * joint_p / p1_star + d2_star_theta1_1 * joint_p / p2_star,
+      joint_d_theta1_2 = d3_star_theta1_2 * joint_p / p3_star,
+      joint_d_pi       = d1_pi * joint_p / p1 + d2_pi * joint_p / p2 + d3_pi * joint_p / p3)
+  
+  # Aggregate derivatives
+  df_grad <- df_probs_temp |> 
+    fgroup_by(
+      y1, 
+      y2, 
+      y3, 
+      age1, 
+      age2, 
+      educ1, 
+      educ2, 
+      female1, 
+      female2, 
+      race1, 
+      race2,
+      contracttype1, 
+      contracttype2, 
+      contracttype1_missing, 
+      contracttype2_missing) |> 
+    fsummarise(
+      joint_d_theta0_1 = fsum(joint_d_theta0_1),
+      joint_d_theta0_2 = fsum(joint_d_theta0_2),
+      joint_d_theta1_1 = fsum(joint_d_theta1_1),
+      joint_d_theta1_2 = fsum(joint_d_theta1_2),
+      joint_d_pi       = fsum(joint_d_pi),
+      joint_p          = fsum(joint_p),
+      th00             = fmean(th00), 
+      th01             = fmean(th01), 
+      th10             = fmean(th10), 
+      th11             = fmean(th11)) |> 
+    ftransform(
+      joint_d_theta0_1 = joint_d_theta0_1 * th00 * (1 - th00),
+      joint_d_theta0_2 = joint_d_theta0_2 * th01 * (1 - th01),
+      joint_d_theta1_1 = joint_d_theta1_1 * th10 * (1 - th10),
+      joint_d_theta1_2 = joint_d_theta1_2 * th11 * (1 - th11),
+      joint_d_pi       = joint_d_pi * param$pi * (1 - param$pi))
+  
+  # Compute gradients per parameter
+  df_grad <- df_grad |> 
+    ftransform(
+      joint_d_intercept_0      = joint_d_theta0_1 + joint_d_theta0_2,
+      joint_d_age_0            = joint_d_theta0_1 * age1 + joint_d_theta0_2 * age2,
+      joint_d_age2_0           = joint_d_theta0_1 * age1^2 + joint_d_theta0_2 * age2^2,
+      joint_d_educ_0           = joint_d_theta0_1 * educ1 + joint_d_theta0_2 * educ2,
+      joint_d_female_0         = joint_d_theta0_1 * female1 + joint_d_theta0_2 * female2,
+      joint_d_race2_0          = joint_d_theta0_1 * (race1 == 2) + joint_d_theta0_2 * (race2 == 2),
+      joint_d_race3_0          = joint_d_theta0_1 * (race1 == 3) + joint_d_theta0_2 * (race2 == 3),
+      joint_d_race4_0          = joint_d_theta0_1 * (race1 == 4) + joint_d_theta0_2 * (race2 == 4),
+      joint_d_intercept_1      = joint_d_theta1_1 + joint_d_theta1_2,
+      joint_d_age_1            = joint_d_theta1_1 * age1 + joint_d_theta1_2 * age2,
+      joint_d_age2_1           = joint_d_theta1_1 * age1^2 + joint_d_theta1_2 * age2^2,
+      joint_d_educ_1           = joint_d_theta1_1 * educ1 + joint_d_theta1_2 * educ2,
+      joint_d_female_1         = joint_d_theta1_1 * female1 + joint_d_theta1_2 * female2,
+      joint_d_race2_1          = joint_d_theta1_1 * (race1 == 2) + joint_d_theta1_2 * (race2 == 2),
+      joint_d_race3_1          = joint_d_theta1_1 * (race1 == 3) + joint_d_theta1_2 * (race2 == 3),
+      joint_d_race4_1          = joint_d_theta1_1 * (race1 == 4) + joint_d_theta1_2 * (race2 == 4),
+      joint_d_contract         = joint_d_theta1_1 * contracttype1 + joint_d_theta1_2 * contracttype2 +
+        param$contract_missing * (joint_d_theta1_1 * contracttype1_missing + joint_d_theta1_2 * contracttype2_missing),
+      joint_d_contract_missing = param$contract * (joint_d_theta1_1 * contracttype1_missing + joint_d_theta1_2 * contracttype2_missing))
+  
+  # Join with estimate df and compute log-gradient contributions
+  df_gi <- join(df_estimate, 
+                df_grad,
+                on = c("y1", 
+                       "y2", 
+                       "y3", 
+                       "age1", 
+                       "age2", 
+                       "educ1", 
+                       "educ2", 
+                       "female1", 
+                       "female2",
+                       "race1", 
+                       "race2", 
+                       "contracttype1",
+                       "contracttype2",
+                       "contracttype1_missing", 
+                       "contracttype2_missing"),
+                verbose = FALSE, 
+                validate = F) |>
+    ftransform(
+      lgi_intercept_0      = weight * joint_d_intercept_0 / joint_p,
+      lgi_age_0            = weight * joint_d_age_0 / joint_p,
+      lgi_age2_0           = weight * joint_d_age2_0 / joint_p,
+      lgi_educ_0           = weight * joint_d_educ_0 / joint_p,
+      lgi_female_0         = weight * joint_d_female_0 / joint_p,
+      lgi_race2_0          = weight * joint_d_race2_0 / joint_p,
+      lgi_race3_0          = weight * joint_d_race3_0 / joint_p,
+      lgi_race4_0          = weight * joint_d_race4_0 / joint_p,
+      lgi_intercept_1      = weight * joint_d_intercept_1 / joint_p,
+      lgi_age_1            = weight * joint_d_age_1 / joint_p,
+      lgi_age2_1           = weight * joint_d_age2_1 / joint_p,
+      lgi_educ_1           = weight * joint_d_educ_1 / joint_p,
+      lgi_female_1         = weight * joint_d_female_1 / joint_p,
+      lgi_race2_1          = weight * joint_d_race2_1 / joint_p,
+      lgi_race3_1          = weight * joint_d_race3_1 / joint_p,
+      lgi_race4_1          = weight * joint_d_race4_1 / joint_p,
+      lgi_contract         = weight * joint_d_contract / joint_p,
+      lgi_contract_missing = weight * joint_d_contract_missing / joint_p,
+      lgi_pi               = weight * joint_d_pi / joint_p)
+  
+  # Keep only the desired columns that start with 'lgi_'
+  df_gi <- df_gi[, startsWith(names(df_gi), "lgi_"), drop = FALSE]
+  
+  # Remove pi derivative if pi0 = TRUE
+  if (pi0) df_gi <- df_gi[, names(df_gi) != "lgi_pi", drop = FALSE]
+  
+
   return(df_gi)
-  
 }
 
 calc_mle_3waves_ar1_covariates_age_educ_female_race_contract <- function(param_transformed) {
