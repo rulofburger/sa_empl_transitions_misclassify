@@ -687,7 +687,7 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract <- func
       joint_d_race3_1 = joint_d_theta1_1*(race1 == 3) + joint_d_theta1_2*(race2 == 3),
       joint_d_race4_1 = joint_d_theta1_1*(race1 == 4) + joint_d_theta1_2*(race2 == 4),
       joint_d_race4_1 = joint_d_theta1_1*(race1 == 4) + joint_d_theta1_2*(race2 == 4),
-      joint_d_contract = joint_d_theta1_1*contracttype1* + joint_d_theta1_1*param$contract_missing*contracttype1_missing + joint_d_theta1_2*contracttype2 + joint_d_theta1_2*param$contract_missing*contracttype2_missing,
+      joint_d_contract = joint_d_theta1_1*contracttype1 + joint_d_theta1_1*param$contract_missing*contracttype1_missing + joint_d_theta1_2*contracttype2 + joint_d_theta1_2*param$contract_missing*contracttype2_missing,
       joint_d_contract_missing = joint_d_theta1_1*param$contract*contracttype1_missing + joint_d_theta1_2*param$contract*contracttype2_missing
     )
   
