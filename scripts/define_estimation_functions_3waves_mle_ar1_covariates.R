@@ -89,7 +89,8 @@ calc_lli_3waves_ar1_covariates_age_educ <- function(param_transformed, pi0 = FAL
                 "educ2"), 
          verbose = FALSE) |>
     fmutate(lli = weight * log(joint_p)) |>
-    pull(lli)
+    pull(lli) |> 
+    as.numeric()
 }
 
 # Vectorized gradient
@@ -173,10 +174,10 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ <- function(param_transforme
       joint_d_theta1_2 = fsum(joint_d_theta1_2),
       joint_d_pi       = fsum(joint_d_pi),
       joint_p          = fsum(joint_p),
-      theta0_1         = mean(theta0_1),
-      theta0_2         = mean(theta0_2),
-      theta1_1         = mean(theta1_1),
-      theta1_2         = mean(theta1_2)) |>
+      theta0_1         = fmean(theta0_1),
+      theta0_2         = fmean(theta0_2),
+      theta1_1         = fmean(theta1_1),
+      theta1_2         = fmean(theta1_2)) |>
     fmutate(
       joint_d_theta0_1    = joint_d_theta0_1 * theta0_1 * (1 - theta0_1),
       joint_d_theta0_2    = joint_d_theta0_2 * theta0_2 * (1 - theta0_2),
@@ -266,16 +267,20 @@ calc_lli_3waves_ar1_covariates_age_educ_female_race <- function(param_transforme
   df <- df_template_covariates_age_educ_female_race
   
   # Compute logits and probabilities
-  lp00 <- with(df, param$intercept_0 + param$age_0 * age1 + param$age2_0 * age1^2 +
+  lp00 <- with(df, 
+               param$intercept_0 + param$age_0 * age1 + param$age2_0 * age1^2 +
                  param$educ_0 * educ1 + param$female_0 * female1 +
                  param$race2_0 * (race1 == 2) + param$race3_0 * (race1 == 3) + param$race4_0 * (race1 == 4))
-  lp01 <- with(df, param$intercept_0 + param$age_0 * age2 + param$age2_0 * age2^2 +
+  lp01 <- with(df, 
+               param$intercept_0 + param$age_0 * age2 + param$age2_0 * age2^2 +
                  param$educ_0 * educ2 + param$female_0 * female2 +
                  param$race2_0 * (race2 == 2) + param$race3_0 * (race2 == 3) + param$race4_0 * (race2 == 4))
-  lp10 <- with(df, param$intercept_1 + param$age_1 * age1 + param$age2_1 * age1^2 +
+  lp10 <- with(df, 
+               param$intercept_1 + param$age_1 * age1 + param$age2_1 * age1^2 +
                  param$educ_1 * educ1 + param$female_1 * female1 +
                  param$race2_1 * (race1 == 2) + param$race3_1 * (race1 == 3) + param$race4_1 * (race1 == 4))
-  lp11 <- with(df, param$intercept_1 + param$age_1 * age2 + param$age2_1 * age2^2 +
+  lp11 <- with(df, 
+               param$intercept_1 + param$age_1 * age2 + param$age2_1 * age2^2 +
                  param$educ_1 * educ2 + param$female_1 * female2 +
                  param$race2_1 * (race2 == 2) + param$race3_1 * (race2 == 3) + param$race4_1 * (race2 == 4))
   
@@ -308,192 +313,240 @@ calc_lli_3waves_ar1_covariates_age_educ_female_race <- function(param_transforme
   joint_p <- p1_star * p1 * p2_star * p2 * p3_star * p3
   
   # Attach to data
-  df_probs_temp <- ftransform(df,
-                              joint_p = joint_p,
-                              y1 = df$y1, y2 = df$y2, y3 = df$y3,
-                              age1 = df$age1, age2 = df$age2,
-                              educ1 = df$educ1, educ2 = df$educ2,
-                              female1 = df$female1, female2 = df$female2,
-                              race1 = df$race1, race2 = df$race2
-  )
+  df_probs_temp <- df |> 
+    ftransform(joint_p = joint_p,
+               y1      = df$y1, 
+               y2      = df$y2, 
+               y3      = df$y3,
+               age1    = df$age1, 
+               age2    = df$age2,
+               educ1   = df$educ1, 
+               educ2   = df$educ2,
+               female1 = df$female1, 
+               female2 = df$female2,
+               race1   = df$race1, 
+               race2   = df$race2)
   
   # Collapse group summary
-  df_probs <- fgroup_by(df_probs_temp, y1, y2, y3, age1, age2, educ1, educ2, female1, female2, race1, race2) |>
+  df_probs <- df_probs_temp |> 
+    fgroup_by(y1, 
+              y2,
+              y3, 
+              age1, 
+              age2, 
+              educ1, 
+              educ2, 
+              female1, 
+              female2, 
+              race1, 
+              race2) |>
     fsummarise(joint_p = fsum(joint_p)) |>
     fungroup()
   
   # Final log-likelihood contributions
-  fmutate(
-    join(df_estimate, df_probs,
-         on = c("y1", "y2", "y3", "age1", "age2", "educ1", "educ2", "female1", "female2", "race1", "race2"),
-         verbose = FALSE, 
-         validate = F),
-    lli = weight * log(joint_p)
-  ) |> pull(lli)
+  lli <- 
+    join(df_estimate, 
+         df_probs,
+         on       = c("y1", 
+                      "y2", 
+                      "y3", 
+                      "age1",
+                      "age2", 
+                      "educ1",
+                      "educ2", 
+                      "female1", 
+                      "female2", 
+                      "race1", 
+                      "race2"),
+         verbose  = FALSE, 
+         validate = F) |> 
+  fmutate(lli = weight * log(joint_p)) |> 
+    pull(lli)
+  
+  lli
 }
 
 
 
 calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race <- function(param_transformed, pi0 = FALSE) {
+  
+  
+  
   param <- param_transformed
-  param$pi <- if (pi0) 0 else 1 / (1 + exp(-param$pi))  # faster inverse logit
+  if (pi0) param$pi <- 0
+  if (!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
-  # Precompute linear predictors
-  X0_1 <- with(df_template_covariates_age_educ_female_race,
-               param$intercept_0 +
-                 param$age_0 * age1 + param$age2_0 * age1^2 + param$educ_0 * educ1 +
-                 param$female_0 * female1 +
-                 param$race2_0 * (race1 == 2) + param$race3_0 * (race1 == 3) + param$race4_0 * (race1 == 4)
-  )
-  X0_2 <- with(df_template_covariates_age_educ_female_race,
-               param$intercept_0 +
-                 param$age_0 * age2 + param$age2_0 * age2^2 + param$educ_0 * educ2 +
-                 param$female_0 * female2 +
-                 param$race2_0 * (race2 == 2) + param$race3_0 * (race2 == 3) + param$race4_0 * (race2 == 4)
-  )
-  X1_1 <- with(df_template_covariates_age_educ_female_race,
-               param$intercept_1 +
-                 param$age_1 * age1 + param$age2_1 * age1^2 + param$educ_1 * educ1 +
-                 param$female_1 * female1 +
-                 param$race2_1 * (race1 == 2) + param$race3_1 * (race1 == 3) + param$race4_1 * (race1 == 4)
-  )
-  X1_2 <- with(df_template_covariates_age_educ_female_race,
-               param$intercept_1 +
-                 param$age_1 * age2 + param$age2_1 * age2^2 + param$educ_1 * educ2 +
-                 param$female_1 * female2 +
-                 param$race2_1 * (race2 == 2) + param$race3_1 * (race2 == 3) + param$race4_1 * (race2 == 4)
-  )
+  df_probs_temp <- df_template_covariates_age_educ_female_race %>% 
+    fmutate(
+      theta0_1 = logit_inverse(param$intercept_0 + param$age_0*age1 + param$age2_0*age1^2 + param$educ_0*educ1 + param$female_0*female1 + param$race2_0*(race1 == 2) + param$race3_0*(race1 == 3) + param$race4_0*(race1 == 4)),
+      theta0_2 = logit_inverse(param$intercept_0 + param$age_0*age2 + param$age2_0*age2^2 + param$educ_0*educ2 + param$female_0*female2 + param$race2_0*(race2 == 2) + param$race3_0*(race2 == 3) + param$race4_0*(race2 == 4)),
+      theta1_1 = logit_inverse(param$intercept_1 + param$age_1*age1 + param$age2_1*age1^2 + param$educ_1*educ1 + param$female_1*female1 + param$race2_1*(race1 == 2) + param$race3_1*(race1 == 3) + param$race4_1*(race1 == 4)),
+      theta1_2 = logit_inverse(param$intercept_1 + param$age_1*age2 + param$age2_1*age2^2 + param$educ_1*educ2 + param$female_1*female2 + param$race2_1*(race2 == 2) + param$race3_1*(race2 == 3) + param$race4_1*(race2 == 4)),
+      mu_1     = theta0_1/(theta1_1 + theta0_1)
+    ) %>% 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu_1, 1 - mu_1),
+      p2_star = fcase(
+        y1_star == 0 & y2_star == 0, 1 - theta0_1,
+        y1_star == 0 & y2_star == 1, theta0_1,
+        y1_star == 1 & y2_star == 0, theta1_1,
+        y1_star == 1 & y2_star == 1, 1 - theta1_1
+      ),
+      p3_star = fcase(
+        y2_star == 0 & y3_star == 0, 1 - theta0_2,
+        y2_star == 0 & y3_star == 1, theta0_2,
+        y2_star == 1 & y3_star == 0, theta1_2,
+        y2_star == 1 & y3_star == 1, 1 - theta1_2
+      ),
+      p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
+      joint_p = p1_star*p1*p2_star*p2*p3_star*p3
+    ) %>% 
+    fmutate(
+      d1_star_theta0_1 = fcase(
+        y1_star == 0,  -theta1_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1,  theta1_1/((theta1_1 + theta0_1)^2)
+      ),
+      d1_star_theta1_1 = fcase(
+        y1_star == 0, theta0_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1, -theta0_1/((theta1_1 + theta0_1)^2)
+      ),
+      d2_star_theta0_1 = fcase(
+        y1_star == 0 & y2_star == 0, -1,
+        y1_star == 0 & y2_star == 1, 1,
+        y1_star == 1 & y2_star == 0, 0,
+        y1_star == 1 & y2_star == 1, 0
+      ),
+      d2_star_theta1_1 = fcase(
+        y1_star == 0 & y2_star == 0, 0,
+        y1_star == 0 & y2_star == 1, 0,
+        y1_star == 1 & y2_star == 0, 1,
+        y1_star == 1 & y2_star == 1, -1
+      ),
+      d3_star_theta0_2 = fcase(
+        y2_star == 0 & y3_star == 0, -1,
+        y2_star == 0 & y3_star == 1, 1,
+        y2_star == 1 & y3_star == 0, 0,
+        y2_star == 1 & y3_star == 1, 0
+      ),
+      d3_star_theta1_2 = fcase(
+        y2_star == 0 & y3_star == 0, 0,
+        y2_star == 0 & y3_star == 1, 0,
+        y2_star == 1 & y3_star == 0, 1,
+        y2_star == 1 & y3_star == 1, -1
+      ),
+      d1_pi = fifelse(y1 == y1_star, -1, 1),
+      d2_pi = fifelse(y2 == y2_star, -1, 1),
+      d3_pi = fifelse(y3 == y3_star, -1, 1),
+      joint_d_theta0_1 = 
+        d1_star_theta0_1*joint_p/p1_star + 
+        d2_star_theta0_1*joint_p/p2_star,
+      joint_d_theta0_2 = 
+        d3_star_theta0_2*joint_p/p3_star,
+      joint_d_theta1_1 = 
+        d1_star_theta1_1*joint_p/p1_star + 
+        d2_star_theta1_1*joint_p/p2_star,
+      joint_d_theta1_2 = 
+        d3_star_theta1_2*joint_p/p3_star,
+      joint_d_pi = 
+        d1_pi*joint_p/p1 + 
+        d2_pi*joint_p/p2 + 
+        d3_pi*joint_p/p3
+    ) 
   
-  theta0_1 <- 1 / (1 + exp(-X0_1))
-  theta0_2 <- 1 / (1 + exp(-X0_2))
-  theta1_1 <- 1 / (1 + exp(-X1_1))
-  theta1_2 <- 1 / (1 + exp(-X1_2))
-  mu_1 <- theta0_1 / (theta0_1 + theta1_1)
-  
-  # Conditional probabilities
-  with(df_template_covariates_age_educ_female_race, {
-    
-    p1_star <- fifelse(y1_star == 1, mu_1, 1 - mu_1)
-    p2_star <- (1 - theta0_1) * (y1_star == 0 & y2_star == 0) +
-      theta0_1 * (y1_star == 0 & y2_star == 1) +
-      theta1_1 * (y1_star == 1 & y2_star == 0) +
-      (1 - theta1_1) * (y1_star == 1 & y2_star == 1)
-    p3_star <- (1 - theta0_2) * (y2_star == 0 & y3_star == 0) +
-      theta0_2 * (y2_star == 0 & y3_star == 1) +
-      theta1_2 * (y2_star == 1 & y3_star == 0) +
-      (1 - theta1_2) * (y2_star == 1 & y3_star == 1)
-    
-    p1 <- fifelse(y1 == y1_star, 1 - param$pi, param$pi)
-    p2 <- fifelse(y2 == y2_star, 1 - param$pi, param$pi)
-    p3 <- fifelse(y3 == y3_star, 1 - param$pi, param$pi)
-    
-    joint_p <- p1_star * p1 * p2_star * p2 * p3_star * p3
-    
-    # Derivatives w.r.t. theta0_1 and theta1_1 (for mu_1 and transition)
-    d1_star_theta0_1 <- fifelse(y1_star == 0, -theta1_1 / (theta0_1 + theta1_1)^2,
-                               theta1_1 / (theta0_1 + theta1_1)^2)
-    d1_star_theta1_1 <- fifelse(y1_star == 0,  theta0_1 / (theta0_1 + theta1_1)^2,
-                               -theta0_1 / (theta0_1 + theta1_1)^2)
-    d2_star_theta0_1 <- (y1_star == 0 & y2_star == 1) - (y1_star == 0 & y2_star == 0)
-    d2_star_theta1_1 <- (y1_star == 1 & y2_star == 0) - (y1_star == 1 & y2_star == 1)
-    d3_star_theta0_2 <- (y2_star == 0 & y3_star == 1) - (y2_star == 0 & y3_star == 0)
-    d3_star_theta1_2 <- (y2_star == 1 & y3_star == 0) - (y2_star == 1 & y3_star == 1)
-    
-    # Gradients for pi
-    d1_pi <- fifelse(y1 == y1_star, -1, 1)
-    d2_pi <- fifelse(y2 == y2_star, -1, 1)
-    d3_pi <- fifelse(y3 == y3_star, -1, 1)
-    
-    joint_d_theta0_1 <- (d1_star_theta0_1 / p1_star + d2_star_theta0_1 / p2_star) * joint_p
-    joint_d_theta1_1 <- (d1_star_theta1_1 / p1_star + d2_star_theta1_1 / p2_star) * joint_p
-    joint_d_theta0_2 <- d3_star_theta0_2 / p3_star * joint_p
-    joint_d_theta1_2 <- d3_star_theta1_2 / p3_star * joint_p
-    joint_d_pi       <- (d1_pi / p1 + d2_pi / p2 + d3_pi / p3) * joint_p
-    
-    # Collapse-based grouped summary
-    df_grad <- fgroup_by(df_template_covariates_age_educ_female_race, 
-                         y1, 
-                         y2, 
-                         y3, 
-                         age1, 
-                         age2, 
-                         educ1, 
-                         educ2, 
-                         female1, 
-                         female2, 
-                         race1, 
-                         race2)
-    df_grad <- fsummarise(
-      df_grad,
+  df_grad <- df_probs_temp %>% 
+    fgroup_by(y1, y2, y3, age1, age2, educ1, educ2, female1, female2, race1, race2) %>% 
+    fsummarise(
       joint_d_theta0_1 = fsum(joint_d_theta0_1),
       joint_d_theta0_2 = fsum(joint_d_theta0_2),
       joint_d_theta1_1 = fsum(joint_d_theta1_1),
-      joint_d_theta1_2 = fsum(joint_d_theta1_2),
+      joint_d_theta1_2 = fsum(joint_d_theta1_2), 
       joint_d_pi       = fsum(joint_d_pi),
       joint_p          = fsum(joint_p),
       theta0_1         = fmean(theta0_1),
       theta0_2         = fmean(theta0_2),
       theta1_1         = fmean(theta1_1),
-      theta1_2         = fmean(theta1_2))
-    
-    # Chain second-stage derivs
+      theta1_2         = fmean(theta1_2)) %>% 
+    fungroup() |> 
     fmutate(
-      df_grad,
-      joint_d_theta0_1    = joint_d_theta0_1 * theta0_1 * (1 - theta0_1),
-      joint_d_theta0_2    = joint_d_theta0_2 * theta0_2 * (1 - theta0_2),
-      joint_d_theta1_1    = joint_d_theta1_1 * theta1_1 * (1 - theta1_1),
-      joint_d_theta1_2    = joint_d_theta1_2 * theta1_2 * (1 - theta1_2),
-      joint_d_pi          = joint_d_pi * param$pi * (1 - param$pi),
+      joint_d_theta0_1    = joint_d_theta0_1*theta0_1*(1 - theta0_1), 
+      joint_d_theta0_2    = joint_d_theta0_2*theta0_2*(1 - theta0_2),
+      joint_d_theta1_1    = joint_d_theta1_1*theta1_1*(1 - theta1_1), 
+      joint_d_theta1_2    = joint_d_theta1_2*theta1_2*(1 - theta1_2),
+      joint_d_pi          = joint_d_pi*param$pi*(1 - param$pi), 
       joint_d_intercept_0 = joint_d_theta0_1 + joint_d_theta0_2,
-      joint_d_age_0       = joint_d_theta0_1 * age1 + joint_d_theta0_2 * age2,
-      joint_d_age2_0      = joint_d_theta0_1 * (age1^2) + joint_d_theta0_2 * (age2^2),
-      joint_d_educ_0      = joint_d_theta0_1 * educ1 + joint_d_theta0_2 * educ2,
-      joint_d_female_0    = joint_d_theta0_1 * female1 + joint_d_theta0_2 * female2,
-      joint_d_race2_0     = joint_d_theta0_1 * (race1 == 2) + joint_d_theta0_2 * (race2 == 2),
-      joint_d_race3_0     = joint_d_theta0_1 * (race1 == 3) + joint_d_theta0_2 * (race2 == 3),
-      joint_d_race4_0     = joint_d_theta0_1 * (race1 == 4) + joint_d_theta0_2 * (race2 == 4),
+      joint_d_age_0       = joint_d_theta0_1*age1 + joint_d_theta0_2*age2,
+      joint_d_age2_0      = joint_d_theta0_1*(age1^2) + joint_d_theta0_2*(age2^2),
+      joint_d_educ_0      = joint_d_theta0_1*educ1 + joint_d_theta0_2*educ2,
+      joint_d_female_0    = joint_d_theta0_1*female1 + joint_d_theta0_2*female2,
+      joint_d_race2_0     = joint_d_theta0_1*(race1 == 2) + joint_d_theta0_2*(race2 == 2),
+      joint_d_race3_0     = joint_d_theta0_1*(race1 == 3) + joint_d_theta0_2*(race2 == 3),
+      joint_d_race4_0     = joint_d_theta0_1*(race1 == 4) + joint_d_theta0_2*(race2 == 4),
       joint_d_intercept_1 = joint_d_theta1_1 + joint_d_theta1_2,
-      joint_d_age_1       = joint_d_theta1_1 * age1 + joint_d_theta1_2 * age2,
-      joint_d_age2_1      = joint_d_theta1_1 * (age1^2) + joint_d_theta1_2 * (age2^2),
-      joint_d_educ_1      = joint_d_theta1_1 * educ1 + joint_d_theta1_2 * educ2,
-      joint_d_female_1    = joint_d_theta1_1 * female1 + joint_d_theta1_2 * female2,
-      joint_d_race2_1     = joint_d_theta1_1 * (race1 == 2) + joint_d_theta1_2 * (race2 == 2),
-      joint_d_race3_1     = joint_d_theta1_1 * (race1 == 3) + joint_d_theta1_2 * (race2 == 3),
-      joint_d_race4_1     = joint_d_theta1_1 * (race1 == 4) + joint_d_theta1_2 * (race2 == 4)) |>
-      join(df_estimate, 
-           on = c("y1", 
-                  "y2", 
-                  "y3", 
-                  "age1", 
-                  "age2", 
-                  "educ1", 
-                  "educ2",
-                  "female1", 
-                  "female2", 
-                  "race1",
-                  "race2"), 
-           validate = F, 
-           verbose = F) |>
-      fmutate(
-        lgi_intercept_0 = weight * joint_d_intercept_0 / joint_p,
-        lgi_age_0       = weight * joint_d_age_0 / joint_p,
-        lgi_age2_0      = weight * joint_d_age2_0 / joint_p,
-        lgi_educ_0      = weight * joint_d_educ_0 / joint_p,
-        lgi_female_0    = weight * joint_d_female_0 / joint_p,
-        lgi_race2_0     = weight * joint_d_race2_0 / joint_p,
-        lgi_race3_0     = weight * joint_d_race3_0 / joint_p,
-        lgi_race4_0     = weight * joint_d_race4_0 / joint_p,
-        lgi_intercept_1 = weight * joint_d_intercept_1 / joint_p,
-        lgi_age_1       = weight * joint_d_age_1 / joint_p,
-        lgi_age2_1      = weight * joint_d_age2_1 / joint_p,
-        lgi_educ_1      = weight * joint_d_educ_1 / joint_p,
-        lgi_female_1    = weight * joint_d_female_1 / joint_p,
-        lgi_race2_1     = weight * joint_d_race2_1 / joint_p,
-        lgi_race3_1     = weight * joint_d_race3_1 / joint_p,
-        lgi_race4_1     = weight * joint_d_race4_1 / joint_p,
-        lgi_pi          = weight * joint_d_pi / joint_p) |>
-      select(-starts_with("joint_"))
-  })
+      joint_d_age_1       = joint_d_theta1_1*age1 + joint_d_theta1_2*age2,
+      joint_d_age2_1      = joint_d_theta1_1*(age1^2) + joint_d_theta1_2*(age2^2),
+      joint_d_educ_1      = joint_d_theta1_1*educ1 + joint_d_theta1_2*educ2,
+      joint_d_female_1    = joint_d_theta1_1*female1 + joint_d_theta1_2*female2,
+      joint_d_race2_1     = joint_d_theta1_1*(race1 == 2) + joint_d_theta1_2*(race2 == 2),
+      joint_d_race3_1     = joint_d_theta1_1*(race1 == 3) + joint_d_theta1_2*(race2 == 3),
+      joint_d_race4_1     = joint_d_theta1_1*(race1 == 4) + joint_d_theta1_2*(race2 == 4))
+  
+  df_gi <- df_estimate %>% 
+    join(df_grad, 
+         how = "left",
+                    on           = c('y1', 
+                                     'y2', 
+                                     'y3', 
+                                     'age1', 
+                                     'age2', 
+                                     'educ1', 
+                                     'educ2', 
+                                     'female1', 
+                                     'female2', 
+                                     'race1', 
+                                     'race2'), 
+                     verbose      = F) %>% 
+    fmutate(
+      lgi_intercept_0 = weight*joint_d_intercept_0/joint_p,
+      lgi_age_0       = weight*joint_d_age_0/joint_p,
+      lgi_age2_0      = weight*joint_d_age2_0/joint_p,
+      lgi_educ_0      = weight*joint_d_educ_0/joint_p,
+      lgi_female_0    = weight*joint_d_female_0/joint_p,
+      lgi_race2_0     = weight*joint_d_race2_0/joint_p,
+      lgi_race3_0     = weight*joint_d_race3_0/joint_p,
+      lgi_race4_0     = weight*joint_d_race4_0/joint_p,
+      lgi_intercept_1 = weight*joint_d_intercept_1/joint_p,
+      lgi_age_1       = weight*joint_d_age_1/joint_p,
+      lgi_age2_1      = weight*joint_d_age2_1/joint_p,
+      lgi_educ_1      = weight*joint_d_educ_1/joint_p,
+      lgi_female_1    = weight*joint_d_female_1/joint_p,
+      lgi_race2_1     = weight*joint_d_race2_1/joint_p,
+      lgi_race3_1     = weight*joint_d_race3_1/joint_p,
+      lgi_race4_1     = weight*joint_d_race4_1/joint_p,
+      lgi_pi          = weight*joint_d_pi/joint_p) %>%
+    fselect(lgi_intercept_0, 
+           lgi_age_0, 
+           lgi_age2_0, 
+           lgi_educ_0, 
+           lgi_female_0, 
+           lgi_race2_0, 
+           lgi_race3_0, 
+           lgi_race4_0, 
+           lgi_intercept_1, 
+           lgi_age_1, 
+           lgi_age2_1,
+           lgi_educ_1, 
+           lgi_female_1,
+           lgi_race2_1, 
+           lgi_race3_1, 
+           lgi_race4_1, 
+           lgi_pi)
+  
+  if (pi0) df_gi <- df_gi %>% fselect(-lgi_pi)
+  
+  df_gi
+ 
 }
 
 
@@ -515,8 +568,12 @@ calc_mle_derivatives_3waves_ar1_covariates_age_educ_female_race_pi0 <- function(
   colSums(calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race(param_transformed, pi0 = TRUE))
 }
 
+
+
+
+
 # COVARIATE DEPENDENT TRANSITION RATES: EDUC + AGE + RACE + FEMALE + CONTRACT ====
-calc_lli_3waves_ar1_covariates_age_educ_female_race_contract_ <- function(param_transformed, pi0 = FALSE) {
+calc_lli_3waves_ar1_covariates_age_educ_female_race_contract <- function(param_transformed, pi0 = FALSE) {
   param    <- param_transformed
   param$pi <- if (pi0) 0 else logit_inverse(param$pi)
   
@@ -595,54 +652,56 @@ calc_lli_3waves_ar1_covariates_age_educ_female_race_contract_ <- function(param_
       joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3)
   
   # Collapse-style group summarise
-  df_probs <- fgroup_by(
-    df_probs_temp,
-    y1, 
-    y2, 
-    y3, 
-    age1, 
-    age2, 
-    educ1, 
-    educ2, 
-    female1, 
-    female2, 
-    race1, 
-    race2,
-    contracttype1, 
-    contracttype2, 
-    contracttype1_missing, 
-    contracttype2_missing) |> 
+  df_probs <- df_probs_temp |> 
+    fgroup_by(y1, 
+              y2, 
+              y3, 
+              age1, 
+              age2, 
+              educ1, 
+              educ2, 
+              female1, 
+              female2, 
+              race1, 
+              race2,
+              contracttype1, 
+              contracttype2, 
+              contracttype1_missing, 
+              contracttype2_missing) |> 
     fsummarise(joint_p = fsum(joint_p)) |> 
     fungroup()
   
   # Final log-likelihood vector
+  lli <- 
+    join(df_estimate, 
+       df_probs,
+       on = c("y1", 
+              "y2", 
+              "y3", 
+              "age1",
+              "age2", 
+              "educ1", 
+              "educ2", 
+              "female1", 
+              "female2",
+              "race1", 
+              "race2", 
+              "contracttype1", 
+              "contracttype2", 
+              "contracttype1_missing", 
+              "contracttype2_missing"),
+       verbose  = FALSE, 
+       validate = F) |> 
   ftransform(
-    join(df_estimate, df_probs,
-         on = c("y1", 
-                "y2", 
-                "y3", 
-                "age1",
-                "age2", 
-                "educ1", 
-                "educ2", 
-                "female1", 
-                "female2",
-                "race1", 
-                "race2", 
-                "contracttype1", 
-                "contracttype2", 
-                "contracttype1_missing", 
-                "contracttype2_missing"),
-         verbose  = FALSE, 
-         validate = F),
-    lli = weight * log(joint_p)
-  ) |> 
+    lli = weight * log(joint_p)) |> 
     pull(lli)
+  
+  lli
 }
 
 
 
-calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract_fst <- function(param_transformed, pi0 = FALSE) {
+calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract <- function(param_transformed, pi0 = FALSE) {
   
   param <- param_transformed
   param$pi <- if (pi0) 0 else logit_inverse(param$pi)
@@ -818,7 +877,7 @@ calc_lli_derivatives_3waves_ar1_covariates_age_educ_female_race_contract_fst <- 
                        "contracttype2",
                        "contracttype1_missing", 
                        "contracttype2_missing"),
-                verbose = FALSE, 
+                verbose  = FALSE, 
                 validate = F) |>
     ftransform(
       lgi_intercept_0      = weight * joint_d_intercept_0 / joint_p,
@@ -878,42 +937,55 @@ calc_lli_3waves_ar1_covariates_duration <- function(param_transformed, pi0 = FAL
   if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
   df_probs_temp <- df_template_covariates %>% 
-    mutate(
+    fmutate(
       theta0_1 = logit_inverse(param$intercept_0 + (y1 == 0)*param$timegap*log(timegap1 + 0.125) + (y1 == 0)*param$timegap*log(param$timegap_missing + 0.125)),
       theta0_2 = logit_inverse(param$intercept_0 + (y2 == 0)*param$timegap*log(timegap2 + 0.125) + (y2 == 0)*param$timegap*log(param$timegap_missing + 0.125)),
       theta1_1 = logit_inverse(param$intercept_1 + (y1 == 1)*param$tenure*log(tenure1 + 0.125) + (y1 == 1)*param$tenure*log(param$tenure_missing + 0.125)),
       theta1_2 = logit_inverse(param$intercept_1 + (y2 == 1)*param$tenure*log(tenure2 + 0.125) + (y2 == 1)*param$tenure*log(param$tenure_missing + 0.125)),
       mu_1 = theta0_1/(theta1_1 + theta0_1)
     ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu_1, 1 - mu_1),
+      p2_star = fcase(
+        y1_star == 0 & y2_star == 0, 1 - theta0_1,
+        y1_star == 0 & y2_star == 1, theta0_1,
+        y1_star == 1 & y2_star == 0, theta1_1,
+        y1_star == 1 & y2_star == 1, 1 - theta1_1
       ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
+      p3_star = fcase(
+        y2_star == 0 & y3_star == 0, 1 - theta0_2,
+        y2_star == 0 & y3_star == 1, theta0_2,
+        y2_star == 1 & y3_star == 0, theta1_2,
+        y2_star == 1 & y3_star == 1, 1 - theta1_2
       ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+      p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) 
 
   df_probs <- df_probs_temp %>% 
-    group_by(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>% 
-    summarise(joint_p = sum(joint_p), .groups = "drop")
+    fgroup_by(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>% 
+    fsummarise(joint_p = sum(joint_p)) |> 
+    fungroup()
  
   
-  df_lli <- df_estimate %>% 
-    left_join(df_probs, by = c('y1', 'y2', 'y3', 'timegap1', 'timegap2', 'tenure1', 'tenure2')) %>% 
-    mutate(lli = weight*log(joint_p)) %>%
+  lli <- df_estimate %>% 
+    join(df_probs, 
+         on       = c('y1', 
+                      'y2', 
+                      'y3', 
+                      'timegap1', 
+                      'timegap2', 
+                      'tenure1', 
+                      'tenure2'), 
+         how      = "left", 
+         validate = F, 
+         verbose = F) %>% 
+    fmutate(lli = weight*log(joint_p)) %>%
     pull(lli)
+  
+  lli
   
 }
 
@@ -924,68 +996,67 @@ calc_lli_derivatives_3waves_ar1_covariates_duration <- function(param_transforme
   if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
   df_probs_temp <- df_template_covariates %>% 
-    mutate(
+    fmutate(
       theta0_1 = logit_inverse(param$intercept_0 + (y1 == 0)*param$timegap*log(timegap1 + 0.125) + (y1 == 0)*param$timegap*log(param$timegap_missing + 0.125)),
       theta0_2 = logit_inverse(param$intercept_0 + (y2 == 0)*param$timegap*log(timegap2 + 0.125) + (y2 == 0)*param$timegap*log(param$timegap_missing + 0.125)),
       theta1_1 = logit_inverse(param$intercept_1 + (y1 == 1)*param$tenure*log(tenure1 + 0.125) + (y1 == 1)*param$tenure*log(param$tenure_missing + 0.125)),
       theta1_2 = logit_inverse(param$intercept_1 + (y2 == 1)*param$tenure*log(tenure2 + 0.125) + (y2 == 1)*param$tenure*log(param$tenure_missing + 0.125)),
-      mu_1 = theta0_1/(theta1_1 + theta0_1)
-    ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
+      mu_1 = theta0_1/(theta1_1 + theta0_1)) %>% 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu_1, 1 - mu_1),
+      p2_star = fcase(
+        y1_star == 0 & y2_star == 0, 1 - theta0_1,
+        y1_star == 0 & y2_star == 1, theta0_1,
+        y1_star == 1 & y2_star == 0, theta1_1,
+        y1_star == 1 & y2_star == 1, 1 - theta1_1
       ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
+      p3_star = fcase(
+        y2_star == 0 & y3_star == 0, 1 - theta0_2,
+        y2_star == 0 & y3_star == 1, theta0_2,
+        y2_star == 1 & y3_star == 0, theta1_2,
+        y2_star == 1 & y3_star == 1, 1 - theta1_2
       ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+      p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) %>% 
-    mutate(
-      d1_star_theta0_1 = case_when(
-        y1_star == 0 ~ -theta1_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ theta1_1/((theta1_1 + theta0_1)^2)
+    fmutate(
+      d1_star_theta0_1 = fcase(
+        y1_star == 0, -theta1_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1, theta1_1/((theta1_1 + theta0_1)^2)
       ),
-      d1_star_theta1_1 = case_when(
-        y1_star == 0 ~ theta0_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ -theta0_1/((theta1_1 + theta0_1)^2)
+      d1_star_theta1_1 = fcase(
+        y1_star == 0, theta0_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1, -theta0_1/((theta1_1 + theta0_1)^2)
       ),
-      d2_star_theta0_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ -1,
-        y1_star == 0 & y2_star == 1 ~ 1,
-        y1_star == 1 & y2_star == 0 ~ 0,
-        y1_star == 1 & y2_star == 1 ~ 0
+      d2_star_theta0_1 = fcase(
+        y1_star == 0 & y2_star == 0, -1,
+        y1_star == 0 & y2_star == 1, 1,
+        y1_star == 1 & y2_star == 0, 0,
+        y1_star == 1 & y2_star == 1, 0
       ),
-      d2_star_theta1_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ 0,
-        y1_star == 0 & y2_star == 1 ~ 0,
-        y1_star == 1 & y2_star == 0 ~ 1,
-        y1_star == 1 & y2_star == 1 ~ -1
+      d2_star_theta1_1 = fcase(
+        y1_star == 0 & y2_star == 0, 0,
+        y1_star == 0 & y2_star == 1, 0,
+        y1_star == 1 & y2_star == 0, 1,
+        y1_star == 1 & y2_star == 1, -1
       ),
-      d3_star_theta0_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ -1,
-        y2_star == 0 & y3_star == 1 ~ 1,
-        y2_star == 1 & y3_star == 0 ~ 0,
-        y2_star == 1 & y3_star == 1 ~ 0
+      d3_star_theta0_2 = fcase(
+        y2_star == 0 & y3_star == 0, -1,
+        y2_star == 0 & y3_star == 1, 1,
+        y2_star == 1 & y3_star == 0, 0,
+        y2_star == 1 & y3_star == 1, 0
       ),
-      d3_star_theta1_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ 0,
-        y2_star == 0 & y3_star == 1 ~ 0,
-        y2_star == 1 & y3_star == 0 ~ 1,
-        y2_star == 1 & y3_star == 1 ~ -1
+      d3_star_theta1_2 = fcase(
+        y2_star == 0 & y3_star == 0, 0,
+        y2_star == 0 & y3_star == 1, 0,
+        y2_star == 1 & y3_star == 0, 1,
+        y2_star == 1 & y3_star == 1, -1
       ),
-      d1_pi = if_else(y1 == y1_star, -1, 1),
-      d2_pi = if_else(y2 == y2_star, -1, 1),
-      d3_pi = if_else(y3 == y3_star, -1, 1),
+      d1_pi = fifelse(y1 == y1_star, -1, 1),
+      d2_pi = fifelse(y2 == y2_star, -1, 1),
+      d3_pi = fifelse(y3 == y3_star, -1, 1),
       joint_d_theta0_1 = 
         d1_star_theta0_1*joint_p/p1_star + 
         d2_star_theta0_1*joint_p/p2_star,
@@ -999,68 +1070,76 @@ calc_lli_derivatives_3waves_ar1_covariates_duration <- function(param_transforme
       joint_d_pi = 
         d1_pi*joint_p/p1 + 
         d2_pi*joint_p/p2 + 
-        d3_pi*joint_p/p3
-    ) 
+        d3_pi*joint_p/p3) 
   
   df_grad <- df_probs_temp %>% 
-    mutate(
+    fmutate(
       joint_d_timegap0_1 = joint_d_theta0_1*log(timegap1 + 0.125),
       joint_d_timegap0_2 = joint_d_theta0_2*log(timegap2 + 0.125),
-      joint_d_tenure1_1 = joint_d_theta1_1*log(tenure1 + 0.125),
-      joint_d_tenure1_2 = joint_d_theta1_2*log(tenure2 + 0.125)
-    ) %>% 
-    group_by(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>% 
-    summarise(
-      joint_d_theta0_1 = sum(joint_d_theta0_1),
-      joint_d_theta0_2 = sum(joint_d_theta0_2),
-      joint_d_theta1_1 = sum(joint_d_theta1_1),
-      joint_d_theta1_2 = sum(joint_d_theta1_2),
+      joint_d_tenure1_1  = joint_d_theta1_1*log(tenure1 + 0.125),
+      joint_d_tenure1_2  = joint_d_theta1_2*log(tenure2 + 0.125)) %>% 
+    fgroup_by(y1, y2, y3, timegap1, timegap2, tenure1, tenure2) %>% 
+    fsummarise(
+      joint_d_theta0_1   = sum(joint_d_theta0_1),
+      joint_d_theta0_2   = sum(joint_d_theta0_2),
+      joint_d_theta1_1   = sum(joint_d_theta1_1),
+      joint_d_theta1_2   = sum(joint_d_theta1_2),
       joint_d_timegap0_1 = sum(joint_d_timegap0_1),
       joint_d_timegap0_2 = sum(joint_d_timegap0_2),
-      joint_d_tenure1_1 = sum(joint_d_tenure1_1),
-      joint_d_tenure1_2 = sum(joint_d_tenure1_2),
-      joint_d_pi = sum(joint_d_pi),
-      joint_p = sum(joint_p),
-      theta0_1 = mean(theta0_1),
-      theta0_2 = mean(theta0_2),
-      theta1_1 = mean(theta1_1),
-      theta1_2 = mean(theta1_2),
-      .groups = "drop") %>% 
-    mutate(
-      joint_d_theta0_1 = joint_d_theta0_1*theta0_1*(1 - theta0_1), 
-      joint_d_theta0_2 = joint_d_theta0_2*theta0_2*(1 - theta0_2),
-      joint_d_theta1_1 = joint_d_theta1_1*theta1_1*(1 - theta1_1), 
-      joint_d_theta1_2 = joint_d_theta1_2*theta1_2*(1 - theta1_2),
+      joint_d_tenure1_1  = sum(joint_d_tenure1_1),
+      joint_d_tenure1_2  = sum(joint_d_tenure1_2),
+      joint_d_pi         = sum(joint_d_pi),
+      joint_p            = sum(joint_p),
+      theta0_1           = mean(theta0_1),
+      theta0_2           = mean(theta0_2),
+      theta1_1           = mean(theta1_1),
+      theta1_2           = mean(theta1_2)) %>%
+    fungroup() |> 
+    fmutate(
+      joint_d_theta0_1   = joint_d_theta0_1*theta0_1*(1 - theta0_1), 
+      joint_d_theta0_2   = joint_d_theta0_2*theta0_2*(1 - theta0_2),
+      joint_d_theta1_1   = joint_d_theta1_1*theta1_1*(1 - theta1_1), 
+      joint_d_theta1_2   = joint_d_theta1_2*theta1_2*(1 - theta1_2),
       joint_d_timegap0_1 = joint_d_timegap0_1*theta0_1*(1 - theta0_1),
       joint_d_timegap0_2 = joint_d_timegap0_2*theta0_2*(1 - theta0_2),
-      joint_d_tenure1_1 = joint_d_tenure1_1*theta1_1*(1 - theta1_1),
-      joint_d_tenure1_2 = joint_d_tenure1_2*theta1_2*(1 - theta1_2),
-      joint_d_pi = joint_d_pi*param$pi*(1 - param$pi)
-    ) %>%
-    mutate(
+      joint_d_tenure1_1  = joint_d_tenure1_1*theta1_1*(1 - theta1_1),
+      joint_d_tenure1_2  = joint_d_tenure1_2*theta1_2*(1 - theta1_2),
+      joint_d_pi         = joint_d_pi*param$pi*(1 - param$pi)) %>%
+    fmutate(
       joint_d_intercept_0 = joint_d_theta0_1 + joint_d_theta0_2,
-      joint_d_timegap_0 = joint_d_timegap0_1 + joint_d_timegap0_2,
+      joint_d_timegap_0   = joint_d_timegap0_1 + joint_d_timegap0_2,
       joint_d_intercept_1 = joint_d_theta1_1 + joint_d_theta1_2,
-      joint_d_tenure_1 = joint_d_tenure1_1 + joint_d_tenure1_2
-    ) %>% 
-    rename(
+      joint_d_tenure_1    = joint_d_tenure1_1 + joint_d_tenure1_2) %>% 
+    frename(
       timegap1 = timegap1_old,
       timegap2 = timegap2_old,
-      tenure1 = tenure1_old,
-      tenure2 = tenure2_old
-    )
+      tenure1  = tenure1_old,
+      tenure2  = tenure2_old)
   
   df_gi <- df_estimate %>% 
-    # left_join(df_grad, by = c('y1', 'y2', 'y3', 'timegap1', 'timegap2', 'tenure1', 'tenure2')) %>% 
-    left_join(df_grad, by = c('y1', 'y2', 'y3', 'timegap1', 'timegap2', 'tenure1', 'tenure2')) %>% 
-    mutate(
+    join(df_grad,
+         on = c('y1', 
+                'y2', 
+                'y3', 
+                'timegap1', 
+                'timegap2', 
+                'tenure1', 
+                'tenure2'), 
+         validate = F, 
+         verbose = F) %>% 
+    fmutate(
       lgi_intercept_0 = weight*joint_d_intercept_0/joint_p,
-      lgi_timegap_0 = weight*joint_d_timegap_0/joint_p,
+      lgi_timegap_0   = weight*joint_d_timegap_0/joint_p,
       lgi_intercept_1 = weight*joint_d_intercept_1/joint_p,
-      lgi_tenure_1 = weight*joint_d_tenure_1/joint_p,
-      lgi_pi = weight*joint_d_pi/joint_p
-    ) %>%
-    select(lgi_intercept_0, lgi_timegap_0, lgi_intercept_1, lgi_tenure_1, lgi_pi)
+      lgi_tenure_1    = weight*joint_d_tenure_1/joint_p,
+      lgi_pi          = weight*joint_d_pi/joint_p) %>%
+    fselect(lgi_intercept_0, 
+            lgi_timegap_0, 
+            lgi_intercept_1, 
+            lgi_tenure_1, 
+            lgi_pi)
+  
+  df_gi
 }
 
 calc_mle_3waves_ar1_covariates_duration <- function(param_transformed) {
@@ -1090,41 +1169,56 @@ calc_lli_3waves_ar1_covariates3 <- function(param_transformed, pi0 = FALSE) {
   if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
   df_probs_temp <- df_template_covariates %>% 
-    mutate(
+    fmutate(
       theta0_1 = logit_inverse(param$intercept_0 + param$age_0*age1 + param$age2_0*age1^2 + param$educ_0*educ1 + param$timegap*log(timegap1 + 1.5)),
       theta0_2 = logit_inverse(param$intercept_0 + param$age_0*age2 + param$age2_0*age2^2 + param$educ_0*educ2 + param$timegap*log(timegap2 + 1.5)),
       theta1_1 = logit_inverse(param$intercept_1 + param$age_1*age1 + param$age2_1*age1^2 + param$educ_1*educ1 + param$tenure*log(tenure1 + 1.5)),
       theta1_2 = logit_inverse(param$intercept_1 + param$age_1*age2 + param$age2_1*age2^2 + param$educ_1*educ2 + param$tenure*log(tenure2 + 1.5)),
       mu_1 = theta0_1/(theta1_1 + theta0_1)
     ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu_1, 1 - mu_1),
+      p2_star = fcase(
+        y1_star == 0 & y2_star == 0, 1 - theta0_1,
+        y1_star == 0 & y2_star == 1, theta0_1,
+        y1_star == 1 & y2_star == 0, theta1_1,
+        y1_star == 1 & y2_star == 1, 1 - theta1_1
       ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
+      p3_star = fcase(
+        y2_star == 0 & y3_star == 0, 1 - theta0_2,
+        y2_star == 0 & y3_star == 1, theta0_2,
+        y2_star == 1 & y3_star == 0, theta1_2,
+        y2_star == 1 & y3_star == 1, 1 - theta1_2
       ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+      p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) 
   
   df_probs <- df_probs_temp %>% 
-    group_by(y1, y2, y3, age1, age2, educ1, educ2, timegap1, timegap2, tenure1, tenure2) %>% 
-    summarise(joint_p = sum(joint_p), .groups = "drop")
+    fgroup_by(y1, y2, y3, age1, age2, educ1, educ2, timegap1, timegap2, tenure1, tenure2) %>% 
+    fsummarise(joint_p = sum(joint_p))
   
   df_lli <- df_estimate %>% 
-    left_join(df_probs, by = c('y1', 'y2', 'y3', 'age1', 'age2', 'educ1', 'educ2', 'timegap1', 'timegap2', 'tenure1', 'tenure2')) %>% 
-    mutate(lli = weight*log(joint_p)) %>%
+    join(df_probs, 
+         on = c('y1', 
+                'y2', 
+                'y3', 
+                'age1', 
+                'age2', 
+                'educ1', 
+                'educ2', 
+                'timegap1', 
+                'timegap2', 
+                'tenure1',
+                'tenure2'), 
+         validate = F, 
+         verbose = F) %>% 
+    fmutate(lli = weight*log(joint_p)) %>%
     pull(lli)
+  
+  df_lli
   
 }
 
@@ -1135,68 +1229,68 @@ calc_lli_derivatives_3waves_ar1_covariates3 <- function(param_transformed, pi0 =
   if(!pi0) param$pi <- logit_inverse(param_transformed$pi)
   
   df_probs_temp <- df_template_covariates %>% 
-    mutate(
+    fmutate(
       theta0_1 = logit_inverse(param$intercept_0 + param$age_0*age1 + param$age2_0*age1^2 + param$educ_0*educ1 + param$timegap*log(timegap1 + 1.5)),
       theta0_2 = logit_inverse(param$intercept_0 + param$age_0*age2 + param$age2_0*age2^2 + param$educ_0*educ2 + param$timegap*log(timegap2 + 1.5)),
       theta1_1 = logit_inverse(param$intercept_1 + param$age_1*age1 + param$age2_1*age1^2 + param$educ_1*educ1 + param$tenure*log(tenure1 + 1.5)),
       theta1_2 = logit_inverse(param$intercept_1 + param$age_1*age2 + param$age2_1*age2^2 + param$educ_1*educ2 + param$tenure*log(tenure2 + 1.5)),
       mu_1 = theta0_1/(theta1_1 + theta0_1)
     ) %>% 
-    mutate(
-      p1_star = if_else(y1_star == 1, mu_1, 1 - mu_1),
-      p2_star = case_when(
-        y1_star == 0 & y2_star == 0 ~ 1 - theta0_1,
-        y1_star == 0 & y2_star == 1 ~ theta0_1,
-        y1_star == 1 & y2_star == 0 ~ theta1_1,
-        y1_star == 1 & y2_star == 1 ~ 1 - theta1_1
+    fmutate(
+      p1_star = fifelse(y1_star == 1, mu_1, 1 - mu_1),
+      p2_star = fcase(
+        y1_star == 0 & y2_star == 0, 1 - theta0_1,
+        y1_star == 0 & y2_star == 1, theta0_1,
+        y1_star == 1 & y2_star == 0, theta1_1,
+        y1_star == 1 & y2_star == 1, 1 - theta1_1
       ),
-      p3_star = case_when(
-        y2_star == 0 & y3_star == 0 ~ 1 - theta0_2,
-        y2_star == 0 & y3_star == 1 ~ theta0_2,
-        y2_star == 1 & y3_star == 0 ~ theta1_2,
-        y2_star == 1 & y3_star == 1 ~ 1 - theta1_2
+      p3_star = fcase(
+        y2_star == 0 & y3_star == 0, 1 - theta0_2,
+        y2_star == 0 & y3_star == 1, theta0_2,
+        y2_star == 1 & y3_star == 0, theta1_2,
+        y2_star == 1 & y3_star == 1, 1 - theta1_2
       ),
-      p1 = if_else(y1 == y1_star, 1 - param$pi, param$pi),
-      p2 = if_else(y2 == y2_star, 1 - param$pi, param$pi),
-      p3 = if_else(y3 == y3_star, 1 - param$pi, param$pi),
+      p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
+      p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
+      p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3
     ) %>% 
-    mutate(
-      d1_star_theta0_1 = case_when(
-        y1_star == 0 ~ -theta1_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ theta1_1/((theta1_1 + theta0_1)^2)
+    fmutate(
+      d1_star_theta0_1 = fcase(
+        y1_star == 0, -theta1_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1, theta1_1/((theta1_1 + theta0_1)^2)
       ),
-      d1_star_theta1_1 = case_when(
-        y1_star == 0 ~ theta0_1/((theta1_1 + theta0_1)^2),
-        y1_star == 1 ~ -theta0_1/((theta1_1 + theta0_1)^2)
+      d1_star_theta1_1 = fcase(
+        y1_star == 0, theta0_1/((theta1_1 + theta0_1)^2),
+        y1_star == 1, -theta0_1/((theta1_1 + theta0_1)^2)
       ),
-      d2_star_theta0_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ -1,
-        y1_star == 0 & y2_star == 1 ~ 1,
-        y1_star == 1 & y2_star == 0 ~ 0,
-        y1_star == 1 & y2_star == 1 ~ 0
+      d2_star_theta0_1 = fcase(
+        y1_star == 0 & y2_star == 0, -1,
+        y1_star == 0 & y2_star == 1, 1,
+        y1_star == 1 & y2_star == 0, 0,
+        y1_star == 1 & y2_star == 1, 0
       ),
-      d2_star_theta1_1 = case_when(
-        y1_star == 0 & y2_star == 0 ~ 0,
-        y1_star == 0 & y2_star == 1 ~ 0,
-        y1_star == 1 & y2_star == 0 ~ 1,
-        y1_star == 1 & y2_star == 1 ~ -1
+      d2_star_theta1_1 = fcase(
+        y1_star == 0 & y2_star == 0, 0,
+        y1_star == 0 & y2_star == 1, 0,
+        y1_star == 1 & y2_star == 0, 1,
+        y1_star == 1 & y2_star == 1, -1
       ),
-      d3_star_theta0_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ -1,
-        y2_star == 0 & y3_star == 1 ~ 1,
-        y2_star == 1 & y3_star == 0 ~ 0,
-        y2_star == 1 & y3_star == 1 ~ 0
+      d3_star_theta0_2 = fcase(
+        y2_star == 0 & y3_star == 0, -1,
+        y2_star == 0 & y3_star == 1, 1,
+        y2_star == 1 & y3_star == 0, 0,
+        y2_star == 1 & y3_star == 1, 0
       ),
-      d3_star_theta1_2 = case_when(
-        y2_star == 0 & y3_star == 0 ~ 0,
-        y2_star == 0 & y3_star == 1 ~ 0,
-        y2_star == 1 & y3_star == 0 ~ 1,
-        y2_star == 1 & y3_star == 1 ~ -1
+      d3_star_theta1_2 = fcase(
+        y2_star == 0 & y3_star == 0, 0,
+        y2_star == 0 & y3_star == 1, 0,
+        y2_star == 1 & y3_star == 0, 1,
+        y2_star == 1 & y3_star == 1, -1
       ),
-      d1_pi = if_else(y1 == y1_star, -1, 1),
-      d2_pi = if_else(y2 == y2_star, -1, 1),
-      d3_pi = if_else(y3 == y3_star, -1, 1),
+      d1_pi = fifelse(y1 == y1_star, -1, 1),
+      d2_pi = fifelse(y2 == y2_star, -1, 1),
+      d3_pi = fifelse(y3 == y3_star, -1, 1),
       joint_d_theta0_1 = 
         d1_star_theta0_1*joint_p/p1_star + 
         d2_star_theta0_1*joint_p/p2_star,
@@ -1214,8 +1308,8 @@ calc_lli_derivatives_3waves_ar1_covariates3 <- function(param_transformed, pi0 =
     ) 
   
   df_grad <- df_probs_temp %>% 
-    group_by(y1, y2, y3, age1, age2, educ1, educ2, timegap1, timegap2, tenure1, tenure2) %>% 
-    summarise(
+    fgroup_by(y1, y2, y3, age1, age2, educ1, educ2, timegap1, timegap2, tenure1, tenure2) %>% 
+    fsummarise(
       joint_d_theta0_1 = sum(joint_d_theta0_1),
       joint_d_theta0_2 = sum(joint_d_theta0_2),
       joint_d_theta1_1 = sum(joint_d_theta1_1),
@@ -1225,16 +1319,16 @@ calc_lli_derivatives_3waves_ar1_covariates3 <- function(param_transformed, pi0 =
       theta0_1 = mean(theta0_1),
       theta0_2 = mean(theta0_2),
       theta1_1 = mean(theta1_1),
-      theta1_2 = mean(theta1_2),
-      .groups = "drop") %>% 
-    mutate(
+      theta1_2 = mean(theta1_2)) %>%
+    fungroup() |> 
+    fmutate(
       joint_d_theta0_1 = joint_d_theta0_1*theta0_1*(1 - theta0_1), 
       joint_d_theta0_2 = joint_d_theta0_2*theta0_2*(1 - theta0_2),
       joint_d_theta1_1 = joint_d_theta1_1*theta1_1*(1 - theta1_1), 
       joint_d_theta1_2 = joint_d_theta1_2*theta1_2*(1 - theta1_2),
       joint_d_pi = joint_d_pi*param$pi*(1 - param$pi)
     ) %>%
-    mutate(
+    fmutate(
       joint_d_intercept_0 = joint_d_theta0_1 + joint_d_theta0_2,
       joint_d_age_0 = joint_d_theta0_1*age1 + joint_d_theta0_2*age2,
       joint_d_age2_0 = joint_d_theta0_1*(age1^2) + joint_d_theta0_2*(age2^2),
@@ -1248,21 +1342,45 @@ calc_lli_derivatives_3waves_ar1_covariates3 <- function(param_transformed, pi0 =
     )
   
   df_gi <- df_estimate %>% 
-    left_join(df_grad, by = c('y1', 'y2', 'y3', 'age1', 'age2', 'educ1', 'educ2', 'timegap1', 'timegap2', 'tenure1', 'tenure2')) %>% 
-    mutate(
+    join(df_grad, 
+         on       = c('y1', 
+                      'y2', 
+                      'y3', 
+                      'age1', 
+                      'age2', 
+                      'educ1', 
+                      'educ2', 
+                      'timegap1', 
+                      'timegap2', 
+                      'tenure1', 
+                      'tenure2'), 
+         validate = F, 
+         verbose  = F) %>% 
+    fmutate(
       lgi_intercept_0 = weight*joint_d_intercept_0/joint_p,
-      lgi_age_0 = weight*joint_d_age_0/joint_p,
-      lgi_age2_0 = weight*joint_d_age2_0/joint_p,
-      lgi_educ_0 = weight*joint_d_educ_0/joint_p,
-      lgi_timegap_0 = weight*joint_d_timegap_0/joint_p,
+      lgi_age_0       = weight*joint_d_age_0/joint_p,
+      lgi_age2_0      = weight*joint_d_age2_0/joint_p,
+      lgi_educ_0      = weight*joint_d_educ_0/joint_p,
+      lgi_timegap_0   = weight*joint_d_timegap_0/joint_p,
       lgi_intercept_1 = weight*joint_d_intercept_1/joint_p,
-      lgi_age_1 = weight*joint_d_age_1/joint_p,
-      lgi_age2_1 = weight*joint_d_age2_1/joint_p,
-      lgi_educ_1 = weight*joint_d_educ_1/joint_p,
-      lgi_tenure_1 = weight*joint_d_tenure_1/joint_p,
-      lgi_pi = weight*joint_d_pi/joint_p
-    ) %>%
-    select(lgi_intercept_0, lgi_age_0, lgi_age2_0, lgi_educ_0, lgi_timegap_0, lgi_intercept_1, lgi_age_1, lgi_age2_1, lgi_educ_1, lgi_tenure_1, lgi_pi)
+      lgi_age_1       = weight*joint_d_age_1/joint_p,
+      lgi_age2_1      = weight*joint_d_age2_1/joint_p,
+      lgi_educ_1      = weight*joint_d_educ_1/joint_p,
+      lgi_tenure_1    = weight*joint_d_tenure_1/joint_p,
+      lgi_pi          = weight*joint_d_pi/joint_p) %>%
+    fselect(lgi_intercept_0, 
+            lgi_age_0, 
+            lgi_age2_0, 
+            lgi_educ_0, 
+            lgi_timegap_0, 
+            lgi_intercept_1, 
+            lgi_age_1, 
+            lgi_age2_1, 
+            lgi_educ_1, 
+            lgi_tenure_1, 
+            lgi_pi)
+  df_gi
+  
 }
 
 calc_mle_3waves_ar1_covariates3 <- function(param_transformed) {
