@@ -312,23 +312,8 @@ calc_lli_3waves_ar1_covariates_age_educ_female_race <- function(param_transforme
   
   joint_p <- p1_star * p1 * p2_star * p2 * p3_star * p3
   
-  # Attach to data
-  df_probs_temp <- df |> 
-    ftransform(joint_p = joint_p,
-               y1      = df$y1, 
-               y2      = df$y2, 
-               y3      = df$y3,
-               age1    = df$age1, 
-               age2    = df$age2,
-               educ1   = df$educ1, 
-               educ2   = df$educ2,
-               female1 = df$female1, 
-               female2 = df$female2,
-               race1   = df$race1, 
-               race2   = df$race2)
-  
   # Collapse group summary
-  df_probs <- df_probs_temp |> 
+  df_probs <- df |> 
     fgroup_by(y1, 
               y2,
               y3, 
