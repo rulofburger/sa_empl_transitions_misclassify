@@ -17,7 +17,11 @@ logit_inverse <- function(param_input0) {
 # WITH MISCLASSIFICATION ERROR ==== 
 
 # vectorized probability computation
-compute_probs_temp_3waves_ar1 <- function(param, mu) {
+compute_probs_temp_3waves_ar1 <- function(param_transformed, pi0 = F) {
+  
+  param <- logit_inverse(param_transformed)
+  if (pi0) param$pi <- 0
+  mu <- param$theta_0 / (param$theta_1 + param$theta_0)
   
   # Precompute indices for p2_star and p3_star
   idx12 <- df_template$y1_star * 2 + df_template$y2_star + 1  # Values 1 to 4
@@ -32,34 +36,35 @@ compute_probs_temp_3waves_ar1 <- function(param, mu) {
                     param$theta_1, 
                     1 - param$theta_1)
   
-  df_template |> 
-  fmutate(
-    p1_star = fifelse(y1_star == 1, 
-                      mu, 
-                      1 - mu),
-    p2_star = p2_star_vals[idx12],
-    p3_star = p3_star_vals[idx23],
-    p1      = fifelse(y1 == y1_star, 
-                      1 - param$pi, 
-                      param$pi),
-    p2      = fifelse(y2 == y2_star, 
-                      1 - param$pi, 
-                      param$pi),
-    p3      = fifelse(y3 == y3_star, 
-                      1 - param$pi, 
-                      param$pi),
-    joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3)
+  df_probs_temp <- df_template |> 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = p2_star_vals[idx12],
+      p3_star = p3_star_vals[idx23],
+      p1      = fifelse(y1 == y1_star, 
+                        1 - param$pi, 
+                        param$pi),
+      p2      = fifelse(y2 == y2_star, 
+                        1 - param$pi, 
+                        param$pi),
+      p3      = fifelse(y3 == y3_star, 
+                        1 - param$pi, 
+                        param$pi),
+      joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3)
+  
+  df_probs_temp
+  
+  
 }
 
 # Log-likelihood function
 calc_lli_3waves_ar1 <- function(param_transformed, pi0 = FALSE) {
-  param <- logit_inverse(param_transformed)
-  if (pi0) param$pi <- 0
-  mu <- param$theta_0 / (param$theta_1 + param$theta_0)
+
   
-  df_probs_temp <- compute_probs_temp_3waves_ar1(param, mu)
-  
-  df_probs <- df_probs_temp |> 
+  df_probs <- compute_probs_temp_3waves_ar1(param_transformed, 
+                                            pi0) |> 
     fgroup_by(y1, 
               y2, 
               y3) |> 
@@ -68,33 +73,49 @@ calc_lli_3waves_ar1 <- function(param_transformed, pi0 = FALSE) {
   
   df_estimate |> 
     join(df_probs, 
-         on = c("y1", "y2", "y3"), 
+         on      = c("y1", "y2", "y3"), 
          verbose = FALSE) |> 
-    fmutate(lli = weight * log(joint_p)) |> 
-    pull(lli)
+    ftransform(lli  = weight * log(joint_p)) |> 
+    pull(lli) |> 
+    as.numeric()
 }
+
+
 
 # Derivatives (gradient) of log-likelihood
 calc_lli_derivatives_3waves_ar1 <- function(param_transformed, pi0 = FALSE) {
+  
   param <- logit_inverse(param_transformed)
   if (pi0) param$pi <- 0
-  mu <- param$theta_0 / (param$theta_1 + param$theta_0)
+  mu    <- param$theta_0 / (param$theta_1 + param$theta_0)
   
-  # Precompute p*_star via vectorized indexing
-  idx12 <- df_template$y1_star * 2 + df_template$y2_star + 1
-  idx23 <- df_template$y2_star * 2 + df_template$y3_star + 1
-  p2_star_vals <- c(1 - param$theta_0, param$theta_0, param$theta_1, 1 - param$theta_1)
-  p3_star_vals <- c(1 - param$theta_0, param$theta_0, param$theta_1, 1 - param$theta_1)
+  idx12        <- df_template$y1_star * 2 + df_template$y2_star + 1
+  idx23        <- df_template$y2_star * 2 + df_template$y3_star + 1
+  p2_star_vals <- c(1 - param$theta_0, 
+                    param$theta_0, 
+                    param$theta_1, 
+                    1 - param$theta_1)
+  p3_star_vals <- c(1 - param$theta_0, 
+                    param$theta_0, 
+                    param$theta_1, 
+                    1 - param$theta_1)
   
-  df_probs_temp <- fmutate(
-    df_template,
-    p1_star = fifelse(y1_star == 1, mu, 1 - mu),
-    p2_star = p2_star_vals[idx12],
-    p3_star = p3_star_vals[idx23],
-    p1 = fifelse(y1 == y1_star, 1 - param$pi, param$pi),
-    p2 = fifelse(y2 == y2_star, 1 - param$pi, param$pi),
-    p3 = fifelse(y3 == y3_star, 1 - param$pi, param$pi)
-  ) %>%
+  df_probs_temp <- df_template |> 
+    fmutate(
+      p1_star = fifelse(y1_star == 1, 
+                        mu, 
+                        1 - mu),
+      p2_star = p2_star_vals[idx12],
+      p3_star = p3_star_vals[idx23],
+      p1      = fifelse(y1 == y1_star, 
+                        1 - param$pi, 
+                        param$pi),
+      p2      = fifelse(y2 == y2_star, 
+                        1 - param$pi, 
+                        param$pi),
+      p3      = fifelse(y3 == y3_star, 
+                        1 - param$pi, 
+                        param$pi)) %>%
     fmutate(
       joint_p = p1_star * p1 * p2_star * p2 * p3_star * p3,
       # Derivatives of mu with respect to theta_0 and theta_1
@@ -105,39 +126,35 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, pi0 = FALSE) {
                                 param$theta_0 / ((param$theta_1 + param$theta_0)^2),
                                 -param$theta_0 / ((param$theta_1 + param$theta_0)^2)),
       d2_star_theta_0 = as.numeric(idx12 %in% c(1, 2)) * c(-1, 1)[df_template$y2_star + 1],
-      d2_star_theta_1 = as.numeric(idx12 %in% c(3, 4)) * c(1, -1)[df_template$y2_star - 1],
+      d2_star_theta_1 = as.numeric(idx12 %in% c(3, 4)) * c(1, -1)[df_template$y2_star + 1],
       d3_star_theta_0 = as.numeric(idx23 %in% c(1, 2)) * c(-1, 1)[df_template$y3_star + 1],
-      d3_star_theta_1 = as.numeric(idx23 %in% c(3, 4)) * c(1, -1)[df_template$y3_star - 1],
-      d1_pi = fifelse(y1 == y1_star, -1, 1),
-      d2_pi = fifelse(y2 == y2_star, -1, 1),
-      d3_pi = fifelse(y3 == y3_star, -1, 1)
-    ) %>%
+      d3_star_theta_1 = as.numeric(idx23 %in% c(3, 4)) * c(1, -1)[df_template$y3_star + 1],
+      d1_pi           = fifelse(y1 == y1_star, -1, 1),
+      d2_pi           = fifelse(y2 == y2_star, -1, 1),
+      d3_pi           = fifelse(y3 == y3_star, -1, 1)) %>%
     fmutate(
-      inv_p1_star = joint_p / p1_star,
-      inv_p2_star = joint_p / p2_star,
-      inv_p3_star = joint_p / p3_star,
-      inv_p1 = joint_p / p1,
-      inv_p2 = joint_p / p2,
-      inv_p3 = joint_p / p3,
+      inv_p1_star     = joint_p / p1_star,
+      inv_p2_star     = joint_p / p2_star,
+      inv_p3_star     = joint_p / p3_star,
+      inv_p1          = joint_p / p1,
+      inv_p2          = joint_p / p2,
+      inv_p3          = joint_p / p3,
       joint_d_theta_0 = d1_star_theta_0 * inv_p1_star + d2_star_theta_0 * inv_p2_star + d3_star_theta_0 * inv_p3_star,
       joint_d_theta_1 = d1_star_theta_1 * inv_p1_star + d2_star_theta_1 * inv_p2_star + d3_star_theta_1 * inv_p3_star,
-      joint_d_pi = d1_pi * inv_p1 + d2_pi * inv_p2 + d3_pi * inv_p3
-    )
+      joint_d_pi      = d1_pi * inv_p1 + d2_pi * inv_p2 + d3_pi * inv_p3)
   
   df_grad <- df_probs_temp %>%
     fgroup_by(y1, y2, y3) %>%
     fsummarise(
       joint_d_theta_0 = fsum(joint_d_theta_0),
       joint_d_theta_1 = fsum(joint_d_theta_1),
-      joint_d_pi = fsum(joint_d_pi),
-      joint_p = fsum(joint_p)
-    ) %>%
+      joint_d_pi      = fsum(joint_d_pi),
+      joint_p         = fsum(joint_p)) %>%
     fungroup() %>%
     fmutate(
       joint_d_theta_0 = joint_d_theta_0 * param$theta_0 * (1 - param$theta_0),
       joint_d_theta_1 = joint_d_theta_1 * param$theta_1 * (1 - param$theta_1),
-      joint_d_pi = joint_d_pi * param$pi * (1 - param$pi)
-    )
+      joint_d_pi      = joint_d_pi * param$pi * (1 - param$pi))
   
   df_gi <- df_estimate %>%
     join(df_grad, 
@@ -146,11 +163,15 @@ calc_lli_derivatives_3waves_ar1 <- function(param_transformed, pi0 = FALSE) {
     fmutate(
       lgi_theta_0 = weight * joint_d_theta_0 / joint_p,
       lgi_theta_1 = weight * joint_d_theta_1 / joint_p,
-      lgi_pi = weight * joint_d_pi / joint_p
-    ) %>%
-    fselect(lgi_theta_0, lgi_theta_1, lgi_pi)
+      lgi_pi      = weight * joint_d_pi / joint_p) %>%
+    fselect(lgi_theta_0, 
+            lgi_theta_1, 
+            lgi_pi)
   
-  if (pi0) df_gi <- fselect(df_gi, lgi_theta_0, lgi_theta_1)
+  if (pi0) df_gi <- df_gi |> 
+    fselect(lgi_theta_0, 
+            lgi_theta_1)
+  
   df_gi
 }
 
@@ -230,7 +251,7 @@ compute_probs_temp_3waves_ar1_asymmetric <- function(param, mu) {
 }
 
 # Log-likelihood function
-calc_lli_3waves_ar1_asymmetric_fst <- function(param_transformed) {
+calc_lli_3waves_ar1_asymmetric <- function(param_transformed) {
   
   param <- logit_inverse(param_transformed)
   mu    <- param$theta_0 / (param$theta_1 + param$theta_0)
@@ -252,11 +273,12 @@ calc_lli_3waves_ar1_asymmetric_fst <- function(param_transformed) {
                      "y3"), 
          verbose = FALSE) |>
     fmutate(lli = weight * log(joint_p)) |>
-    pull(lli)
+    pull(lli) |> 
+    as.numeric()
 }
 
 # Derivatives function
-calc_lli_derivatives_3waves_ar1_asymmetric_fst <- function(param_transformed) {
+calc_lli_derivatives_3waves_ar1_asymmetric <- function(param_transformed) {
   
   param <- logit_inverse(param_transformed)
   mu    <- param$theta_0 / (param$theta_1 + param$theta_0)
@@ -348,12 +370,12 @@ calc_lli_derivatives_3waves_ar1_asymmetric_fst <- function(param_transformed) {
 }
 
 # Wrappers
-calc_mle_3waves_ar1_asymmetric_fst <- function(param_transformed) {
-  fsum(calc_lli_3waves_ar1_asymmetric_fst(param_transformed))
+calc_mle_3waves_ar1_asymmetric <- function(param_transformed) {
+  fsum(calc_lli_3waves_ar1_asymmetric(param_transformed))
 }
 
-calc_mle_derivatives_3waves_ar1_asymmetric_fst <- function(param_transformed) {
-  colSums(calc_lli_derivatives_3waves_ar1_asymmetric_fst(param_transformed))
+calc_mle_derivatives_3waves_ar1_asymmetric <- function(param_transformed) {
+  colSums(calc_lli_derivatives_3waves_ar1_asymmetric(param_transformed))
 }
 
 
