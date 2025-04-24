@@ -246,7 +246,8 @@ calc_lli_derivatives_3waves_ar1_fmm2 <- function(param_transformed, pi0 = FALSE)
 
 calc_mle_3waves_ar1_fmm2 <- function(param_transformed) {
   ll <- fsum(calc_lli_3waves_ar1_fmm2(param_transformed))
-  return(ll)
+  ll |> 
+    as.numeric()
 }
 
 calc_mle_derivatives_3waves_ar1_fmm2 <- function(param_transformed) {

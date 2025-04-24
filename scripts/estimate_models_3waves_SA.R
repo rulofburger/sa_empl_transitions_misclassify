@@ -25,6 +25,7 @@ library(fastverse)
 source("scripts/define_estimation_functions_3waves_mle_ar1.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_covariates.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_misclassification_symptoms.R")
+source("scripts/define_estimation_functions_3waves_mle_ar1_fmm.R")
 source("scripts/define_estimation_functions_3waves_mle_ar1_fmm_hessian.R")
 
 #> Define functions to create output tables ----
@@ -723,6 +724,9 @@ mean_transition_rates <- df_transition_probs %>%
 
 #>> Covariates (age, educ, female, race & contract) & ME ----
 
+#-------------------------------------------------------------------------------
+# 5) COVARIATES: AGE & EDUC & FEMALE & RACE CONTRACT----------------------------
+#-------------------------------------------------------------------------------
 df_estimate <- df_qlfs_age_educ_female_race_contract
 
 df_covariate_combos <- df_qlfs_age_educ_female_race_contract %>% 
@@ -1379,78 +1383,225 @@ table_symptoms_implied <- stargazer::stargazer(
 output_file <- "./output/tables/SA/table_symptoms_implied.tex"
 cat(table_symptoms_implied, file = output_file, sep = "\n")
 
-#>> FMM (two groups) ----
 
 
+
+#------------------------------------------------------------------
+#>> FMM (two groups) ----------------------------------------------
+#------------------------------------------------------------------
+
+#########
+# starting vals
+# Required packages
+library(mlrMBO)
+library(mlr)
+library(smoof)
+library(lhs)
+library(paradox)  # Only needed in newer versions
+library(data.table)
+library(dplyr)
+par_space <- makeParamSet(
+  makeNumericParam("theta0_1", lower = -3, upper = 3),
+  makeNumericParam("theta1_1", lower = -3, upper = 3),
+  makeNumericParam("p_1",      lower = -3, upper = 3),
+  makeNumericParam("theta0_2", lower = -3, upper = 3),
+  makeNumericParam("theta1_2", lower = -3, upper = 3),
+  makeNumericParam("pi",       lower = -4, upper = 0)  # restrict pi to avoid extremes
+)
+# Global log-likelihood function for MBO (logit-transformed parameters)
+fn_ll_global <- function(par_vec) {
+  names(par_vec) <- c("theta0_1", "theta1_1", "p_1", "theta0_2", "theta1_2", "pi")
+  tryCatch({
+    -calc_mle_3waves_ar1_fmm2(par_vec)  # negative for minimization
+  }, error = function(e) {
+    return(1e8)  # penalize failure
+  })
+}
+
+# Wrap it as a smoof objective function
+smoof_fn <- makeSingleObjectiveFunction(
+  name = "fmm_loglik_neg",
+  fn = fn_ll_global,
+  minimize = F,  # Because we return negative logLik
+  par.set = par_space,
+  noisy = F
+)
+
+# LHS design
+set.seed(123)
+design_init <- generateDesign(n = 100, par.set = par_space, fun = lhs::randomLHS)
+
+# Optionally include some manual starts
+manual_starts <- data.frame(
+  theta0_1 = c(0.1, 0.5, 1),
+  theta1_1 = c(0.1, 0.5, -0.5),
+  p_1      = c(0.1, 0.3, 0.5),
+  theta0_2 = c(0.1, -0.3, 0),
+  theta1_2 = c(0.1, 0.1, -0.1),
+  pi       = c(-3.5, -4, -2)
+)
+
+design_init <- rbind(design_init, manual_starts)
+surrogate <- makeLearner("regr.km", predict.type = "se", covtype = "matern3_2")
+
+control <- makeMBOControl()
+control <- setMBOControlTermination(control, iters = 50)
+control <- setMBOControlInfill(control, crit = makeMBOInfillCritEI())
+mbo_result <- mbo(
+  fun = smoof_fn,
+  learner = surrogate,
+  control = control,
+  design = design_init,
+  show.info = F
+)
+
+# Best starting values (logit scale)
+best_start_transformed <- unlist(mbo_result$x)
+print(best_start_transformed)
+
+
+
+
+
+#########
+# local optimizer
+
+
+calc_mle_penalized <- function(par) {
+  penalty <- if (par["p_1"] >= logit_inverse(0.45)) 1e6 else 0
+  calc_mle_3waves_ar1_fmm2(par) - penalty
+}
+calc_mle_penalized <- function(par) {
+  penalty_strength <- 10000000  # Tune this
+  penalty <- penalty_strength * max(0, par[["p_1"]] - logit_transform(0.45))^2
+  calc_mle_3waves_ar1_fmm2(par) - penalty
+}
+
+
+calc_mle_penalized(param_init_transformed)
+calc_mle_3waves_ar1_fmm2(param_init_transformed)
+
+df_template <- data.table::CJ(y1      = c(0, 1), 
+                              y1_star = c(0, 1), 
+                              y2      = c(0, 1), 
+                              y2_star = c(0, 1), 
+                              y3      = c(0, 1), 
+                              y3_star = c(0, 1)) 
 # param_init <- data.frame(theta0_1 = 0.1, theta1_1 = 0.1, p_1 = 0.5, theta0_2 = 0.5, theta1_2 = 0.5, pi = 0.01)
-param_init <- data.frame(theta0_1 = 0.2946616, theta1_1 = 0.02416365, p_1 = 0.277803, theta0_2 = 0.02341918, theta1_2 = 0.04854722, pi = 0.02714389)
+# param_init <- data.frame(theta0_1 = 0.2946616,
+#                          theta1_1 = 0.02416365,
+#                          p_1      = 0.277803,
+#                          theta0_2 = 0.02341918,
+#                          theta1_2 = 0.04854722,
+#                          pi       = 0.02714389)
 
 
 df_estimate <- df_qlfs
-param_init <- data.frame(theta0_1 = 0.085, theta1_1 = 0.085, p_1 = 0.1, theta0_2 = 0.03, theta1_2 = 0.03, pi = 0.03)
+param_init <- data.frame(theta0_1 = 0.085,
+                         theta1_1 = 0.085,
+                         p_1      = 0.1,
+                         theta0_2 = 0.03,
+                         theta1_2 = 0.03,
+                         pi       = 0.03)
+param_init_transformed <- 
+  data.frame(theta0_1 = param_init_transformed[["theta0_1"]],
+             theta1_1 = param_init_transformed[["theta1_1"]],
+             p_1      = param_init_transformed[["p_1"]],
+             theta0_2 = param_init_transformed[["theta0_2"]],
+             theta1_2 = param_init_transformed[["theta1_2"]],
+             pi       = param_init_transformed[["pi"]])
 param_init_transformed <- logit_transform(param_init)
-model_mle_3w_ar1_fmm2 <- maxLik::maxLik(
-  calc_mle_3waves_ar1_fmm2,
-  grad = calc_lli_derivatives_3waves_ar1_fmm2,
-  start = param_init_transformed,
-  hess = calc_hessian_3waves_ar1_fmm2,
-  method = "BFGS"
-)
+model_mle_3w_ar1_fmm2 <- 
+  maxLik::maxLik(calc_mle_3waves_ar1_fmm2,
+                 grad   = calc_lli_derivatives_3waves_ar1_fmm2,
+                 start  = param_init_transformed,
+                 hess   = calc_hessian_3waves_ar1_fmm2,
+                 method = "BFGS")
 
 model_mle_3w_ar1_fmm2$estimate
 logit_inverse(model_mle_3w_ar1_fmm2$estimate)
-model_mle_3w_ar1_fmm2$maximum
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_1))
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_2))
+max1 <- model_mle_3w_ar1_fmm2$maximum
+max1
 calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
 diag(vcov(model_mle_3w_ar1_fmm2))
+summary(model_mle_3w_ar1_fmm2)
 
-model_mle_3w_ar1_fmm2 <- maxLik::maxLik(
-  calc_mle_3waves_ar1_fmm2,
-  grad = calc_lli_derivatives_3waves_ar1_fmm2,
-  start = param_init_transformed,
-  hess = calc_hessian_3waves_ar1_fmm2,
-  method = "NR"
-)
+# model_mle_3w_ar1_fmm2 <- 
+#   maxLik::maxLik(calc_mle_3waves_ar1_fmm2,
+#                  grad   = calc_mle_derivatives_3waves_ar1_fmm2,
+#                  start  = param_init_transformed,
+#                  hess   = calc_hessian_3waves_ar1_fmm2,
+#                  method = "NR")
+# model_mle_3w_ar1_fmm2$estimate
+# logit_inverse(model_mle_3w_ar1_fmm2$estimate)
+# logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_1))
+# logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_2))
+# model_mle_3w_ar1_fmm2$maximum
+# calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
+# diag(vcov(model_mle_3w_ar1_fmm2))
+# summary(model_mle_3w_ar1_fmm2)
 
-model_mle_3w_ar1_fmm2 <- maxLik::maxLik(
-  calc_mle_3waves_ar1_fmm2,
-  grad = calc_lli_derivatives_3waves_ar1_fmm2,
-  start = model_mle_3w_ar1_fmm2$estimate,
-  hess = calc_hessian_3waves_ar1_fmm2,
-  method = "BFGS"
-)
 
-model_mle_3w_ar1_fmm2 <- maxLik::maxLik(
-  calc_mle_3waves_ar1_fmm2,
-  grad = calc_lli_derivatives_3waves_ar1_fmm2,
-  start = model_mle_3w_ar1_fmm2$estimate,
-  hess = calc_hessian_3waves_ar1_fmm2,
-  method = "CG"
-)
+model_mle_3w_ar1_fmm2 <- 
+  maxLik::maxLik(calc_mle_3waves_ar1_fmm2,
+                 grad   = calc_lli_derivatives_3waves_ar1_fmm2,
+                 start  = model_mle_3w_ar1_fmm2$estimate,
+                 hess   = calc_hessian_3waves_ar1_fmm2,
+                 method = "BFGS")
+model_mle_3w_ar1_fmm2$estimate
+logit_inverse(model_mle_3w_ar1_fmm2$estimate)
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_1))
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_2))
+max2 <- model_mle_3w_ar1_fmm2$maximum
+max2-max1
+calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
+diag(vcov(model_mle_3w_ar1_fmm2))
+summary(model_mle_3w_ar1_fmm2)
+
+model_mle_3w_ar1_fmm2 <- 
+  maxLik::maxLik(calc_mle_3waves_ar1_fmm2,
+                 grad   = calc_lli_derivatives_3waves_ar1_fmm2,
+                 start  = model_mle_3w_ar1_fmm2$estimate,
+                 hess   = calc_hessian_3waves_ar1_fmm2,
+                 method = "CG")
 
 model_mle_3w_ar1_fmm2$estimate
 logit_inverse(model_mle_3w_ar1_fmm2$estimate)
-model_mle_3w_ar1_fmm2$maximum
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_1))
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_2))
+max3 <- model_mle_3w_ar1_fmm2$maximum
+max3-max1
 calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
 diag(vcov(model_mle_3w_ar1_fmm2))
+summary(model_mle_3w_ar1_fmm2)
 sqrt(((exp(model_mle_3w_ar1_fmm2$estimate) / ((1 + exp(model_mle_3w_ar1_fmm2$estimate))^2))^2) * 
        diag(vcov(model_mle_3w_ar1_fmm2)))
 
-model_mle_3w_ar1_fmm2 <- maxLik::maxNR(
-  calc_mle_3waves_ar1_fmm2,
-  grad = calc_mle_derivatives_3waves_ar1_fmm2,
-  hess = calc_hessian_3waves_ar1_fmm2,
-  start = model_mle_3w_ar1_fmm2$estimate,
-)
+
+model_mle_3w_ar1_fmm2 <- 
+  maxLik::maxNR(calc_mle_3waves_ar1_fmm2,
+                grad  = calc_mle_derivatives_3waves_ar1_fmm2,
+                hess  = calc_hessian_3waves_ar1_fmm2,
+                start = model_mle_3w_ar1_fmm2$estimate)
 
 model_mle_3w_ar1_fmm2$estimate
 logit_inverse(model_mle_3w_ar1_fmm2$estimate)
-model_mle_3w_ar1_fmm2$maximum
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_1) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_1))
+logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2)/(logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta0_2) + logit_inverse(model_mle_3w_ar1_fmm2$estimate$theta1_2))
+max4 <- model_mle_3w_ar1_fmm2$maximum
+max4-max1
+calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
+diag(vcov(model_mle_3w_ar1_fmm2))
+summary(model_mle_3w_ar1_fmm2)
 hessian_matrix <- model_mle_3w_ar1_fmm2$hessian
 var_cov_matrix <- solve(-hessian_matrix) # Invert Hessian for variance-covariance
 print(var_cov_matrix)
 sqrt(((exp(model_mle_3w_ar1_fmm2$estimate) / ((1 + exp(model_mle_3w_ar1_fmm2$estimate))^2))^2) * 
        diag(var_cov_matrix))
 
+summary(model_mle_3w_ar1_fmm2)
 
 vcov(model_mle_3w_ar1_fmm2)
 
@@ -1465,6 +1616,7 @@ model_mle_3w_ar1_fmm2$estimate
 logit_inverse(model_mle_3w_ar1_fmm2$estimate)
 model_mle_3w_ar1_fmm2$maximum
 calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
+summary(model_mle_3w_ar1_fmm2)
 # Extract Hessian and compute variance-covariance matrix
 hessian_matrix <- model_mle_3w_ar1_fmm2$hessian
 var_cov_matrix <- solve(hessian_matrix) # Invert Hessian for variance-covariance
@@ -1480,12 +1632,13 @@ print(std_errors)
 diag(vcov(model_mle_3w_ar1_fmm2))
 
 calc_mle_3waves_ar1_fmm2_help <- function(param_transformed) {
-  param$theta0_1 <- param_transformed[1]
-  param$theta1_1 <- param_transformed[2]
-  param$p_1 <- param_transformed[3]
-  param$theta0_2 <- param_transformed[4]
-  param$theta1_2 <- param_transformed[5]
-  param$pi <- param_transformed[6]
+  param <- data.frame(
+  theta0_1 <- param_transformed[1],
+  theta1_1 <- param_transformed[2],
+  p_1      <- param_transformed[3],
+  theta0_2 <- param_transformed[4],
+  theta1_2 <- param_transformed[5],
+  pi       <- param_transformed[6])
   calc_mle_3waves_ar1_fmm2(param)
 }
 param_transformed1 <- as.numeric(model_mle_3w_ar1_fmm2$estimate)
@@ -1494,6 +1647,28 @@ library(numDeriv)
 analytic_grad <- calc_mle_derivatives_3waves_ar1_fmm2(model_mle_3w_ar1_fmm2$estimate)
 numeric_grad <- grad(calc_mle_3waves_ar1_fmm2_help, param_transformed1)
 print(cbind(analytic_grad, numeric_grad))
+
+# Compute numerical hessian
+library(numDeriv)
+
+hessian_numeric <- hessian(func = calc_mle_3waves_ar1_fmm2_help, x = param_transformed1)
+eigen(hessian_numeric)$values
+kappa(hessian_numeric)
+
+vcov_numeric <- tryCatch({
+  solve(-hessian_numeric)  # Flip sign for negative-definite Hessian
+}, error = function(e) {
+  warning("Hessian could not be inverted")
+  matrix(NA, ncol = length(param_transformed), nrow = length(param_transformed))
+})
+
+std_errors_logit <- sqrt(diag(vcov_numeric))
+names(std_errors_logit) <- names(model_mle_3w_ar1_fmm2$estimate)
+print(std_errors_logit)
+diag(vcov_numeric)
+cov(p_1, theta0_1)
+cov2cor(vcov_numeric)
+
 
 # model_mle_3w_ar1_fmm2$estimate
 # logit_inverse(model_mle_3w_ar1_fmm2$estimate)
