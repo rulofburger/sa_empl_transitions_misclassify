@@ -1429,7 +1429,9 @@ smoof_fn <- makeSingleObjectiveFunction(
 
 # LHS design
 set.seed(123)
-design_init <- generateDesign(n = 100, par.set = par_space, fun = lhs::randomLHS)
+design_init <- generateDesign(n       = 200, 
+                              par.set = par_space, 
+                              fun     = lhs::randomLHS)
 
 # Optionally include some manual starts
 manual_starts <- data.frame(
@@ -1438,22 +1440,20 @@ manual_starts <- data.frame(
   p_1      = c(0.1, 0.3, 0.5),
   theta0_2 = c(0.1, -0.3, 0),
   theta1_2 = c(0.1, 0.1, -0.1),
-  pi       = c(-3.5, -4, -2)
-)
+  pi       = c(-3.5, -4, -2))
 
 design_init <- rbind(design_init, manual_starts)
 surrogate <- makeLearner("regr.km", predict.type = "se", covtype = "matern3_2")
 
 control <- makeMBOControl()
-control <- setMBOControlTermination(control, iters = 50)
+control <- setMBOControlTermination(control, iters = 500)
 control <- setMBOControlInfill(control, crit = makeMBOInfillCritEI())
 mbo_result <- mbo(
-  fun = smoof_fn,
-  learner = surrogate,
-  control = control,
-  design = design_init,
-  show.info = F
-)
+  fun       = smoof_fn,
+  learner   = surrogate,
+  control   = control,
+  design    = design_init,
+  show.info = F)
 
 # Best starting values (logit scale)
 best_start_transformed <- unlist(mbo_result$x)
@@ -1467,19 +1467,19 @@ print(best_start_transformed)
 # local optimizer
 
 
-calc_mle_penalized <- function(par) {
-  penalty <- if (par["p_1"] >= logit_inverse(0.45)) 1e6 else 0
-  calc_mle_3waves_ar1_fmm2(par) - penalty
-}
-calc_mle_penalized <- function(par) {
-  penalty_strength <- 10000000  # Tune this
-  penalty <- penalty_strength * max(0, par[["p_1"]] - logit_transform(0.45))^2
-  calc_mle_3waves_ar1_fmm2(par) - penalty
-}
-
-
-calc_mle_penalized(param_init_transformed)
-calc_mle_3waves_ar1_fmm2(param_init_transformed)
+# calc_mle_penalized <- function(par) {
+#   penalty <- if (par["p_1"] >= logit_inverse(0.45)) 1e6 else 0
+#   calc_mle_3waves_ar1_fmm2(par) - penalty
+# }
+# calc_mle_penalized <- function(par) {
+#   penalty_strength <- 10000000  # Tune this
+#   penalty <- penalty_strength * max(0, par[["p_1"]] - logit_transform(0.45))^2
+#   calc_mle_3waves_ar1_fmm2(par) - penalty
+# }
+# 
+# 
+# calc_mle_penalized(param_init_transformed)
+# calc_mle_3waves_ar1_fmm2(param_init_transformed)
 
 df_template <- data.table::CJ(y1      = c(0, 1), 
                               y1_star = c(0, 1), 
