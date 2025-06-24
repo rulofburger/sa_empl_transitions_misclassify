@@ -101,12 +101,18 @@ library(stats)
 calc_lli_3waves_ar1_duration_endog <- function(param_transformed, pi_fixed = NULL, only_pi = NULL) {
   
   param <- param_transformed
-  if(!is.null(pi_fixed)) {
+  
+  param$lambda_h <-  # duration of unemployment
+    exponential_from_transition(param$theta0) # entry rate
+  param$lambda_g <-  # duration of employment
+    exponential_from_transition(param$theta1) # exit rate
+  
+  if (!is.null(pi_fixed)) {
     param$pi <- 0.5*logit_inverse(pi_fixed$pi)
   } else {
-    param$pi <- 0.5*logit_inverse(param_transformed$pi)
+    param$pi <- 0.5*logit_inverse(param_transformed$pi) # why??
   }
-  if(!is.null(only_pi)) {
+  if (!is.null(only_pi)) {
     param$theta_0 <- logit_inverse(only_pi$theta_0)
     param$theta_1 <- logit_inverse(only_pi$theta_1)
     param$lambda_g <- exp(only_pi$lambda_g) + 0.1
@@ -121,16 +127,19 @@ calc_lli_3waves_ar1_duration_endog <- function(param_transformed, pi_fixed = NUL
     param$sigma_g <- exp(param_transformed$sigma_g) + 0.1
     param$sigma_h <- exp(param_transformed$sigma_h) + 0.1
   }
-  
-  mu <- param$theta_0/(param$theta_1 + param$theta_0)
 
+  mu <- param$theta_0/(param$theta_1 + param$theta_0)
+  
+
+  
+  
   df_probs_temp <- df_template_duration_endog %>% 
     mutate(
       p1_star = if_else(y1_star == 1, mu, 1 - mu),
       p2_star = case_when(
         y1_star == 0 & y2_star == 0 ~ 1 - param$theta_0,
-        y1_star == 0 & y2_star == 1 ~ param$theta_0,
-        y1_star == 1 & y2_star == 0 ~ param$theta_1,
+        y1_star == 0 & y2_star == 1 ~ param$theta_0, # entry
+        y1_star == 1 & y2_star == 0 ~ param$theta_1, # exit
         y1_star == 1 & y2_star == 1 ~ 1 - param$theta_1
       ),
       p3_star = case_when(
@@ -211,6 +220,12 @@ calc_lli_3waves_ar1_duration_endog <- function(param_transformed, pi_fixed = NUL
 calc_lli_derivatives_3waves_ar1_duration_endog <- function(param_transformed, pi_fixed = NULL, only_pi = NULL) {
  
   param <- param_transformed
+  
+  param$lambda_h <-  # duration of unemployment
+    exponential_from_transition(param$theta0) # entry rate
+  param$lambda_g <-  # duration of employment
+    exponential_from_transition(param$theta1) # exit rate
+  
   if(!is.null(pi_fixed)) {
     param$pi <- 0.5*logit_inverse(pi_fixed$pi)
   } else {
@@ -305,6 +320,9 @@ calc_lli_derivatives_3waves_ar1_duration_endog <- function(param_transformed, pi
       p_h2 = if_else(p_h2 < minval, minval, p_h2),
       p_h3 = if_else(p_h3 < minval, minval, p_h3),
       joint_p = p1_star*p1*p2_star*p2*p3_star*p3*p_g1*p_g2*p_g3*p_h1*p_h2*p_h3,
+      
+      # Derivatives
+      
       d1_star_theta_0 = case_when(
         y1_star == 0 ~ -param$theta_1/((param$theta_1 + param$theta_0)^2),
         y1_star == 1 ~ param$theta_1/((param$theta_1 + param$theta_0)^2)
