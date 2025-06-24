@@ -12,6 +12,13 @@ logit_inverse <- function(param_input0) {
   1/(1 + exp(-param_input0))
 }
 
+exponential_from_transition <- function(theta) {
+  -(log(1 - theta))/3 
+}
+transition_from_exponential <- function(alpha) {
+  1 - exp(-3*alpha)
+}
+transition_from_exponential(exponential_from_transition(0.9))
 # partial_exGauss_lambda <- function(x, sigma, lambda) {
 #   # Compute intermediate values
 #   u <- x / sigma - sigma / lambda  # u = x/sigma - sigma/lambda
