@@ -25,7 +25,7 @@ library(fastverse)
 # DEFINE FUNCTIONS ====
 
 #> Load estimation functions defined in other scripts ----
-source("scripts/define_estimation_functions_3waves_mle_ar1_duration_endog.R")
+source("scripts/define_estimation_functions_3waves_mle_ar1_duration_endog_diff_miscl_duration.R")
 
 
 # INGEST DATA ====
@@ -35,13 +35,15 @@ source("scripts/ingest_data_3waves_SA.R")
 
 # Limit survey rounds and calculate weights to be consistent within panel and to sum to 1
 df_qlfs <- df_qlfs %>% 
-  filter(period1 >= 30 & period1 <= 32) %>% 
-  mutate(weight_total = sum(weight))  %>% 
-  mutate(weight = dim(df_qlfs)[1]*weight/weight_total) 
+  filter(period1 >= 30 & period1 <= 32)
 
 df_qlfs_tenure_timegap <- df_qlfs %>% 
   filter(!is.na(timegap1) & !is.na(timegap2) & !is.na(timegap3)) %>% 
   filter(!is.na(tenure1) & !is.na(tenure2) & !is.na(tenure3))
+
+df_qlfs_tenure_timegap <- df_qlfs_tenure_timegap %>% 
+  mutate(weight_total = sum(weight))  %>% 
+  mutate(weight = dim(df_qlfs_tenure_timegap)[1]*weight/weight_total) 
 
 # ESTIMATE MODELS ====
 
@@ -70,13 +72,15 @@ df_template_duration_endog <- df_covariate_combos[df_template_employment, on = "
 df_template_duration_endog[, k := NULL]
 
 # param_init <- data.frame(intercept_0 = -2.524934, timegap = -0.1300759, intercept_1 = 1.02172, tenure = -0.6729012, pi = 0.02924524)
-param_init <- data.frame(theta_0 = 0.02881745, theta_1 = 0.02918875, lambda_g = 6.439774, lambda_h = 2.298665, sigma_g = 0.2231302, sigma_h = 0.2231302, pi = 0.02990933)
+param_init <- data.frame(theta_0 = 0.02881745, theta_1 = 0.02918875, lambda_g = 6.439774, lambda_h = 2.298665, lambda_g_mis = 6.439774, lambda_h_mis = 2.298665, sigma_g = 0.2231302, sigma_h = 0.2231302, pi = 0.02990933)
 param_init_transformed <- param_init
 param_init_transformed$theta_0 <- logit_transform(param_init$theta_0)
 param_init_transformed$theta_1 <- logit_transform(param_init$theta_1)
 param_init_transformed$pi <- log(param_init$pi/(0.5 - param_init$pi)) # To ensure that pi doesnt exceed 50%, which sometimes happens
 param_init_transformed$lambda_g <- log(param_init$lambda_g)
 param_init_transformed$lambda_h <- log(param_init$lambda_h)
+param_init_transformed$lambda_g_mis <- log(param_init$lambda_g_mis)
+param_init_transformed$lambda_h_mis <- log(param_init$lambda_h_mis)
 param_init_transformed$sigma_g <- log(param_init$sigma_g)
 param_init_transformed$sigma_h <- log(param_init$sigma_h)
 
@@ -98,6 +102,8 @@ transformed_estimates$theta_0 <- logit_inverse(transformed_estimates$theta_0)
 transformed_estimates$theta_1 <- logit_inverse(transformed_estimates$theta_1)
 transformed_estimates$lambda_g <- exp(transformed_estimates$lambda_g) + 0.1
 transformed_estimates$lambda_h <- exp(transformed_estimates$lambda_h) + 0.1
+transformed_estimates$lambda_g_mis <- exp(transformed_estimates$lambda_g_mis) + 0.1
+transformed_estimates$lambda_h_mis <- exp(transformed_estimates$lambda_h_mis) + 0.1
 transformed_estimates$sigma_g <- exp(transformed_estimates$sigma_g) + 0.1
 transformed_estimates$sigma_h <- exp(transformed_estimates$sigma_h) + 0.1
 transformed_estimates$pi <- 0.5*logit_inverse(transformed_estimates$pi)

@@ -25,7 +25,7 @@ library(fastverse)
 # DEFINE FUNCTIONS ====
 
 #> Load estimation functions defined in other scripts ----
-source("scripts/define_estimation_functions_3waves_mle_ar1_duration_endog.R")
+source("scripts/define_estimation_functions_3waves_mle_ar1_duration_endog_inflated_densities_with_gradients.R")
 
 
 # INGEST DATA ====
@@ -33,7 +33,7 @@ source("scripts/define_estimation_functions_3waves_mle_ar1_duration_endog.R")
 # Run script that loads 3 wave SA data as df_qlfs
 source("scripts/ingest_data_3waves_SA.R")
 
-# Limit survey rounds and calculate weights to be consistent within panel and to sum to 1
+# Limit survey rounds and calculat weights to be consistent within panel and to sum to 1
 df_qlfs <- df_qlfs %>% 
   filter(period1 >= 30 & period1 <= 32) %>% 
   mutate(weight_total = sum(weight))  %>% 
@@ -96,10 +96,10 @@ transformed_estimates <- model_mle_3w_ar1_duration_endog$estimate
 
 transformed_estimates$theta_0 <- logit_inverse(transformed_estimates$theta_0)
 transformed_estimates$theta_1 <- logit_inverse(transformed_estimates$theta_1)
-transformed_estimates$lambda_g <- exp(transformed_estimates$lambda_g) + 0.1
-transformed_estimates$lambda_h <- exp(transformed_estimates$lambda_h) + 0.1
-transformed_estimates$sigma_g <- exp(transformed_estimates$sigma_g) + 0.1
-transformed_estimates$sigma_h <- exp(transformed_estimates$sigma_h) + 0.1
+transformed_estimates$lambda_g <- exp(transformed_estimates$lambda_g) + 0.01
+transformed_estimates$lambda_h <- exp(transformed_estimates$lambda_h) + 0.01
+transformed_estimates$sigma_g <- exp(transformed_estimates$sigma_g) + 0.01
+transformed_estimates$sigma_h <- exp(transformed_estimates$sigma_h) + 0.01
 transformed_estimates$pi <- 0.5*logit_inverse(transformed_estimates$pi)
 
 transformed_estimates
