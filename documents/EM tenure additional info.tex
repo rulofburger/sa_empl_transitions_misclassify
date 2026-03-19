@@ -1,0 +1,325 @@
+\documentclass[12pt]{article}
+\usepackage[margin=2cm]{geometry}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1em}
+
+\usepackage{amsmath}
+\usepackage{booktabs,dcolumn,setspace,float,multirow}
+
+\begin{document}
+
+\section{Interpretation and Purpose of Sufficient Statistics}
+
+\subsection{Markov Transition Statistics}
+
+\paragraph{$C_1$ and $C_0$ (Initial State Counts)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item $C_1$: Expected weighted count of individuals employed at wave 1 ($h_1 = 1$)
+\item $C_0$: Expected weighted count of individuals nonemployed at wave 1 ($h_1 = 0$)
+\end{itemize}
+
+\textbf{Formula:}
+\begin{align*}
+C_1 &= \sum_{i,h} w_i\gamma_{ih}\cdot h_1,\\
+C_0 &= \sum_{i,h} w_i\gamma_{ih}\cdot(1-h_1).
+\end{align*}
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Estimate initial employment probability $\alpha = \Pr(h_1 = 1)$
+\item \emph{M-step formula}: $\hat{\alpha} = C_1 / (C_1 + C_0)$
+\item \emph{Interpretation}: ``Of all people at wave 1, what fraction were employed?''
+\end{itemize}
+
+\textbf{Example:}
+If $C_1 = 600$ and $C_0 = 400$ (total survey weight = 1000):
+\[
+\hat{\alpha} = 600/1000 = 0.60 \quad\text{(60\% initially employed)}.
+\]
+
+\paragraph{$D_1$ and $D_0$ (Transition Exposure/Denominators)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item $D_1$: Expected weighted count of ``employment episodes'' (times when someone was employed at $t-1$)
+\item $D_0$: Expected weighted count of ``nonemployment episodes'' (times when someone was nonemployed at $t-1$)
+\end{itemize}
+
+\textbf{Formula:}
+\begin{align*}
+D_1 &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=1\},\\
+D_0 &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=0\}.
+\end{align*}
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Denominator for transition probabilities (exposure time)
+\item \emph{M-step formulas}: 
+  \begin{align*}
+  \hat{\theta}_1 &= T_{11} / D_1 \quad\text{(stay-employed rate)},\\
+  \hat{\theta}_0 &= T_{01} / D_0 \quad\text{(job-finding rate)}.
+  \end{align*}
+\item \emph{Interpretation}: ``How many times were people `at risk' of transitioning from each state?''
+\end{itemize}
+
+\textbf{Example:}
+Person with $h = (1,1,0)$:
+\begin{itemize}
+\item At $t=1$: employed (contributes 1 to $D_1$)
+\item At $t=2$: employed (contributes 1 to $D_1$)
+\item Total contribution to $D_1$: 2
+\end{itemize}
+Across all $N=500$ people: $D_1 = 850$ $\Rightarrow$ There were 850 employment episodes where transitions could occur.
+
+\textbf{Note:} We only use $t=1,2$ (not $t=3$) because there is no $t=4$ to transition to.
+
+\paragraph{$T_{11}$ (Stay-Employed Transitions)}
+
+\textbf{What it is:}
+\begin{itemize}
+\item Expected weighted count of transitions where someone \textbf{stayed employed} ($h_{t-1} = 1 \to h_t = 1$)
+\end{itemize}
+
+\textbf{Formula:}
+\[
+T_{11} = \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=1, h_t=1\}.
+\]
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Numerator for employment persistence probability
+\item \emph{M-step formula}: $\hat{\theta}_1 = T_{11} / D_1$
+\item \emph{Interpretation}: ``Of all employment episodes, how many resulted in staying employed?''
+\end{itemize}
+
+\textbf{Example:}
+\[
+T_{11} = 750,\, D_1 = 850 \quad\Rightarrow\quad \hat{\theta}_1 = 750/850 = 0.882 \quad\text{(88.2\% of employed stay employed next quarter)}.
+\]
+
+\paragraph{$T_{01}$ (Job-Finding Transitions)}
+
+\textbf{What it is:}
+\begin{itemize}
+\item Expected weighted count of transitions where someone \textbf{found employment} ($h_{t-1} = 0 \to h_t = 1$)
+\end{itemize}
+
+\textbf{Formula:}
+\[
+T_{01} = \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=0, h_t=1\}.
+\]
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Numerator for job-finding probability
+\item \emph{M-step formula}: $\hat{\theta}_0 = T_{01} / D_0$
+\item \emph{Interpretation}: ``Of all nonemployment episodes, how many resulted in finding a job?''
+\end{itemize}
+
+\textbf{Example:}
+\[
+T_{01} = 120,\, D_0 = 650 \quad\Rightarrow\quad \hat{\theta}_0 = 120/650 = 0.185 \quad\text{(18.5\% of nonemployed find jobs next quarter)}.
+\]
+
+\paragraph{$M$ (Total Misclassifications)}
+
+\textbf{What it is:}
+\begin{itemize}
+\item Expected weighted count of \textbf{all state misclassifications} across all waves
+\end{itemize}
+
+\textbf{Formula:}
+\[
+M = \sum_{i,h} w_i\gamma_{ih}\sum_{t=1}^3 \mathbf{1}\{s_{it} \neq h_t\}.
+\]
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Estimate misclassification probability $\pi$
+\item \emph{M-step formula}: $\hat{\pi} = M / (3\cdot\sum_i w_i)$ (divide by $3N$ because each person has 3 waves)
+\item \emph{Interpretation}: ``What fraction of all state reports (across all people and waves) were errors?''
+\end{itemize}
+
+\textbf{Example:}
+\[
+M = 150,\, \text{total survey weight} = 1000,\, \text{number of wave-reports} = 3000 \quad\Rightarrow\quad \hat{\pi} = 150/3000 = 0.05 \quad\text{(5\% error rate)}.
+\]
+
+\subsection{Duration Statistics}
+
+\paragraph{$S_g$ and $N_g$ (Employment Continuation Variance)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item $S_g$: Sum of squared \textbf{employment tenure increments} (for continuations only)
+\item $N_g$: Count of employment continuations (number of increment observations)
+\end{itemize}
+
+\textbf{Formula:}
+\begin{align*}
+S_g &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3 \mathbf{1}\{h_{t-1}=1, h_t=1, s_{it}=1, s_{i,t-1}=1\} \cdot \big[\Delta^g_{it}\big]^2,\\
+N_g &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3 \mathbf{1}\{h_{t-1}=1, h_t=1, s_{it}=1, s_{i,t-1}=1\},
+\end{align*}
+where $\Delta^g_{it} = (g_{it} - g_{i,t-1}) - 0.25$ from \eqref{eq:emp_increment}. The condition $s_{i,t-1}=1$ ensures the lagged tenure $g_{i,t-1}$ is observed, so the increment is well-defined. When the previous wave is misclassified ($s_{i,t-1}=0$), the increment is undefined and that observation is excluded.
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Estimate employment measurement error variance $\sigma_g^2$
+\item \emph{M-step formula}: $\hat{\sigma}_g^2 = (S_g + 2S_g^{\mathrm{start}}) / (2(N_g + N_g^{\mathrm{start}}))$ \eqref{eq:mstep_sigmas} \quad$\leftarrow$ \textbf{Pools continuations and starts}
+\item \emph{Interpretation}: ``How noisy are reported tenure increments?''
+\end{itemize}
+
+\textbf{Example:}
+If $S_g = 0.80$, $N_g = 200$, $S_g^{\mathrm{start}} = 0.05$, $N_g^{\mathrm{start}} = 30$:
+\[
+\hat{\sigma}_g^2 = \frac{0.80 + 2(0.05)}{2(200+30)} = \frac{0.90}{460} = 0.00196 \quad\Rightarrow\quad \hat{\sigma}_g \approx 0.044\text{ years} \approx 16\text{ days}.
+\]
+When $N_g^{\mathrm{start}}=0$, this reduces to $\hat{\sigma}_g^2 = S_g/(2N_g)$.
+
+\textbf{Why the factor of 2?}
+
+The increment $\Delta^g_{it} = (g_{it} - g_{i,t-1}) - 0.25$ has \textbf{two independent measurement errors}:
+\begin{align*}
+\Delta^g_{it} &= \big[g_t^* + \varepsilon^g_{it}\big] - \big[g_{t-1}^* + \varepsilon^g_{i,t-1}\big] - 0.25\\
+&= 0.25 + \varepsilon^g_{it} - \varepsilon^g_{i,t-1} - 0.25\\
+&= \varepsilon^g_{it} - \varepsilon^g_{i,t-1}.
+\end{align*}
+Therefore,
+\[
+\mathrm{Var}(\Delta^g_{it}) = \mathrm{Var}(\varepsilon^g_{it}) + \mathrm{Var}(\varepsilon^g_{i,t-1}) = \sigma_g^2 + \sigma_g^2 = 2\sigma_g^2.
+\]
+So: $\mathbb{E}\big[(\Delta^g_{it})^2\big] = 2\sigma_g^2$, and solving gives $\sigma_g^2 = \mathbb{E}\big[(\Delta^g_{it})^2\big] / 2 = S_g / (2\cdot N_g)$.
+
+\paragraph{$S_d$ and $N_d$ (Nonemployment Continuation Variance)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item $S_d$: Sum of squared \textbf{nonemployment duration increments}
+\item $N_d$: Count of nonemployment continuations
+\end{itemize}
+
+\textbf{Formula:}
+\begin{align*}
+S_d &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3 \mathbf{1}\{h_{t-1}=0, h_t=0, s_{it}=0, s_{i,t-1}=0\} \cdot \big[\Delta^d_{it}\big]^2,\\
+N_d &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3 \mathbf{1}\{h_{t-1}=0, h_t=0, s_{it}=0, s_{i,t-1}=0\},
+\end{align*}
+where $\Delta^d_{it} = (d_{it} - d_{i,t-1}) - 0.25$ from \eqref{eq:nonemp_increment}. The condition $s_{i,t-1}=0$ ensures the lagged nonemployment duration $d_{i,t-1}$ is observed.
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Estimate nonemployment measurement error variance $\sigma_d^2$
+\item \emph{M-step formula}: $\hat{\sigma}_d^2 = (S_d + 2S_d^{\mathrm{start}}) / (2(N_d + N_d^{\mathrm{start}}))$ \eqref{eq:mstep_sigmas}
+\item \emph{Interpretation}: ``How noisy are reported nonemployment duration increments?''
+\end{itemize}
+
+Same logic as employment, but for the nonemployment regime.
+
+\paragraph{$S_g^{\mathrm{start}}$, $N_g^{\mathrm{start}}$, $S_d^{\mathrm{start}}$, $N_d^{\mathrm{start}}$ (Within-Panel Start Statistics)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item $S_g^{\mathrm{start}}$: Sum of squared deviations $(g_{it}-0.25)^2$ at matched employment starts
+\item $N_g^{\mathrm{start}}$: Count of matched employment starts
+\item $S_d^{\mathrm{start}}, N_d^{\mathrm{start}}$: Analogous for nonemployment starts
+\end{itemize}
+
+\textbf{Formulas:}
+
+\emph{Employment starts} ($t\ge 2$, $h_{t-1}=0$, $h_t=1$, $s_{it}=1$):
+\begin{align*}
+S_g^{\mathrm{start}} &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=0,\,h_t=1,\,s_{it}=1\}\big(g_{it}-0.25\big)^2,\\
+N_g^{\mathrm{start}} &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=0,\,h_t=1,\,s_{it}=1\}.
+\end{align*}
+
+\emph{Nonemployment starts} ($t\ge 2$, $h_{t-1}=1$, $h_t=0$, $s_{it}=0$):
+\begin{align*}
+S_d^{\mathrm{start}} &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=1,\,h_t=0,\,s_{it}=0\}\big(d_{it}-0.25\big)^2,\\
+N_d^{\mathrm{start}} &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}=1,\,h_t=0,\,s_{it}=0\}.
+\end{align*}
+
+\textbf{Why calculated:}
+\begin{itemize}
+\item \emph{Purpose}: Provide additional information about $\sigma_g^2$ and $\sigma_d^2$, pooled with continuation statistics in the M-step
+\item \emph{Distribution}: At a within-panel start, the true duration is exactly $0.25$ (one full quarter). The observed duration is $(0.25 + \varepsilon)$ where $\varepsilon \sim N(0,\sigma^2)$, so $(g_{it}-0.25) \sim N(0, \sigma_g^2)$. This is a standard normal-variance sufficient statistic.
+\item \emph{Pooled MLE}: The factor of 2 on $S^{\mathrm{start}}$ in \eqref{eq:mstep_sigmas} rescales start contributions (variance $\sigma^2$) to the continuation scale (variance $2\sigma^2$). Derivation: the joint profile log-likelihood is
+\[
+\ell(v) = -\tfrac{N_g}{2}\log(2v) - \frac{S_g}{4v} - \tfrac{N_g^{\mathrm{start}}}{2}\log(v) - \frac{S_g^{\mathrm{start}}}{2v},
+\]
+and setting $\partial\ell/\partial v=0$ gives $\hat{\sigma}_g^2 = (S_g + 2S_g^{\mathrm{start}})/(2(N_g + N_g^{\mathrm{start}}))$.
+\item \emph{No $s_{i,t-1}$ condition needed}: Unlike continuations, starts do not use a lagged duration, so there is no requirement on the previous wave's observed state.
+\end{itemize}
+
+\textbf{Example:}
+If $S_g^{\mathrm{start}} = 0.05$, $N_g^{\mathrm{start}} = 30$, combined with $S_g = 0.80$, $N_g = 200$:
+\[
+\hat{\sigma}_g^2 = \frac{0.80 + 2(0.05)}{2(200+30)} = \frac{0.90}{460} = 0.00196.
+\]
+
+\paragraph{Exponential rates $\lambda_g, \lambda_d$ (Linked CTMC)}
+
+\textbf{What they are:}
+\begin{itemize}
+\item Under the linked specification, $\lambda_g$ and $\lambda_d$ are \textbf{not estimated from separate sufficient statistics}
+\item They are determined entirely by the transition probability estimates via the CTMC link \eqref{eq:lambdas_link}
+\end{itemize}
+
+\textbf{M-step formula:}
+\[
+\hat{\lambda}_g = -\tfrac{1}{3}\log(1-\hat{\theta}_1), \qquad \hat{\lambda}_d = -\tfrac{1}{3}\log(1-\hat{\theta}_0).
+\]
+
+\textbf{Why no separate statistics?}
+\begin{itemize}
+\item Misclassified durations and wave-1 durations follow the EMG (exGaussian) distribution, not pure Exponential
+\item The EMG distribution has no closed-form MLE for the exponential rate parameter
+\item Under the linked specification, $\lambda$ is pinned down by $\theta$, so no numerical optimization is needed
+\item These EMG observations still influence the E-step by entering the emission densities $\ell_t(\cdot)$ and thereby shaping the responsibilities $\gamma_{ih}$
+\end{itemize}
+
+\textbf{Example:}
+\[
+\hat{\theta}_1 = 0.882 \quad\Rightarrow\quad \hat{\lambda}_g = -\tfrac{1}{3}\log(1-0.882) = -\tfrac{1}{3}\log(0.118) = 0.713.
+\]
+This implies a mean true employment spell length of $1/\hat{\lambda}_g = 1.40$ years $\approx$ 17 months.
+
+\subsection{Summary Table}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{llll}
+\hline
+\textbf{Statistic} & \textbf{What It Counts} & \textbf{M-Step Use} & \textbf{Estimate} \\
+\hline
+$C_1, C_0$ & Initial employment/nonemployment & Initial probability & $\alpha = C_1/(C_1+C_0)$ \\
+$D_1, D_0$ & Employment/nonemployment exposure & Transition denominators & (used below) \\
+$T_{11}$ & Stay-employed transitions & Persistence numerator & $\theta_1 = T_{11}/D_1$ \\
+$T_{01}$ & Job-finding transitions & Job-finding numerator & $\theta_0 = T_{01}/D_0$ \\
+$M$ & Total misclassifications & Error rate & $\pi = M/(3\sum_i w_i)$ \\
+$S_g, N_g$ & Tenure continuation increments & \multirow{2}{*}{Pooled $\to$ $\sigma_g^2$} & \multirow{2}{*}{$\frac{S_g+2S_g^{\mathrm{start}}}{2(N_g+N_g^{\mathrm{start}})}$} \\
+$S_g^{\mathrm{start}}, N_g^{\mathrm{start}}$ & Employment start deviations & & \\
+$S_d, N_d$ & Nonemp continuation increments & \multirow{2}{*}{Pooled $\to$ $\sigma_d^2$} & \multirow{2}{*}{$\frac{S_d+2S_d^{\mathrm{start}}}{2(N_d+N_d^{\mathrm{start}})}$} \\
+$S_d^{\mathrm{start}}, N_d^{\mathrm{start}}$ & Nonemp start deviations & & \\
+(none) & $\lambda_g,\lambda_d$ via CTMC link & Deterministic & $\lambda_g = -\tfrac{1}{3}\log(1-\theta_1)$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\newpage
+\subsection{Key Conceptual Points}
+
+\begin{enumerate}
+\item \textbf{``Expected'' counts}: All statistics involve $\gamma_{ih}$ (posterior probability), so they are \textbf{weighted by uncertainty} about the true history.
+
+\item \textbf{Survey weights}: All statistics multiply by $w_i$ to account for sampling design.
+
+\item \textbf{Two sources for $\sigma^2$}: Continuation increments ($S_g, N_g$) and within-panel starts ($S_g^{\mathrm{start}}, N_g^{\mathrm{start}}$) both identify $\sigma_g^2$ and are pooled in the M-step \eqref{eq:mstep_sigmas}. Continuations require $s_{i,t-1}=s_{it}$ so that both current and lagged durations are observed; when the previous wave is misclassified, the increment is undefined and that observation is excluded. Starts do not need this condition because they use the level $(g_{it}-0.25)$ rather than a lagged difference.
+
+\item \textbf{No separate statistics for $\lambda$}: Under the linked specification, $\lambda_g$ and $\lambda_d$ are determined by $\theta_1$ and $\theta_0$ via the CTMC link \eqref{eq:lambdas_link}. Misclassified and wave-1 durations follow the EMG distribution, which has no closed-form MLE for the rate parameter, so no separate sufficient statistics are needed or computed.
+
+\item \textbf{EMG enters through responsibilities}: Wave-1 EMG observations, continuation-with-previous-misclassified cases, and misclassified durations all enter the emission density $\ell_t(\cdot)$ and thereby influence the responsibilities $\gamma_{ih}$, but they do not yield closed-form sufficient statistics for $\lambda$. Their information shapes the soft assignments, which in turn affect all other sufficient statistics.
+\end{enumerate}
+
+\end{document}
