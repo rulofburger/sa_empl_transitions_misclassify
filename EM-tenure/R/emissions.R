@@ -196,3 +196,264 @@ log_emission_start_d <- function(d, sigma2_d) {
   v <- .pos(sigma2_d)
   -0.5 * log(2 * base::pi * v) - 0.5 * (d - .QUARTER_YEARS)^2 / v
 }
+
+# ==============================================================================
+# Discrete interval-censored timegap emissions (Issue 3 remedy)
+# ==============================================================================
+# These functions replace the Gaussian/EMG emissions on the nonemployment
+# (timegap) side when discrete_timegap = TRUE. The underlying model is
+# D ~ Exp(lambda_d) where lambda_d = -log(1 - theta0) / 3 (CTMC link).
+#
+# Instead of evaluating a continuous density at a midpoint, we compute the
+# PROBABILITY that the true duration falls in the observed category interval.
+# This is the correct likelihood for interval-censored data.
+#
+# TeX reference: DIAGNOSIS.md, Issue 3 Remedy; brainstorm
+# .cg-docs/brainstorms/2026-03-19-em-tenure-diagnosis-expansion.md
+# ==============================================================================
+
+# --- Helper: log interval probability of Exp(lambda) -------------------------
+
+#' Log interval probability: log P(D in [a, b) | D ~ Exp(lambda))
+#'
+#' Numerically stable implementation:
+#'   - Finite b: log(exp(-lambda*a) - exp(-lambda*b))
+#'             = -lambda*a + log1p(-exp(-lambda*(b-a)))
+#'   - Infinite b: -lambda*a  (since P(D >= a) = exp(-lambda*a))
+#'
+#' @param a Left endpoint (>= 0).
+#' @param b Right endpoint (> a; may be Inf).
+#' @param lambda Exponential rate (> 0).
+#' @return Scalar log probability.
+#' @keywords internal
+.log_interval_prob <- function(a, b, lambda) {
+  if (is.infinite(b)) {
+    return(-lambda * a)
+  }
+  # Stable: -lambda*a + log(1 - exp(-lambda*(b-a)))
+  span <- lambda * (b - a)
+  if (span > 700) {
+    # exp(-span) underflows to 0, log1p(-0) = 0
+    return(-lambda * a)
+  }
+  -lambda * a + log1p(-exp(-span))
+}
+
+# --- Helper: log denominator for conditional transition ----------------------
+
+#' Log of the Exp(lambda) mass in category j: log P(D in [a_j, b_j))
+#' @keywords internal
+.log_cat_mass <- function(j, lambda) {
+  iv <- .timegap_interval(j)
+  .log_interval_prob(iv[1], iv[2], lambda)
+}
+
+
+# --- Discrete timegap emission functions -------------------------------------
+
+#' Log interval probability for a nonemployment category (discrete model)
+#'
+#' Computes log P(D in [a_k, b_k) | D ~ Exp(lambda_d)) for category k,
+#' the natural likelihood for interval-censored exponential data.
+#'
+#' This replaces log_emg() in six emission cases when discrete_timegap = TRUE:
+#'   - Wave 1 matched nonemployment (h1=0, s1=0)
+#'   - Wave 1 misclassified as nonemployed (h1=1, s1=0)
+#'   - Nonemployment continuation, previous misclassified (hp=0, hc=0, s_prev=1)
+#'   - Misclassified as nonemployed, t >= 2 (hc=1, s_t=0)
+#'
+#' @param cat Integer vector of category codes in 1:7.
+#' @param lambda_d Exponential rate for nonemployment durations (> 0).
+#' @return Log-probability vector. -Inf for cat outside 1:7.
+#' @export
+log_emission_interval_d <- function(cat, lambda_d) {
+  result <- rep(-Inf, length(cat))
+  valid <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
+  for (i in which(valid)) {
+    iv <- .timegap_interval(cat[i])
+    result[i] <- .log_interval_prob(iv[1], iv[2], lambda_d)
+  }
+  result
+}
+
+#' Log conditional transition probability for nonemployment category (discrete)
+#'
+#' Computes log P(c_t = cat_curr | c_{t-1} = cat_prev, lambda_d) for an
+#' individual who was nonemployed at both waves t-1 and t.
+#'
+#' The transition probability uses the intersection interval formula:
+#'   P(c_t | c_{t-1}) = P(D_{t-1} + 0.25 in [a_k, b_k) | D_{t-1} in [a_j, b_j))
+#'
+#' This is computed as:
+#'   [exp(-lambda*L) - exp(-lambda*U)] / [exp(-lambda*a_j) - exp(-lambda*b_j)]
+#' where L = max(a_j, a_k - 0.25), U = min(b_j, b_k - 0.25).
+#'
+#' The 7x7 transition matrix is sparse (at most 2 non-zero entries per row).
+#' Categories 1-4 are DETERMINISTIC (the narrow 3-month intervals shift exactly
+#' one category forward with a 0.25-year increment). Categories 5-6 are
+#' PROBABILISTIC (two possible destinations).
+#'
+#' This replaces log_emission_increment_d() for Case 3:
+#'   Nonemployment continuation, previous correctly observed (hp=0, hc=0,
+#'   s_t=0, s_{t-1}=0).
+#'
+#' @param cat_curr Integer vector: current category codes (1:7).
+#' @param cat_prev Integer vector: previous category codes (1:7), same length.
+#' @param lambda_d Exponential rate for nonemployment durations (> 0).
+#' @return Log-probability vector. -Inf for invalid or unreachable transitions.
+#' @export
+log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
+  n <- length(cat_curr)
+  stopifnot(length(cat_prev) == n)
+  result <- rep(-Inf, n)
+
+  for (i in seq_len(n)) {
+    j <- cat_prev[i]
+    k <- cat_curr[i]
+    if (is.na(j) || is.na(k) || j < 1L || j > .N_TIMEGAP_CATS ||
+        k < 1L || k > .N_TIMEGAP_CATS) {
+      next
+    }
+
+    iv_j <- .timegap_interval(j)
+    iv_k <- .timegap_interval(k)
+    a_j <- iv_j[1]; b_j <- iv_j[2]
+    a_k <- iv_k[1]; b_k <- iv_k[2]
+
+    # Intersection interval: the part of [a_j, b_j) that, after adding 0.25,
+    # maps into [a_k, b_k). Equivalently, D_{t-1} in [a_k-0.25, b_k-0.25)
+    # intersected with [a_j, b_j).
+    L <- max(a_j, a_k - .QUARTER_YEARS)
+    U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+
+    if (L >= U) next  # unreachable transition
+
+    log_numerator   <- .log_interval_prob(L, U, lambda_d)
+    log_denominator <- .log_cat_mass(j, lambda_d)
+
+    if (is.infinite(log_denominator) && log_denominator < 0) next
+
+    result[i] <- log_numerator - log_denominator
+  }
+
+  result
+}
+
+#' Log emission for within-panel nonemployment start (discrete model)
+#'
+#' When t >= 2, h_{t-1} = 1, h_t = 0, s_t = 0: a new nonemployment spell
+#' began this quarter. Its duration is at most 0.25 years (one quarter), so
+#' it MUST fall in category 1 ([0, 0.25) years = [0, 3) months).
+#' Any other category is structurally impossible.
+#'
+#' This replaces log_emission_start_d() when discrete_timegap = TRUE.
+#'
+#' @param cat Integer vector of category codes.
+#' @return Log-probability vector: 0 if cat == 1, -Inf otherwise.
+#' @export
+log_emission_start_d_cat <- function(cat) {
+  ifelse(!is.na(cat) & cat == 1L, 0, -Inf)
+}
+
+#' Gradient of log interval probability w.r.t. lambda_d (discrete model)
+#'
+#' Computes d/d(lambda_d) log P(D in [a_k, b_k) | D ~ Exp(lambda_d)).
+#'
+#' For finite b_k:
+#'   d/d(lambda) log(exp(-lambda*a) - exp(-lambda*b))
+#'   = (-a * exp(-lambda*a) + b * exp(-lambda*b)) / (exp(-lambda*a) - exp(-lambda*b))
+#'
+#' For b_k = Inf:
+#'   d/d(lambda) log(exp(-lambda*a)) = -a
+#'
+#' Used in the M-step FOC for theta_0 when discrete_timegap = TRUE.
+#'
+#' @param cat Integer vector of category codes in 1:7.
+#' @param lambda_d Exponential rate (> 0).
+#' @return Gradient vector. NA for cat outside 1:7.
+#' @export
+interval_grad_lambda_d <- function(cat, lambda_d) {
+  result <- rep(NA_real_, length(cat))
+  valid <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
+  for (i in which(valid)) {
+    iv <- .timegap_interval(cat[i])
+    a  <- iv[1]; b <- iv[2]
+    if (is.infinite(b)) {
+      result[i] <- -a
+    } else {
+      ea <- exp(-lambda_d * a)
+      eb <- exp(-lambda_d * b)
+      denom <- ea - eb
+      if (abs(denom) < 1e-15) {
+        # Near-zero denominator: use limit (L'Hopital) -> -(a+b)/2
+        result[i] <- -(a + b) / 2
+      } else {
+        result[i] <- (-a * ea + b * eb) / denom
+      }
+    }
+  }
+  result
+}
+
+#' Gradient of log conditional transition probability w.r.t. lambda_d
+#'
+#' Computes d/d(lambda_d) log P(c_t | c_{t-1}, lambda_d), i.e., the gradient
+#' of the log of the conditional transition probability used in Case 3.
+#'
+#' This equals: interval_grad on [L, U) - interval_grad on [a_j, b_j),
+#' where [L, U) is the intersection interval from log_emission_transition_d().
+#'
+#' Used in the M-step FOC for theta_0 when discrete_timegap = TRUE.
+#'
+#' @param cat_curr Integer vector: current category codes (1:7).
+#' @param cat_prev Integer vector: previous category codes (1:7), same length.
+#' @param lambda_d Exponential rate (> 0).
+#' @return Gradient vector. NA for invalid or unreachable transitions.
+#' @export
+transition_grad_lambda_d <- function(cat_curr, cat_prev, lambda_d) {
+  n <- length(cat_curr)
+  stopifnot(length(cat_prev) == n)
+  result <- rep(NA_real_, n)
+
+  for (i in seq_len(n)) {
+    j <- cat_prev[i]
+    k <- cat_curr[i]
+    if (is.na(j) || is.na(k) || j < 1L || j > .N_TIMEGAP_CATS ||
+        k < 1L || k > .N_TIMEGAP_CATS) {
+      next
+    }
+
+    iv_j <- .timegap_interval(j)
+    iv_k <- .timegap_interval(k)
+    a_j <- iv_j[1]; b_j <- iv_j[2]
+    a_k <- iv_k[1]; b_k <- iv_k[2]
+
+    L <- max(a_j, a_k - .QUARTER_YEARS)
+    U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+
+    if (L >= U) next  # unreachable transition
+
+    # grad = d/dlambda log P([L,U)) - d/dlambda log P([a_j, b_j))
+    # Each term is computed using the same formula as interval_grad_lambda_d
+    grad_num <- if (is.infinite(U)) {
+      -L
+    } else {
+      eL <- exp(-lambda_d * L); eU <- exp(-lambda_d * U)
+      dLU <- eL - eU
+      if (abs(dLU) < 1e-15) -(L + U) / 2 else (-L * eL + U * eU) / dLU
+    }
+
+    ea <- exp(-lambda_d * a_j)
+    eb <- if (is.infinite(b_j)) 0 else exp(-lambda_d * b_j)
+    denom <- ea - eb
+    grad_den <- if (abs(denom) < 1e-15) {
+      -(a_j + (if (is.infinite(b_j)) a_j else b_j)) / 2
+    } else {
+      (-a_j * ea + (if (is.infinite(b_j)) 0 else b_j * eb)) / denom
+    }
+
+    result[i] <- grad_num - grad_den
+  }
+
+  result
+}
