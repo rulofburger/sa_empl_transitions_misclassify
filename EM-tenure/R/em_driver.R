@@ -42,8 +42,8 @@ init_params <- function(df, discrete_timegap = TRUE, linked = FALSE) {
   }
 
   if (linked) {
-    lambda_g <- ctmc_lambda_from_theta(theta1)
-    lambda_d <- ctmc_lambda_from_theta(theta0)
+    lambda_g <- ctmc_lambda_from_persistence(theta1)
+    lambda_d <- ctmc_lambda_from_transition(theta0)
   } else {
     # Moment-based initialisers: lambda_g ~ 1/mean(tenure), lambda_d from timegap
     mean_tenure <- mean(c(df$tenure1[df$y1 == 1],
@@ -168,8 +168,8 @@ em_fit_tenure <- function(df,
 
   # Enforce CTMC link at start only when linked = TRUE
   if (linked) {
-    params$lambda_g <- ctmc_lambda_from_theta(params$theta1)
-    params$lambda_d <- ctmc_lambda_from_theta(params$theta0)
+    params$lambda_g <- ctmc_lambda_from_persistence(params$theta1)
+    params$lambda_d <- ctmc_lambda_from_transition(params$theta0)
   }
 
   # History storage

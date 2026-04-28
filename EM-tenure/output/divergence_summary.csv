@@ -1,0 +1,10 @@
+dimension,Sim-Adjusted,Sim-EM,Sim-Expected
+Employment rate (mean abs diff),0.0241,0.1585,0.2385
+Sequence pattern JSD,0.004008,0.205689,0.035755
+Tenure increment SD (abs diff),3.2169,0.5802,3.2112
+Tenure increment mean (abs diff),0.0613,0.2057,0.0614
+"Tenure mean (abs diff, yrs)",5.407,2.837,5.343
+"Tenure median (abs diff, yrs)",3.136,1.754,3.101
+Theta0 naive (ppt diff),4.71,32.49,4.63
+Theta1 naive (ppt diff),1.44,44.01,4.36
+Timegap category JSD,0.070437,0.08402,0.137695

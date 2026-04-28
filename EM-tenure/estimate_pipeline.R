@@ -118,7 +118,7 @@ run_id     <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- "output/results"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
-message("=== Estimating non-stationary model ===")
+message("=== Estimating non-stationary model (free) ===")
 fit_em <- em_fit_tenure(
   df                = df_qlfs,
   params0           = custom_init,
@@ -127,12 +127,53 @@ fit_em <- em_fit_tenure(
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-message("=== Estimating stationary model ===")
+message("=== Estimating stationary model (free) ===")
 fit_stationary_em <- em_fit_tenure(
   df                = df_qlfs,
   params0           = custom_init,
   stationary        = TRUE,
   linked            = FALSE,
+  discrete_timegap  = TRUE,
+  verbose           = 2L
+)
+
+# --- CTMC-linked estimation ---
+# The linked specification constrains lambda_g = -log(theta1)/Delta and
+# lambda_d = -log(1-theta0)/Delta via the CTMC link, so durations and
+# transitions are jointly identified from a single pair (theta1, theta0).
+# Initialise from the free-specification result to warm-start.
+linked_init <- custom_init
+linked_init$theta1  <- fit_em$params$theta1
+linked_init$theta0  <- fit_em$params$theta0
+linked_init$alpha   <- fit_em$params$alpha
+linked_init$pi      <- fit_em$params$pi
+linked_init$sigma2_g <- fit_em$params$sigma2_g
+# Lambda will be set from theta inside em_fit_tenure when linked=TRUE
+linked_init2 <- init_params(df_qlfs, discrete_timegap = TRUE, linked = TRUE)
+
+message("=== Estimating non-stationary model (CTMC-linked) ===")
+fit_linked <- em_fit_tenure(
+  df                = df_qlfs,
+  params0           = linked_init,
+  stationary        = FALSE,
+  linked            = TRUE,
+  discrete_timegap  = TRUE,
+  verbose           = 2L
+)
+fit_linked_data_driven_params <- em_fit_tenure(
+  df                = df_qlfs,
+  params0           = linked_init2,
+  stationary        = FALSE,
+  linked            = TRUE,
+  discrete_timegap  = TRUE,
+  verbose           = 2L
+)
+message("=== Estimating stationary model (CTMC-linked) ===")
+fit_stationary_linked <- em_fit_tenure(
+  df                = df_qlfs,
+  params0           = linked_init,
+  stationary        = TRUE,
+  linked            = TRUE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
@@ -145,14 +186,22 @@ saveRDS(fit_em,
         file.path(results_dir, sprintf("fit_miscl_%s.rds", run_id)))
 saveRDS(fit_stationary_em,
         file.path(results_dir, sprintf("fit_miscl_stationary_%s.rds", run_id)))
+saveRDS(fit_linked,
+        file.path(results_dir, sprintf("fit_miscl_linked_%s.rds", run_id)))
+saveRDS(fit_stationary_linked,
+        file.path(results_dir, sprintf("fit_miscl_stationary_linked_%s.rds", run_id)))
 message(sprintf("Fits saved [run_id = %s]", run_id))
 
-message(sprintf("\nLog-likelihood (non-stationary): %.4f", fit_em$loglik))
-message(sprintf("Log-likelihood (stationary):     %.4f", fit_stationary_em$loglik))
+message(sprintf("\nLog-likelihood (free, non-stationary):   %.4f", fit_em$loglik))
+message(sprintf("Log-likelihood (free, stationary):       %.4f", fit_stationary_em$loglik))
+message(sprintf("Log-likelihood (linked, non-stationary): %.4f", fit_linked$loglik))
+message(sprintf("Log-likelihood (linked, stationary):     %.4f", fit_stationary_linked$loglik))
 
 fits <- list(
-  miscl             = fit_em,
-  miscl_stationary  = fit_stationary_em
+  miscl                    = fit_em,
+  miscl_stationary         = fit_stationary_em,
+  miscl_linked             = fit_linked,
+  miscl_stationary_linked  = fit_stationary_linked
 )
 
 # Flat summary — one row per model per run

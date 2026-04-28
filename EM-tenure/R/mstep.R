@@ -19,18 +19,19 @@
 # TeX reference: Section 2.7 (M-step), Eqs mstep_alpha through foc_lambda_d
 # ==============================================================================
 
-# --- Internal: FOC evaluator for joint theta update --------------------------
+# --- Internal: FOC evaluator for joint theta1 (persistence) update ----------
 #
-# f(theta) = T_stay/theta - (D_from - T_stay)/(1-theta)
-#              + E_emg(theta) * d_lambda/d_theta
-# where d_lambda/d_theta = 1/(3*(1-theta)) [TeX Eq. 3: lambda = -log(1-theta)/3].
-# E_emg = sum(emg_w * log_emg_grad_lambda(emg_x, lambda(theta), sigma2)).
+# f(theta1) = T_stay/theta1 - (D_from - T_stay)/(1-theta1)
+#               + E_emg(theta1) * d_lambda_g/d_theta1
+# where lambda_g = -log(theta1) / Delta  (Eq 3a, persistence),
+#       d_lambda_g/d_theta1 = -1 / (theta1 * Delta).
+# E_emg = sum(emg_w * log_emg_grad_lambda(emg_x, lambda_g(theta1), sigma2)).
 #
 # @keywords internal
 .theta_foc <- function(theta, T_stay, D_from, emg_x, emg_w, sigma2) {
-  lambda    <- ctmc_lambda_from_theta(theta)
-  # d_lambda/d_theta = 1/(3*(1-theta)) for lambda = -log(1-theta)/3
-  dl_dtheta <- 1 / (3 * (1 - theta))
+  lambda    <- ctmc_lambda_from_persistence(theta)
+  # d_lambda_g/d_theta1 = -1/(theta1 * Delta) for lambda_g = -log(theta1)/Delta
+  dl_dtheta <- -1 / (theta * .QUARTER_YEARS)
 
   E_emg <- if (length(emg_x) > 0) {
     sum(emg_w * log_emg_grad_lambda(emg_x, lambda, sigma2), na.rm = TRUE)
@@ -63,8 +64,8 @@
 .theta0_foc_discrete <- function(theta0, T01, D0,
                                   cat_marg, w_marg,
                                   cat_curr, cat_prev, w_trans) {
-  lambda_d  <- ctmc_lambda_from_theta(theta0)
-  dl_dtheta <- 1 / (3 * (1 - theta0))
+  lambda_d  <- ctmc_lambda_from_transition(theta0)
+  dl_dtheta <- 1 / ((1 - theta0) * .QUARTER_YEARS)
 
   E_marg <- if (length(cat_marg) > 0) {
     sum(w_marg * interval_grad_lambda_d(cat_marg, lambda_d), na.rm = TRUE)
@@ -529,8 +530,8 @@ m_step <- function(suff, total_weight,
   # --- Exponential rates ---
   if (linked) {
     # CTMC link: deterministic from theta
-    lambda_g <- ctmc_lambda_from_theta(theta1)
-    lambda_d <- ctmc_lambda_from_theta(theta0)
+    lambda_g <- ctmc_lambda_from_persistence(theta1)
+    lambda_d <- ctmc_lambda_from_transition(theta0)
   } else {
     # FREE: Brent on emission-only score equations (TeX Eqs foc_lambda_g, foc_lambda_d)
     lambda_g <- .m_step_lambda_g_brent(

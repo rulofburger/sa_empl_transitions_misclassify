@@ -65,7 +65,7 @@ log_misclass_prob <- function(s_vec, hmat, pi) {
 #' TeX ref: Used in multiple emission cases in Section 2.7
 #'
 #' @param x Observed duration (scalar or vector, in years).
-#' @param lambda Exponential rate (per month, from CTMC link).
+#' @param lambda Exponential rate (per year, from CTMC link).
 #' @param sigma2 Gaussian variance (in years^2).
 #' @return Log-density value(s). -Inf for x <= 0.
 #' @export
