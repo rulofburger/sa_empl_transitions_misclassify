@@ -21,6 +21,10 @@ source("EM-tenure/R/source_all.R")
 # Always re-ingest to avoid stale data from a previous session.
 library("tidyverse")
 source("scripts/ingest_data_3waves_SA.R")
+
+df_qlfs <- df_qlfs |>
+  mutate(across(where(haven::is.labelled), \(x) as.numeric(x)))
+
 df_em <- df_qlfs |>
   filter(!(!is.na(neverworked1) & as.numeric(neverworked1) == 1))
 df_em <- df_em |>
@@ -70,7 +74,7 @@ if (use_custom) {
 
 # --- Results storage setup ---
 # run_id ties together the .rds files and the summary CSV row for this run.
-set.seed(2026L)  # reproducibility — placed here so all four fits are seeded
+set.seed(1234)  # reproducibility — placed here so all four fits are seeded
 run_id     <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- "output/results"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
