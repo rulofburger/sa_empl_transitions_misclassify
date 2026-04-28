@@ -14,6 +14,11 @@
 # 5. Misclassified durations (s_t != h_t) use EMG with the "inappropriate" clock.
 # 6. Sufficient stats for sigma^2 come from (a) increments and (b) starts,
 #    pooled in the M-step. Both require s_{t-1} conditioning.
+# 7. When pi converges to 0, responsibilities become deterministic:
+#    gamma_{i,j*}=1 for the unique history matching the observed sequence,
+#    0 otherwise. This bypasses log-sum-exp and avoids evaluating emission
+#    densities for impossible (misclassified) states that can underflow.
+#    This is a numerical edge-case guard, not a separate model mode.
 #
 # VECTORISATION: All operations are fully vectorised over observations. Each
 # observation i has its own (s, g, d) but shares the same hmat and parameters.
@@ -362,16 +367,54 @@ e_step <- function(df, params, discrete_timegap = TRUE) {
   )
 
   # --- Posterior responsibilities: N x H ---
-  log_kernel <- sweep(lq + ld, 2, log_prior, "+")
+  #
+  # Two regimes depending on whether pi is non-zero:
+  #
+  # (A) pi = 0 (edge case — EM drove pi to the boundary):
+  #     The observed employment sequence s = (s1, s2, s3) IS the true latent
+  #     history h with probability 1. P(s_t != h_t | pi=0) = 0 for all t,
+  #     so only one history j* has non-zero posterior mass:
+  #       gamma_{i,j*} = 1,  gamma_{i,j} = 0  for j != j*.
+  #
+  #     The matching history index j* is computed from the binary encoding
+  #     used by expand.grid(h1=0:1, h2=0:1, h3=0:1):
+  #       j* = s1 + 1 + 2*s2 + 4*s3    (1-indexed, range 1..8)
+  #
+  #     The log-likelihood contribution for observation i is simply:
+  #       log P(s_i | theta) = log prior(j*) + log emission(j*)
+  #     with no need for log-sum-exp across histories.
+  #
+  #     This is numerically safe: it avoids evaluating emission densities
+  #     for misclassified states (e.g., log_emg on wrong-clock durations),
+  #     which can underflow to -Inf and produce NaN via log-sum-exp.
+  #
+  # (B) pi > 0 (normal operation):
+  #     Standard posterior computation via Bayes' rule. Each history has
+  #     non-zero prior probability of generating any observed sequence,
+  #     so the posterior is a proper mixture over all 8 histories.
+  #     Log-sum-exp ensures numerical stability.
+  #
+  if (pi_par == 0) {
+    # --- (A) Deterministic responsibilities (no misclassification) ---
+    match_idx <- s1 + 1L + 2L * s2 + 4L * s3
+    gamma_mat <- matrix(0, nrow = N, ncol = H)
+    gamma_mat[cbind(seq_len(N), match_idx)] <- 1
 
-  # Row-wise log-sum-exp for denominator (numerically stable)
-  row_max <- apply(log_kernel, 1, max)
-  log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
+    log_lik_i <- log_prior[match_idx] + ld[cbind(seq_len(N), match_idx)]
+    ll <- sum(wi * log_lik_i)
+  } else {
+    # --- (B) Standard posterior (with misclassification) ---
+    log_kernel <- sweep(lq + ld, 2, log_prior, "+")
 
-  gamma_mat <- exp(log_kernel - log_denom)
+    # Row-wise log-sum-exp for denominator (numerically stable)
+    row_max <- apply(log_kernel, 1, max)
+    log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
 
-  # Weighted log-likelihood
-  ll <- sum(wi * log_denom)
+    gamma_mat <- exp(log_kernel - log_denom)
+
+    # Weighted log-likelihood
+    ll <- sum(wi * log_denom)
+  }
 
   # --- Sufficient statistics (vectorised over observations) ---
   wg <- gamma_mat * wi  # N x H

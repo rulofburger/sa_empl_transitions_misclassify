@@ -11,20 +11,21 @@
 #'
 #' @param df Data frame with y1, y2, y3 columns (and tenure1-3 / timegap_cat1-3
 #'   or timegap1-3 depending on discrete_timegap).
-#' @param misclassification Logical; if FALSE, set pi=0.
 #' @param discrete_timegap Logical (default TRUE). If TRUE, sigma2_d is not
 #'   initialised (discrete model has no sigma2_d). If FALSE, sigma2_d is
 #'   initialised from observed timegap increments.
+#' @param linked Logical (default FALSE). If TRUE, initialise lambda from CTMC link.
+#'   If FALSE, initialise lambda from moment-based estimates of observed data.
 #' @return Named list of starting parameters.
 #' @export
-init_params <- function(df, misclassification = TRUE, discrete_timegap = TRUE) {
+init_params <- function(df, discrete_timegap = TRUE, linked = FALSE) {
   # Crude moment-based initialisers
   emp_rate <- mean(c(df$y1, df$y2, df$y3), na.rm = TRUE)
   alpha  <- .bound01(emp_rate, eps = 0.01)
   theta1 <- .bound01(0.90, eps = 0.01)
   theta0 <- .bound01(0.10, eps = 0.01)
 
-  pi_init <- if (misclassification) 0.05 else 0
+  pi_init <- 0.05
 
   # Variance from observed increments (rough)
   dg2 <- df$tenure2 - df$tenure1
@@ -40,8 +41,21 @@ init_params <- function(df, misclassification = TRUE, discrete_timegap = TRUE) {
     0.01
   }
 
-  lambda_g <- ctmc_lambda_from_theta(theta1)
-  lambda_d <- ctmc_lambda_from_theta(theta0)
+  if (linked) {
+    lambda_g <- ctmc_lambda_from_theta(theta1)
+    lambda_d <- ctmc_lambda_from_theta(theta0)
+  } else {
+    # Moment-based initialisers: lambda_g ~ 1/mean(tenure), lambda_d from timegap
+    mean_tenure <- mean(c(df$tenure1[df$y1 == 1],
+                          df$tenure2[df$y2 == 1],
+                          df$tenure3[df$y3 == 1]), na.rm = TRUE)
+    lambda_g <- if (is.finite(mean_tenure) && mean_tenure > 0) {
+      1 / mean_tenure
+    } else {
+      0.01
+    }
+    lambda_d <- 0.05  # conservative default for nonemployment
+  }
 
   out <- list(
     alpha    = alpha,
@@ -79,8 +93,10 @@ init_params <- function(df, misclassification = TRUE, discrete_timegap = TRUE) {
 #'   When discrete_timegap = FALSE: timegap1-timegap3 (continuous, years).
 #' @param params0 Optional named list of starting parameters. If NULL, uses
 #'   \code{init_params()}.
-#' @param misclassification Logical; if FALSE, constrain pi=0.
 #' @param stationary Logical; if TRUE, impose stationarity on alpha.
+#' @param linked Logical (default FALSE). If TRUE, use CTMC link (lambda = f(theta)).
+#'   If FALSE (free specification), estimate theta from Markov counts and lambda
+#'   from emissions independently.
 #' @param discrete_timegap Logical (default TRUE). If TRUE, use interval-censored
 #'   discrete Exp(lambda_d) model for nonemployment durations. The timegap_cat1-3
 #'   columns must be present and contain integers in 1:7. sigma2_d is not
@@ -102,8 +118,8 @@ init_params <- function(df, misclassification = TRUE, discrete_timegap = TRUE) {
 #' @export
 em_fit_tenure <- function(df,
                           params0 = NULL,
-                          misclassification = TRUE,
                           stationary = FALSE,
+                          linked = FALSE,
                           discrete_timegap = TRUE,
                           max_iter = 500L,
                           tol = 1e-8,
@@ -147,12 +163,14 @@ em_fit_tenure <- function(df,
   params <- if (!is.null(params0)) {
     params0
   } else {
-    init_params(df, misclassification, discrete_timegap = discrete_timegap)
+    init_params(df, discrete_timegap = discrete_timegap, linked = linked)
   }
 
-  # Ensure lambdas are consistent with thetas at start
-  params$lambda_g <- ctmc_lambda_from_theta(params$theta1)
-  params$lambda_d <- ctmc_lambda_from_theta(params$theta0)
+  # Enforce CTMC link at start only when linked = TRUE
+  if (linked) {
+    params$lambda_g <- ctmc_lambda_from_theta(params$theta1)
+    params$lambda_d <- ctmc_lambda_from_theta(params$theta0)
+  }
 
   # History storage
   history <- vector("list", max_iter)
@@ -193,8 +211,8 @@ em_fit_tenure <- function(df,
     params <- m_step(
       suff              = estep_out$suff,
       total_weight      = total_weight,
-      misclassification = misclassification,
       stationary        = stationary,
+      linked            = linked,
       discrete_timegap  = discrete_timegap,
       sigma_floor       = sigma_floor,
       theta_cap         = theta_cap,

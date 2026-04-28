@@ -31,7 +31,7 @@ The exponential rates λ_g and λ_d are derived from θ₁ and θ₀ via the CTM
 
 ### Key features
 
-- **With/without misclassification**: Set `misclassification = TRUE/FALSE`
+- **Symmetric misclassification**: Estimates π, the probability of observing the wrong employment state
 - **Stationarity**: Set `stationary = TRUE` to impose α = θ₀/(θ₀ + 1 - θ₁)
 - **Discrete timegap**: Set `discrete_timegap = TRUE` (default) for interval-censored Exp(λ_d); set `FALSE` for legacy continuous EMG
 - **Pooled variance estimation**: Combines continuation increments and within-panel starts (tenure only in discrete mode)
@@ -90,9 +90,8 @@ df <- simulate_panel(n = 1000, alpha = 0.6, theta1 = 0.9, theta0 = 0.1,
                      pi = 0.05, sigma2_g = 0.01, seed = 42,
                      discrete_timegap = TRUE)
 
-# Fit with misclassification (discrete mode)
-fit <- em_fit_tenure(df, misclassification = TRUE,
-                     discrete_timegap = TRUE, verbose = 2)
+# Fit model (discrete mode)
+fit <- em_fit_tenure(df, discrete_timegap = TRUE, verbose = 2)
 fit$params
 ```
 
@@ -102,8 +101,7 @@ fit$params
 df <- simulate_panel(n = 1000, alpha = 0.6, theta1 = 0.9, theta0 = 0.1,
                      pi = 0.05, sigma2_g = 0.01, sigma2_d = 0.01, seed = 42,
                      discrete_timegap = FALSE)
-fit <- em_fit_tenure(df, misclassification = TRUE,
-                     discrete_timegap = FALSE, verbose = 2)
+fit <- em_fit_tenure(df, discrete_timegap = FALSE, verbose = 2)
 ```
 
 ### With real data

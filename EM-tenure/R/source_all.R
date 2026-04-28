@@ -7,9 +7,6 @@
 
 # NOTE: sys.frame(1)$ofile only works when invoked via source(). If using
 # Rscript, ensure the working directory is the project root or EM-tenure/.
-.em_tenure_root <- normalizePath(file.path(dirname(
-  if (sys.nframe() > 0) sys.frame(1)$ofile else "."
-), ".."), mustWork = FALSE)
 .em_tenure_root <- here::here("EM-tenure")
 
 .em_tenure_r <- file.path(.em_tenure_root, "R")

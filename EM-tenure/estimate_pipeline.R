@@ -5,10 +5,9 @@
 #   1. Sources the EM-tenure module
 #   2. Sources the data ingestion script
 #   3. Prepares the data (rename weight column if needed)
-#   4. Runs the EM with and without misclassification
-#   5. Prints a comparison table
-#   6. Saves each fit as a timestamped .rds in output/results/
-#   7. Appends a one-row summary per model to output/results/run_summary.csv
+#   4. Runs the EM (non-stationary and stationary)
+#   5. Saves each fit as a timestamped .rds in output/results/
+#   6. Appends a one-row summary per model to output/results/run_summary.csv
 #
 # Usage from project root:
 #   source("EM-tenure/estimate_pipeline.R")
@@ -25,13 +24,33 @@ source("scripts/ingest_data_3waves_SA.R")
 df_qlfs <- df_qlfs |>
   mutate(across(where(haven::is.labelled), \(x) as.numeric(x)))
 
-df_em <- df_qlfs |>
-  filter(!(!is.na(neverworked1) & as.numeric(neverworked1) == 1))
-df_em <- df_em |>
-  filter(!(!is.na(neverworked2) & as.numeric(neverworked2) == 1))
-df_em <- df_em |>
-  filter(!(!is.na(neverworked3) & as.numeric(neverworked3) == 1))
-df_qlfs <- df_em
+# --- Never-worked: impute timegap as (age - 16) * 12 months, mapped to category ---
+# Never-worked individuals have no previous employment. Their nonemployment
+# duration is at least (age - 16) years. We convert to months and bin into
+# the standard 7 timegap categories. This avoids excluding them and biasing
+# the sample toward shorter nonemployment spells.
+.nw_impute_timegap_cat <- function(age_years) {
+  dur_months <- (age_years - 16) * 12
+  dur_months <- pmax(dur_months, 0)  # safety: age < 16 → 0 months
+  # Standard QLFS timegap bins (in months):
+  # 1: [0,3), 2: [3,6), 3: [6,9), 4: [9,12), 5: [12,36), 6: [36,60), 7: [60,Inf)
+  cut_vals <- c(0, 3, 6, 9, 12, 36, 60, Inf)
+  as.integer(cut(dur_months, breaks = cut_vals, right = FALSE, include.lowest = TRUE))
+}
+
+for (.wave in 1:3) {
+  nw_col  <- paste0("neverworked", .wave)
+  tc_col  <- paste0("timegap_cat", .wave)
+  age_col <- paste0("age", .wave)
+
+  if (nw_col %in% names(df_qlfs) && age_col %in% names(df_qlfs)) {
+    is_nw <- !is.na(df_qlfs[[nw_col]]) & as.numeric(df_qlfs[[nw_col]]) == 1
+    if (any(is_nw)) {
+      df_qlfs[[tc_col]][is_nw] <- .nw_impute_timegap_cat(df_qlfs[[age_col]][is_nw])
+    }
+  }
+}
+rm(.wave, .nw_impute_timegap_cat)
 # --- Prepare data ---
 # Ensure weight column exists (the ingest script uses weight1/weight2/weight3;
 # we pick weight1 as the baseline weight).
@@ -47,8 +66,8 @@ required_cols <- c("y1", "y2", "y3",
                    "weight")
 stopifnot(all(required_cols %in% names(df_qlfs)))
 
-# --- Run EM: with misclassification ---
-message("=== Estimating model WITH misclassification ===")
+# --- Run EM ---
+message("=== Estimating EM models ===")
 
 # NOTE: The ad-hoc zero-duration filter has been removed. The ingest script
 # now performs nearest-non-zero imputation (Issue 1 fix), so all tenure
@@ -56,10 +75,36 @@ message("=== Estimating model WITH misclassification ===")
 # reaching this pipeline. The never-worked filter above removes individuals
 # who were never employed, eliminating the source of structural zeros.
 
-custom_init <- init_params(df_qlfs, misclassification = TRUE, discrete_timegap = TRUE)
-use_custom <- FALSE
+custom_init <- init_params(df_qlfs, discrete_timegap = TRUE, linked = FALSE)
+
+# Warm-start: load converged params from the most recent fit_miscl run, if available.
+# Falls back to init_params() defaults when no previous results exist.
+.prev_rds_files <- list.files(
+  "output/results",
+  pattern    = "^fit_miscl_\\d{8}_\\d{6}\\.rds$",
+  full.names = TRUE
+)
+if (length(.prev_rds_files) > 0) {
+  .prev_rds <- sort(.prev_rds_files) |> tail(1)
+  .prev_fit <- readRDS(.prev_rds)
+  # Only overwrite keys present in custom_init to stay compatible with
+  # stationary and non-stationary models downstream.
+  for (.k in intersect(names(.prev_fit$params), names(custom_init))) {
+    custom_init[[.k]] <- .prev_fit$params[[.k]]
+  }
+  use_custom <- TRUE
+  message(sprintf(
+    "Warm-start: loaded params from %s  [loglik = %.4f, iter = %d]",
+    basename(.prev_rds), .prev_fit$loglik, .prev_fit$iterations
+  ))
+  rm(.prev_rds_files, .prev_rds, .prev_fit, .k)
+} else {
+  use_custom <- FALSE
+  message("No previous results found — using default initial parameters.")
+  rm(.prev_rds_files)
+}
 if (use_custom) {
-  message("Using custom initial parameters for misclassification model.")
+  message("Using custom initial parameters.")
   custom_init$theta1 <- 0.95
   custom_init$theta0 <- 0.05
   custom_init$lambda_g <- 2
@@ -67,91 +112,54 @@ if (use_custom) {
   custom_init$sigma2_g <- 0.5
   custom_init$pi <- 0.03
 } else {
-  message("Using default initial parameters for misclassification model.")
+  message("Using default initial parameters.")
 }
 
 
 
 # --- Results storage setup ---
 # run_id ties together the .rds files and the summary CSV row for this run.
-set.seed(1234)  # reproducibility — placed here so all four fits are seeded
+set.seed(1234)  # reproducibility — placed here so both fits are seeded
 run_id     <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- "output/results"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
-fit_miscl_em <- em_fit_tenure(
+message("=== Estimating non-stationary model ===")
+fit_em <- em_fit_tenure(
   df                = df_qlfs,
   params0           = custom_init,
-  misclassification = TRUE,
   stationary        = FALSE,
+  linked            = FALSE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-fit_miscl_stationary_em <- em_fit_tenure(
+message("=== Estimating stationary model ===")
+fit_stationary_em <- em_fit_tenure(
   df                = df_qlfs,
   params0           = custom_init,
-  misclassification = TRUE,
   stationary        = TRUE,
+  linked            = FALSE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-
-
-# --- Run EM: without misclassification ---
-message("\n=== Estimating model WITHOUT misclassification ===")
-fit_no_miscl_em <- em_fit_tenure(
-  df                = df_qlfs,
-  params0           = custom_init,
-  misclassification = FALSE,
-  stationary        = FALSE,
-  discrete_timegap  = TRUE,
-  verbose           = 2L
-)
-fit_no_miscl_stationary_em <- em_fit_tenure(
-  df                = df_qlfs,
-  params0           = custom_init,
-  misclassification = FALSE,
-  stationary        = TRUE,
-  discrete_timegap  = TRUE,
-  verbose           = 2L
-)
-
-
-# --- Comparison table ---
-compare_params <- function(fit1, fit2, label1 = "With miscl.", label2 = "No miscl.") {
-  p1 <- unlist(fit1$params)
-  p2 <- unlist(fit2$params)
-  data.frame(
-    parameter = names(p1),
-    !!label1 := p1,
-    !!label2 := p2,
-    row.names = NULL
-  )
-}
-
-comparison <- compare_params(fit_miscl_em, fit_no_miscl_em)
-message("\n=== Parameter comparison ===")
-message(paste(capture.output(comparison), collapse = "\n"))
-message(sprintf("\nLog-likelihood WITH miscl.:    %.4f", fit_miscl_em$loglik))
-message(sprintf("Log-likelihood WITHOUT miscl.: %.4f", fit_no_miscl_em$loglik))
 
 # --- Save results ---
 # Each fit is saved as a self-contained .rds (includes gamma, history, params).
 # A flat summary row is appended to run_summary.csv for quick comparison
 # across runs without loading the full .rds files.
+saveRDS(fit_em,
+        file.path(results_dir, sprintf("fit_miscl_%s.rds", run_id)))
+saveRDS(fit_stationary_em,
+        file.path(results_dir, sprintf("fit_miscl_stationary_%s.rds", run_id)))
+message(sprintf("Fits saved [run_id = %s]", run_id))
+
+message(sprintf("\nLog-likelihood (non-stationary): %.4f", fit_em$loglik))
+message(sprintf("Log-likelihood (stationary):     %.4f", fit_stationary_em$loglik))
 
 fits <- list(
-  miscl             = fit_miscl_em,
-  miscl_stationary  = fit_miscl_stationary_em,
-  no_miscl          = fit_no_miscl_em,
-  no_miscl_stationary = fit_no_miscl_stationary_em
+  miscl             = fit_em,
+  miscl_stationary  = fit_stationary_em
 )
-
-for (model_name in names(fits)) {
-  rds_path <- file.path(results_dir, sprintf("fit_%s_%s.rds", model_name, run_id))
-  saveRDS(fits[[model_name]], rds_path)
-  message(sprintf("Saved: %s", rds_path))
-}
 
 # Flat summary — one row per model per run
 .make_summary_row <- function(run_id, model, fit) {
