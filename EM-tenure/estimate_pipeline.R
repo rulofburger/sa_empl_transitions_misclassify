@@ -104,13 +104,7 @@ if (length(.prev_rds_files) > 0) {
   rm(.prev_rds_files)
 }
 if (use_custom) {
-  message("Using custom initial parameters.")
-  custom_init$theta1 <- 0.95
-  custom_init$theta0 <- 0.05
-  custom_init$lambda_g <- 2
-  custom_init$lambda_d <- 2
-  custom_init$sigma2_g <- 0.5
-  custom_init$pi <- 0.03
+  message("Warm-starting from previous converged parameters.")
 } else {
   message("Using default initial parameters.")
 }
