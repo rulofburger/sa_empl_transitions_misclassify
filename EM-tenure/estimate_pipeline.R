@@ -75,77 +75,19 @@ message("=== Estimating EM models ===")
 # reaching this pipeline. The never-worked filter above removes individuals
 # who were never employed, eliminating the source of structural zeros.
 
-custom_init <- init_params(df_qlfs, discrete_timegap = TRUE, linked = FALSE)
+# Default initial parameters (used as fallback when no prior run exists for a model).
+custom_init      <- init_params(df_qlfs, discrete_timegap = TRUE, linked = FALSE)
+custom_init_rho  <- init_params_rho(df_qlfs, linked = FALSE)
 
-# Warm-start: interactively select a previous fit_miscl run to warm-start from.
-# Shows all available results with their log-likelihood and iteration count,
-# then prompts the user to choose one (or use default initial parameters).
-.prev_rds_files <- sort(list.files(
-  "output/results",
-  pattern    = "^fit_miscl_\\d{8}_\\d{6}\\.rds$",
-  full.names = TRUE
-))
-if (length(.prev_rds_files) > 0) {
-  # Build a display table: filename | loglik | iterations | converged
-  .prev_meta <- lapply(.prev_rds_files, function(f) {
-    tryCatch({
-      obj <- readRDS(f)
-      list(
-        path      = f,
-        label     = sprintf(
-          "%-40s  loglik = %10.4f  iter = %3d  converged = %s",
-          basename(f), obj$loglik, obj$iterations,
-          if (isTRUE(obj$converged)) "YES" else "NO "
-        )
-      )
-    }, error = function(e) {
-      list(path = f, label = sprintf("%-40s  [unreadable]", basename(f)))
-    })
-  })
-
-  message("\nAvailable warm-start candidates:")
-  for (.i in seq_along(.prev_meta)) {
-    message(sprintf("  [%d] %s", .i, .prev_meta[[.i]]$label))
-  }
-
-  .choice <- menu(
-    choices = c(
-      vapply(.prev_meta, `[[`, character(1), "label"),
-      "--- Use default initial parameters (no warm-start) ---"
-    ),
-    title = "\nSelect a warm-start file (or choose the last option to skip):"
-  )
-
-  if (.choice > 0 && .choice <= length(.prev_meta)) {
-    .prev_rds <- .prev_meta[[.choice]]$path
-    .prev_fit <- readRDS(.prev_rds)
-    # Only overwrite keys present in custom_init to stay compatible with
-    # stationary and non-stationary models downstream.
-    for (.k in intersect(names(.prev_fit$params), names(custom_init))) {
-      custom_init[[.k]] <- .prev_fit$params[[.k]]
-    }
-    use_custom <- TRUE
-    message(sprintf(
-      "Warm-start: loaded params from %s  [loglik = %.4f, iter = %d]",
-      basename(.prev_rds), .prev_fit$loglik, .prev_fit$iterations
-    ))
-    rm(.prev_fit, .k)
-  } else {
-    use_custom <- FALSE
-    message("Using default initial parameters (no warm-start selected).")
-  }
-  rm(.prev_rds_files, .prev_meta, .choice)
-} else {
-  use_custom <- FALSE
-  message("No previous results found — using default initial parameters.")
-}
-if (use_custom) {
-  message("Warm-starting from selected previous parameters.")
-} else {
-  message("Using default initial parameters.")
-}
-
-
+# Per-model warm-start: load the most recent saved result for each of the 8
+# model variants. Each model gets its own param object so that, e.g., the
+# linked models warm-start from linked-converged params and the rho models
+# warm-start from rho-converged params (which include the rho parameter).
+# Falls back to init_params() / init_params_rho() defaults when no prior
+# result exists for a given model.
+source("EM-tenure/R/utils.R")
+message("\n=== Loading per-model warm-start parameters ===")
+ws <- load_warm_starts("output/results", df_qlfs, verbose = TRUE)
 
 # --- Results storage setup ---
 # run_id ties together the .rds files and the summary CSV row for this run.
@@ -156,65 +98,69 @@ dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 summary_csv <- file.path(results_dir, "run_summary.csv")
 
 message("=== Estimating non-stationary model (free) ===")
+t1_fit_em <- Sys.time()
 fit_em <- em_fit_tenure(
   df                = df_qlfs,
-  params0           = custom_init,
+  params0           = ws$miscl %||% custom_init,
   stationary        = FALSE,
   linked            = FALSE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
+t2_fit_em <- Sys.time()
+
 message("=== Estimating stationary model (free) ===")
+t1_fit_stationary_em <- Sys.time()
 fit_stationary_em <- em_fit_tenure(
   df                = df_qlfs,
-  params0           = custom_init,
+  params0           = ws$miscl_stationary %||% custom_init,
   stationary        = TRUE,
   linked            = FALSE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-
+t2_fit_stationary_em <- Sys.time()
 # --- CTMC-linked estimation ---
 # The linked specification constrains lambda_g = -log(theta1)/Delta and
 # lambda_d = -log(1-theta0)/Delta via the CTMC link, so durations and
 # transitions are jointly identified from a single pair (theta1, theta0).
-# Initialise from the free-specification result to warm-start.
-linked_init <- custom_init
-linked_init$theta1  <- fit_em$params$theta1
-linked_init$theta0  <- fit_em$params$theta0
-linked_init$alpha   <- fit_em$params$alpha
-linked_init$pi      <- fit_em$params$pi
-linked_init$sigma2_g <- fit_em$params$sigma2_g
-# Lambda will be set from theta inside em_fit_tenure when linked=TRUE
-linked_init2 <- init_params(df_qlfs, discrete_timegap = TRUE, linked = TRUE)
+# ws$miscl_linked warm-starts from a previously converged linked result;
+# ws$miscl_stationary_linked does the same for the stationary linked model.
+# linked_init2 is intentionally data-driven (no warm-start).
 
 message("=== Estimating non-stationary model (CTMC-linked) ===")
+t1_fit_linked <- Sys.time()
 fit_linked <- em_fit_tenure(
   df                = df_qlfs,
-  params0           = linked_init,
+  params0           = ws$miscl_linked %||% custom_init,
   stationary        = FALSE,
   linked            = TRUE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-fit_linked_data_driven_params <- em_fit_tenure(
-  df                = df_qlfs,
-  params0           = linked_init2,
-  stationary        = FALSE,
-  linked            = TRUE,
-  discrete_timegap  = TRUE,
-  verbose           = 2L
-)
+t2_fit_linked <- Sys.time()
+#t1_fit_linked_data_driven_params <- Sys.time()
+#fit_linked_data_driven_params <- em_fit_tenure(
+#  df                = df_qlfs,
+#  params0           = linked_init2,
+#  stationary        = FALSE,
+#  linked            = TRUE,
+#  discrete_timegap  = TRUE,
+#  verbose           = 2L
+#)
+#t2_fit_linked_data_driven_params <- Sys.time()
+
 message("=== Estimating stationary model (CTMC-linked) ===")
+t1_fit_stationary_linked <- Sys.time()
 fit_stationary_linked <- em_fit_tenure(
   df                = df_qlfs,
-  params0           = linked_init,
+  params0           = ws$miscl_stationary_linked %||% custom_init,
   stationary        = TRUE,
   linked            = TRUE,
   discrete_timegap  = TRUE,
   verbose           = 2L
 )
-
+t2_fit_stationary_linked <- Sys.time()
 # --- Save results ---
 # Each fit is saved as a self-contained .rds (includes gamma, history, params).
 # A flat summary row is appended to run_summary.csv for quick comparison
@@ -286,49 +232,47 @@ message(sprintf("Summary appended: %s  [run_id = %s]", summary_csv, run_id))
 # ##############################################################################
 
 message("\n=== Estimating rho model (free, non-stationary) ===")
-
-# Warm-start from the free non-stationary fit
-rho_init <- fit_em$params
-rho_init$rho <- 0.15  # initial contamination rate
-
+t1_fit_rho <- Sys.time()
 fit_rho <- em_fit_tenure_rho(
   df         = df_qlfs,
-  params0    = rho_init,
+  params0    = ws$rho %||% custom_init_rho,
   stationary = FALSE,
   linked     = FALSE,
   verbose    = 2L
 )
-
+t2_fit_rho <- Sys.time()
 message("\n=== Estimating rho model (free, stationary) ===")
+t1_fit_rho_stationary <- Sys.time()
 fit_rho_stationary <- em_fit_tenure_rho(
   df         = df_qlfs,
-  params0    = rho_init,
+  params0    = ws$rho_stationary %||% custom_init_rho,
   stationary = TRUE,
   linked     = FALSE,
   verbose    = 2L
 )
+t2_fit_rho_stationary <- Sys.time()
 
 message("\n=== Estimating rho model (CTMC-linked, non-stationary) ===")
-rho_linked_init <- rho_init
-rho_linked_init$theta1  <- fit_rho$params$theta1
-rho_linked_init$theta0  <- fit_rho$params$theta0
-
+t1_fit_rho_linked <- Sys.time()
 fit_rho_linked <- em_fit_tenure_rho(
   df         = df_qlfs,
-  params0    = rho_linked_init,
+  params0    = ws$rho_linked %||% custom_init_rho,
   stationary = FALSE,
   linked     = TRUE,
   verbose    = 2L
 )
+t2_fit_rho_linked <- Sys.time()
 
 message("\n=== Estimating rho model (CTMC-linked, stationary) ===")
+t1_fit_rho_stationary_linked <- Sys.time()
 fit_rho_stationary_linked <- em_fit_tenure_rho(
   df         = df_qlfs,
-  params0    = rho_linked_init,
+  params0    = ws$rho_stationary_linked %||% custom_init_rho,
   stationary = TRUE,
   linked     = TRUE,
   verbose    = 2L
 )
+t2_fit_rho_stationary_linked <- Sys.time()
 
 # --- Save rho model results ---
 saveRDS(fit_rho,
@@ -389,3 +333,24 @@ data.table::fwrite(
   col.names = FALSE
 )
 message(sprintf("Rho summary appended: %s  [run_id = %s]", summary_csv, run_id))
+
+# --- Runtime summary ---
+model_runtimes <- list(
+  fit_em                     = t2_fit_em - t1_fit_em,
+  fit_stationary_em          = t2_fit_stationary_em - t1_fit_stationary_em,
+  fit_linked                 = t2_fit_linked - t1_fit_linked,
+  fit_stationary_linked      = t2_fit_stationary_linked - t1_fit_stationary_linked,
+  fit_rho                    = t2_fit_rho - t1_fit_rho,
+  fit_rho_stationary         = t2_fit_rho_stationary - t1_fit_rho_stationary,
+  fit_rho_linked             = t2_fit_rho_linked - t1_fit_rho_linked,
+  fit_rho_stationary_linked  = t2_fit_rho_stationary_linked - t1_fit_rho_stationary_linked
+)
+
+message("\n=== Model runtimes (t2 - t1) ===")
+print(model_runtimes)
+
+total_runtime <- sum(vapply(model_runtimes, function(x) {
+  as.numeric(x, units = "secs")
+}, numeric(1L)))
+message(sprintf("Total model runtime: %.2f seconds", total_runtime))
+

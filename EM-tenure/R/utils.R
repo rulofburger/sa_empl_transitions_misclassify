@@ -158,3 +158,123 @@
 erfc <- function(x) {
   2 * pnorm(-sqrt(2) * x)
 }
+
+# ==============================================================================
+# Warm-start utilities
+# ==============================================================================
+
+#' Load per-model warm-start parameters from the most recent saved results
+#'
+#' Scans \code{results_dir} for the most recent \code{.rds} file for each of
+#' the 8 model variants and builds a named list of initial-parameter objects
+#' ready to pass as \code{params0} to \code{em_fit_tenure()} or
+#' \code{em_fit_tenure_rho()}. When no prior result exists for a model, the
+#' corresponding list element is \code{NULL} (caller should fall back to
+#' \code{init_params()} / \code{init_params_rho()} defaults).
+#'
+#' File-name convention (set by the pipeline's \code{saveRDS()} calls):
+#' \preformatted{
+#'   fit_miscl_YYYYMMDD_HHMMSS.rds
+#'   fit_miscl_stationary_YYYYMMDD_HHMMSS.rds
+#'   fit_miscl_linked_YYYYMMDD_HHMMSS.rds
+#'   fit_miscl_stationary_linked_YYYYMMDD_HHMMSS.rds
+#'   fit_rho_YYYYMMDD_HHMMSS.rds
+#'   fit_rho_stationary_YYYYMMDD_HHMMSS.rds
+#'   fit_rho_linked_YYYYMMDD_HHMMSS.rds
+#'   fit_rho_stationary_linked_YYYYMMDD_HHMMSS.rds
+#' }
+#'
+#' @param results_dir Character. Path to the directory containing saved
+#'   \code{.rds} result files (relative to the working directory or absolute).
+#' @param df Data frame. Passed to \code{init_params()} / \code{init_params_rho()}
+#'   to build the baseline parameter structure before overwriting with loaded
+#'   values. Must contain the standard model columns.
+#' @param verbose Logical (default \code{TRUE}). If \code{TRUE}, prints a
+#'   one-line status message per model.
+#' @return Named list with elements:
+#'   \describe{
+#'     \item{miscl}{Params for free non-stationary model, or \code{NULL}.}
+#'     \item{miscl_stationary}{Params for free stationary model, or \code{NULL}.}
+#'     \item{miscl_linked}{Params for CTMC-linked non-stationary model, or \code{NULL}.}
+#'     \item{miscl_stationary_linked}{Params for CTMC-linked stationary model, or \code{NULL}.}
+#'     \item{rho}{Params for rho free non-stationary model, or \code{NULL}.}
+#'     \item{rho_stationary}{Params for rho free stationary model, or \code{NULL}.}
+#'     \item{rho_linked}{Params for rho CTMC-linked non-stationary model, or \code{NULL}.}
+#'     \item{rho_stationary_linked}{Params for rho CTMC-linked stationary model, or \code{NULL}.}
+#'   }
+#' @export
+load_warm_starts <- function(results_dir, df, verbose = TRUE) {
+  # Map: model label → list(prefix, is_linked, is_rho)
+  # Prefixes are ordered from most specific to least specific so that, e.g.,
+  # "fit_miscl_stationary_linked_" does not match "fit_miscl_" accidentally.
+  .model_specs <- list(
+    miscl_stationary_linked  = list(prefix = "fit_miscl_stationary_linked_",  linked = TRUE,  rho = FALSE),
+    miscl_linked             = list(prefix = "fit_miscl_linked_",             linked = TRUE,  rho = FALSE),
+    miscl_stationary         = list(prefix = "fit_miscl_stationary_",         linked = FALSE, rho = FALSE),
+    miscl                    = list(prefix = "fit_miscl_",                    linked = FALSE, rho = FALSE),
+    rho_stationary_linked    = list(prefix = "fit_rho_stationary_linked_",    linked = TRUE,  rho = TRUE),
+    rho_linked               = list(prefix = "fit_rho_linked_",               linked = TRUE,  rho = TRUE),
+    rho_stationary           = list(prefix = "fit_rho_stationary_",           linked = FALSE, rho = TRUE),
+    rho                      = list(prefix = "fit_rho_",                      linked = FALSE, rho = TRUE)
+  )
+
+  out <- vector("list", length(.model_specs))
+  names(out) <- names(.model_specs)
+
+  for (.label in names(.model_specs)) {
+    spec    <- .model_specs[[.label]]
+    pattern <- paste0("^", spec$prefix, "\\d{8}_\\d{6}\\.rds$")
+    files   <- sort(list.files(results_dir, pattern = pattern, full.names = TRUE))
+
+    if (length(files) == 0L) {
+      if (verbose) {
+        message(sprintf("  [warm-start] %-30s — no prior run found (using defaults)", .label))
+      }
+      out[[.label]] <- NULL
+      next
+    }
+
+    .latest <- tail(files, 1L)
+    .loaded <- tryCatch(
+      readRDS(.latest),
+      error = function(e) {
+        warning(sprintf("load_warm_starts: could not read '%s': %s", .latest, conditionMessage(e)))
+        NULL
+      }
+    )
+
+    if (is.null(.loaded)) {
+      if (verbose) {
+        message(sprintf("  [warm-start] %-30s — file unreadable (using defaults)", .label))
+      }
+      out[[.label]] <- NULL
+      next
+    }
+
+    # Build a type-appropriate baseline, then overwrite with loaded keys.
+    .base <- if (spec$rho) {
+      init_params_rho(df, linked = spec$linked)
+    } else {
+      init_params(df, discrete_timegap = TRUE, linked = spec$linked)
+    }
+    for (.k in intersect(names(.loaded$params), names(.base))) {
+      .base[[.k]] <- .loaded$params[[.k]]
+    }
+
+    if (verbose) {
+      message(sprintf(
+        "  [warm-start] %-30s — %s  [loglik = %.4f, iter = %d, converged = %s]",
+        .label,
+        basename(.latest),
+        .loaded$loglik,
+        .loaded$iterations,
+        if (isTRUE(.loaded$converged)) "YES" else "NO"
+      ))
+    }
+
+    out[[.label]] <- .base
+    rm(.latest, .loaded, .base, .k)
+  }
+
+  out
+}
