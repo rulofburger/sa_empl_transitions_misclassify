@@ -220,23 +220,22 @@ em_fit_tenure <- function(df,
     )
 
     # --- Monotonicity guard ---
-    # When the M-step uses constrained updates (e.g., stationary alpha), the
-    # parameter update can violate the EM ascent property. We check by
-    # evaluating LL at the new params. If LL decreased, revert to previous
-    # params and declare convergence (the algorithm is at a constrained
-    # stationary point).
-    estep_check <- e_step(df, params, discrete_timegap = discrete_timegap)
-    if (estep_check$loglik < ll_new - 1e-8 * abs(ll_new)) {
-      if (verbose >= 2) {
-        message(sprintf(
-          "EM iter %d: M-step decreased LL (%.6e -> %.6e); reverting to previous params.",
-          iter, ll_new, estep_check$loglik
-        ))
+    # Only needed when the M-step is constrained (stationary alpha or CTMC link);
+    # unconstrained EM guarantees ascent algebraically, so skip the check.
+    if (stationary || linked) {
+      estep_check <- e_step(df, params, discrete_timegap = discrete_timegap)
+      if (estep_check$loglik < ll_new - 1e-8 * abs(ll_new)) {
+        if (verbose >= 2) {
+          message(sprintf(
+            "EM iter %d: M-step decreased LL (%.6e -> %.6e); reverting to previous params.",
+            iter, ll_new, estep_check$loglik
+          ))
+        }
+        params <- params_prev
+        converged <- TRUE
+        history[[iter]] <- unlist(params)
+        break
       }
-      params <- params_prev
-      converged <- TRUE
-      history[[iter]] <- unlist(params)
-      break
     }
 
     history[[iter]] <- unlist(params)
@@ -274,6 +273,200 @@ em_fit_tenure <- function(df,
   # (i.e., the algorithm did not converge on this iteration).
   if (!converged) {
     estep_out <- e_step(df, params, discrete_timegap = discrete_timegap)
+  }
+
+  list(
+    params     = params,
+    loglik     = estep_out$loglik,
+    history    = history_df,
+    converged  = converged,
+    iterations = n_iter,
+    gamma      = estep_out$gamma
+  )
+}
+
+
+# ##############################################################################
+# RHO-AUGMENTED EM DRIVER (duration contamination model)
+# ##############################################################################
+# Orchestrates E-step_rho / M-step_rho iteration. Only supports
+# discrete_timegap = TRUE.
+#
+# Created: 2026-04-29
+# TeX ref: "EM tenure rho.tex"
+# ##############################################################################
+
+#' Initialise parameters for the rho-augmented EM algorithm
+#'
+#' @param df Data frame.
+#' @param linked Logical (default FALSE).
+#' @param rho_init Starting value for rho (default 0.15).
+#' @return Named list of starting parameters including rho.
+#' @references TeX: \emph{EM tenure rho.tex}.
+#' @export
+init_params_rho <- function(df, linked = FALSE, rho_init = 0.15) {
+  if (!is.finite(rho_init) || rho_init <= 0 || rho_init >= 1) {
+    stop(sprintf("rho_init must be in (0, 1); got %.4g", rho_init))
+  }
+  out <- init_params(df, discrete_timegap = TRUE, linked = linked)
+  out$rho <- rho_init
+  return(out)
+}
+
+
+#' Fit the EM model with duration contamination (rho model)
+#'
+#' @param df Data frame with columns: y1-y3, tenure1-tenure3,
+#'   timegap_cat1-timegap_cat3, weight.
+#' @param params0 Optional named list of starting parameters (must include rho).
+#' @param stationary Logical; if TRUE, impose stationarity.
+#' @param linked Logical; if TRUE, use CTMC link.
+#' @param max_iter Maximum EM iterations (default 500).
+#' @param tol Convergence tolerance (default 1e-8).
+#' @param sigma_floor Minimum variance (default 1e-8).
+#' @param theta_cap Maximum theta (default 0.999).
+#' @param pi_cap Maximum pi (default 0.49).
+#' @param rho_cap Maximum rho (default 0.49).
+#' @param verbose Integer; 0=silent, 1=final, 2=every iteration.
+#' @return List with params, loglik, history, converged, iterations, gamma.
+#' @references TeX: \emph{EM tenure rho.tex}.
+#' @export
+em_fit_tenure_rho <- function(df,
+                              params0 = NULL,
+                              stationary = FALSE,
+                              linked = FALSE,
+                              max_iter = 500L,
+                              tol = 1e-8,
+                              sigma_floor = 1e-8,
+                              theta_cap = 0.999,
+                              pi_cap = 0.49,
+                              rho_cap = 0.49,
+                              verbose = 1L) {
+  # Validate columns
+  required <- c("y1", "y2", "y3",
+                 "tenure1", "tenure2", "tenure3",
+                 "timegap_cat1", "timegap_cat2", "timegap_cat3",
+                 "weight")
+  missing <- setdiff(required, names(df))
+  if (length(missing) > 0) {
+    stop("Missing columns: ", paste(missing, collapse = ", "))
+  }
+
+  if (any(is.na(df$weight)) || any(df$weight < 0)) {
+    stop("em_fit_tenure_rho: 'weight' column must be non-negative with no NAs.")
+  }
+  total_weight <- sum(df$weight)
+  if (total_weight <= 0) {
+    stop("em_fit_tenure_rho: total survey weight is zero or negative.")
+  }
+
+  # Initialise
+  params <- if (!is.null(params0)) {
+    params0
+  } else {
+    init_params_rho(df, linked = linked)
+  }
+
+  # Ensure rho is present
+  if (is.null(params$rho)) {
+    params$rho <- 0.15
+  }
+
+  if (linked) {
+    params$lambda_g <- ctmc_lambda_from_persistence(params$theta1)
+    params$lambda_d <- ctmc_lambda_from_transition(params$theta0)
+  }
+
+  # History storage
+  history <- vector("list", max_iter)
+  ll_vec  <- numeric(max_iter)
+  converged <- FALSE
+
+  for (iter in seq_len(max_iter)) {
+    # --- E-step ---
+    estep_out <- e_step_rho(df, params)
+    ll_new    <- estep_out$loglik
+    ll_vec[iter] <- ll_new
+
+    # --- Convergence check ---
+    if (iter > 1) {
+      ll_change <- ll_new - ll_vec[iter - 1]
+      if (ll_change < -1e-8) {
+        warning(sprintf(
+          "EM-rho iter %d: LL decreased by %.6e (from %.6e to %.6e)",
+          iter, ll_change, ll_vec[iter - 1], ll_new
+        ))
+      }
+      rel_change <- abs(ll_change) / (abs(ll_vec[iter - 1]) + 1e-16)
+      if (rel_change < tol) {
+        converged <- TRUE
+        if (verbose >= 1) {
+          message(sprintf(
+            "EM-rho converged at iteration %d (rel_change = %.2e)", iter, rel_change
+          ))
+        }
+        history[[iter]] <- unlist(params)
+        break
+      }
+    }
+
+    # --- M-step ---
+    params_prev <- params
+    params <- m_step_rho(
+      suff         = estep_out$suff,
+      total_weight = total_weight,
+      stationary   = stationary,
+      linked       = linked,
+      sigma_floor  = sigma_floor,
+      theta_cap    = theta_cap,
+      pi_cap       = pi_cap,
+      rho_cap      = rho_cap
+    )
+
+    # --- Monotonicity guard ---
+    # Only needed when the M-step is constrained (stationary alpha or CTMC link);
+    # unconstrained EM guarantees ascent algebraically, so skip the check.
+    if (stationary || linked) {
+      estep_check <- e_step_rho(df, params)
+      if (estep_check$loglik < ll_new - 1e-8 * abs(ll_new)) {
+        if (verbose >= 2) {
+          message(sprintf(
+            "EM-rho iter %d: M-step decreased LL (%.6e -> %.6e); reverting.",
+            iter, ll_new, estep_check$loglik
+          ))
+        }
+        params <- params_prev
+        converged <- TRUE
+        history[[iter]] <- unlist(params)
+        break
+      }
+    }
+
+    history[[iter]] <- unlist(params)
+
+    if (verbose >= 2) {
+      message(sprintf(
+        "EM-rho iter %3d | ll = %14.4f | alpha=%.4f theta1=%.4f theta0=%.4f pi=%.4f rho=%.4f sig2g=%.6f",
+        iter, ll_new, params$alpha, params$theta1, params$theta0,
+        params$pi, params$rho, params$sigma2_g
+      ))
+    }
+  }
+
+  if (!converged && verbose >= 1) {
+    message(sprintf("EM-rho did not converge in %d iterations", max_iter))
+  }
+
+  # Trim history
+  n_iter <- min(iter, max_iter)
+  history <- history[seq_len(n_iter)]
+  history_mat <- do.call(rbind, history)
+  history_df <- as.data.frame(history_mat)
+  history_df$iteration <- seq_len(n_iter)
+  history_df$loglik <- as.numeric(ll_vec[seq_len(n_iter)])
+
+  if (!converged) {
+    estep_out <- e_step_rho(df, params)
   }
 
   list(

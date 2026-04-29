@@ -305,48 +305,25 @@ e_step <- function(df, params, discrete_timegap = TRUE) {
   # --- Duration emission log-densities: N x H matrix ---
   ld <- matrix(0, nrow = N, ncol = H)
 
-  # ============ WAVE 1 (left-censored: all durations use EMG / cat marginal) ============
-  for (j in seq_len(H)) {
-    if (h1[j] == 1) {
-      # h1=1: any correctly-classified or misclassified scenario at wave 1
-      # Observed emp (s1=1): EMG on g1 (tenure clock)
-      mask_emp <- (s1 == 1)
-      if (any(mask_emp)) {
-        ld[mask_emp, j] <- ld[mask_emp, j] +
-          log_emg(g1[mask_emp], lambda_g, sigma2_g)
-      }
-      # Observed nonemp (s1=0): timegap clock (Case 1: interval marginal or EMG)
-      mask_non <- (s1 == 0)
-      if (any(mask_non)) {
-        if (discrete_timegap) {
-          # Case 1: interval-censored marginal (wave 1 = left-censored)
-          ld[mask_non, j] <- ld[mask_non, j] +
-            log_emission_interval_d(c1[mask_non], lambda_d)
-        } else {
-          ld[mask_non, j] <- ld[mask_non, j] +
-            log_emg(d1[mask_non], lambda_d, sigma2_d)
-        }
-      }
+  # ============ WAVE 1 (left-censored) ============
+  # Wave-1 emissions are history-independent (no previous state to condition on):
+  # every observation uses the same emission regardless of h1. Compute once and
+  # broadcast across all H columns to avoid 7 redundant N-vector evaluations.
+  ld_w1 <- numeric(N)
+  mask_emp1 <- (s1 == 1L)
+  mask_non1 <- (s1 == 0L)
+  if (any(mask_emp1)) {
+    ld_w1[mask_emp1] <- log_emg(g1[mask_emp1], lambda_g, sigma2_g)
+  }
+  if (any(mask_non1)) {
+    if (discrete_timegap) {
+      ld_w1[mask_non1] <- log_emission_interval_d(c1[mask_non1], lambda_d)
     } else {
-      # h1=0: observed nonemp (s1=0): EMG / interval on d1
-      mask_non <- (s1 == 0)
-      if (any(mask_non)) {
-        if (discrete_timegap) {
-          ld[mask_non, j] <- ld[mask_non, j] +
-            log_emission_interval_d(c1[mask_non], lambda_d)
-        } else {
-          ld[mask_non, j] <- ld[mask_non, j] +
-            log_emg(d1[mask_non], lambda_d, sigma2_d)
-        }
-      }
-      # Observed emp (s1=1): EMG on g1 (tenure clock)
-      mask_emp <- (s1 == 1)
-      if (any(mask_emp)) {
-        ld[mask_emp, j] <- ld[mask_emp, j] +
-          log_emg(g1[mask_emp], lambda_g, sigma2_g)
-      }
+      ld_w1[mask_non1] <- log_emg(d1[mask_non1], lambda_d, sigma2_d)
     }
   }
+  # Add the same N-vector to all H columns at once
+  ld <- ld + ld_w1  # recycles ld_w1 across all columns
 
   # ============ WAVES 2-3 ============
   ld <- ld + .wave_emission_vec(
@@ -406,8 +383,12 @@ e_step <- function(df, params, discrete_timegap = TRUE) {
     # --- (B) Standard posterior (with misclassification) ---
     log_kernel <- sweep(lq + ld, 2, log_prior, "+")
 
-    # Row-wise log-sum-exp for denominator (numerically stable)
-    row_max <- apply(log_kernel, 1, max)
+    # Row-wise log-sum-exp for denominator — use pmax on fixed 8-column matrix
+    # (faster than apply(log_kernel, 1, max) which dispatches N R-level calls)
+    row_max <- pmax(
+      log_kernel[,1], log_kernel[,2], log_kernel[,3], log_kernel[,4],
+      log_kernel[,5], log_kernel[,6], log_kernel[,7], log_kernel[,8]
+    )
     log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
 
     gamma_mat <- exp(log_kernel - log_denom)
@@ -434,12 +415,9 @@ e_step <- function(df, params, discrete_timegap = TRUE) {
   T01 <- sum(wg_cs * (h1 == 0 & h2 == 1)) +
          sum(wg_cs * (h2 == 0 & h3 == 1))
 
-  # Misclassification count (Eq 14)
-  M_count <- 0
-  for (j in seq_len(H)) {
-    n_mis <- (h1[j] != s1) + (h2[j] != s2) + (h3[j] != s3)  # N-vector
-    M_count <- M_count + sum(wg[, j] * n_mis)
-  }
+  # Misclassification count (Eq 14) — vectorised via outer()
+  n_mis_mat <- outer(s1, h1, "!=") + outer(s2, h2, "!=") + outer(s3, h3, "!=")
+  M_count   <- sum(wg * n_mis_mat)
 
   # --- Variance sufficient stats (Eqs 15-18, tenure only) ---
   # sigma2_d stats are only needed in the legacy continuous mode.
@@ -686,6 +664,445 @@ e_step <- function(df, params, discrete_timegap = TRUE) {
     suff$emg_d_x  <- unlist(emg_d_x_list, use.names = FALSE)
     suff$emg_d_w  <- unlist(emg_d_w_list, use.names = FALSE)
   }
+
+  return(list(gamma = gamma_mat, loglik = ll, suff = suff))
+}
+
+
+# ##############################################################################
+# RHO-AUGMENTED E-STEP (duration contamination model)
+# ##############################################################################
+# Extends the base E-step with:
+# 1. Mixture emissions: (1-rho)*ell_clock + rho*f_pop per wave
+# 2. Posterior contamination weights omega_ith
+# 3. (1-omega)-weighted sufficient statistics for sigma2_g
+# 4. Total omega for the rho M-step update
+#
+# Only supports discrete_timegap = TRUE (the active specification).
+#
+# Created: 2026-04-29
+# TeX ref: "EM tenure rho.tex", Eqs (resp_rho), (omega), (suff_sg_rho)
+# ##############################################################################
+
+# --- Internal helper: per-wave population marginal log-densities (N x 1) ----
+
+#' Population marginal log-density for a single wave
+#'
+#' Returns an N-vector of log f_pop(y_it | s_it):
+#'  - s_it = 1: log_emg(g_it; lambda_g, sigma2_g)
+#'  - s_it = 0: log_emission_interval_d(cat_it; lambda_d)
+#'
+#' @keywords internal
+.pop_marginal_vec <- function(s_t, g_t, cat_t, lambda_g, lambda_d, sigma2_g) {
+  N <- length(s_t)
+  lp <- numeric(N)
+  mask_emp <- (s_t == 1)
+  mask_non <- (s_t == 0)
+  if (any(mask_emp)) {
+    lp[mask_emp] <- log_emission_pop_g(g_t[mask_emp], lambda_g, sigma2_g)
+  }
+  if (any(mask_non)) {
+    lp[mask_non] <- log_emission_pop_d(cat_t[mask_non], lambda_d)
+  }
+  return(lp)
+}
+
+# --- Internal helper: wave clock emission for ONE wave (N x H) --------------
+
+#' Clock-consistent emission log-densities for wave 1 only
+#'
+#' Returns N x H matrix of log ell_clock for wave 1 (left-censored).
+#' @keywords internal
+.wave1_clock_emission <- function(s1, g1, cat1,
+                                  h1, lambda_g, lambda_d, sigma2_g) {
+  N <- length(s1)
+  H <- length(h1)
+  ld <- matrix(0, nrow = N, ncol = H)
+
+  for (j in seq_len(H)) {
+    if (h1[j] == 1) {
+      mask_emp <- (s1 == 1)
+      if (any(mask_emp)) {
+        ld[mask_emp, j] <- ld[mask_emp, j] +
+          log_emg(g1[mask_emp], lambda_g, sigma2_g)
+      }
+      mask_non <- (s1 == 0)
+      if (any(mask_non)) {
+        ld[mask_non, j] <- ld[mask_non, j] +
+          log_emission_interval_d(cat1[mask_non], lambda_d)
+      }
+    } else {
+      mask_non <- (s1 == 0)
+      if (any(mask_non)) {
+        ld[mask_non, j] <- ld[mask_non, j] +
+          log_emission_interval_d(cat1[mask_non], lambda_d)
+      }
+      mask_emp <- (s1 == 1)
+      if (any(mask_emp)) {
+        ld[mask_emp, j] <- ld[mask_emp, j] +
+          log_emg(g1[mask_emp], lambda_g, sigma2_g)
+      }
+    }
+  }
+  return(ld)
+}
+
+
+#' E-step with duration contamination (rho model)
+#'
+#' Extends the base \code{e_step()} with:
+#' \enumerate{
+#'   \item Mixture emissions: \code{(1-rho) * ell_clock + rho * f_pop} per wave
+#'   \item Posterior contamination weights omega_ith
+#'   \item \code{(1-omega)}-weighted sufficient statistics for sigma2_g
+#'   \item Total omega for the rho M-step update
+#' }
+#'
+#' Only supports \code{discrete_timegap = TRUE}.
+#'
+#' @param df Data frame (same as \code{e_step}).
+#' @param params Named list: alpha, theta0, theta1, pi, rho, sigma2_g,
+#'   lambda_g, lambda_d.
+#' @return List with: gamma, loglik, suff (augmented with rho-specific stats).
+#' @references TeX: \emph{EM tenure rho.tex}, Eqs. \texttt{obs\_ll\_rho},
+#'   \texttt{resp\_rho}, \texttt{omega}, \texttt{suff\_sg\_rho}.
+#' @export
+e_step_rho <- function(df, params) {
+  # --- Unpack parameters ---
+  alpha    <- params$alpha
+  theta0   <- params$theta0
+  theta1   <- params$theta1
+  pi_par   <- params$pi
+  rho      <- params$rho
+  sigma2_g <- params$sigma2_g
+  lambda_g <- params$lambda_g
+  lambda_d <- params$lambda_d
+
+  # --- Validate ---
+  cat_cols <- c("timegap_cat1", "timegap_cat2", "timegap_cat3")
+  missing_cats <- setdiff(cat_cols, names(df))
+  if (length(missing_cats) > 0) {
+    stop("e_step_rho requires columns: ", paste(missing_cats, collapse = ", "))
+  }
+  bad_cats <- !all(df$timegap_cat1 %in% 1:7, na.rm = TRUE) ||
+              !all(df$timegap_cat2 %in% 1:7, na.rm = TRUE) ||
+              !all(df$timegap_cat3 %in% 1:7, na.rm = TRUE)
+  if (bad_cats) {
+    stop("e_step_rho: timegap_cat1/2/3 must contain only integers 1-7 (no NA, no 0/8/99).")
+  }
+
+  na_tenure <- is.na(df$tenure1) | is.na(df$tenure2) | is.na(df$tenure3)
+  na_timegap <- is.na(df$timegap_cat1) | is.na(df$timegap_cat2) |
+                is.na(df$timegap_cat3)
+  n_na <- sum(na_tenure | na_timegap)
+  if (n_na > 0) {
+    stop(sprintf("E-step: %d observation(s) have NA in tenure or timegap columns.", n_na))
+  }
+
+  bad <- (df$y1 == 1 & df$tenure1 <= 0) |
+         (df$y2 == 1 & df$tenure2 <= 0) |
+         (df$y3 == 1 & df$tenure3 <= 0)
+  if (any(bad)) {
+    stop(sprintf("E-step: %d obs have non-positive tenure for employed state.", sum(bad)))
+  }
+
+  if (!is.finite(rho) || rho <= 0 || rho >= 1) {
+    stop(sprintf("e_step_rho: params$rho must be in (0, 1); got %.4g", rho))
+  }
+
+  # --- Latent structure (H = 8) ---
+  hmat    <- latent_histories()
+  prior_h <- prior_over_histories(hmat, theta1, theta0, alpha)
+  log_prior <- log(.bound01(prior_h))
+
+  N <- nrow(df)
+  H <- nrow(hmat)
+  h1 <- hmat[, 1]; h2 <- hmat[, 2]; h3 <- hmat[, 3]
+
+  # --- Extract data ---
+  s1 <- df$y1; s2 <- df$y2; s3 <- df$y3
+  g1 <- df$tenure1; g2 <- df$tenure2; g3 <- df$tenure3
+  c1 <- df$timegap_cat1; c2 <- df$timegap_cat2; c3 <- df$timegap_cat3
+  wi <- df$weight
+
+  # --- Misclassification log-probability: N x H ---
+  if (pi_par == 0) {
+    lq <- matrix(-Inf, nrow = N, ncol = H)
+    for (j in seq_len(H)) {
+      match_all <- (s1 == h1[j]) & (s2 == h2[j]) & (s3 == h3[j])
+      lq[match_all, j] <- 0
+    }
+  } else {
+    pi_b <- .bound01(pi_par)
+    lp_match <- log1p(-pi_b)
+    lp_mismatch <- log(pi_b)
+    lq <- matrix(0, nrow = N, ncol = H)
+    for (j in seq_len(H)) {
+      lq[, j] <- ifelse(s1 == h1[j], lp_match, lp_mismatch) +
+                  ifelse(s2 == h2[j], lp_match, lp_mismatch) +
+                  ifelse(s3 == h3[j], lp_match, lp_mismatch)
+    }
+  }
+
+  # =========================================================================
+  # CLOCK EMISSION: N x H matrices per wave (using base model functions)
+  # =========================================================================
+  # Wave 1: left-censored
+  ld_clock_w1 <- .wave1_clock_emission(s1, g1, c1, h1,
+                                       lambda_g, lambda_d, sigma2_g)
+  # Waves 2-3: use existing .wave_emission_vec
+  ld_clock_w2 <- .wave_emission_vec(
+    s_t = s2, s_prev = s1, g_t = g2, g_prev = g1,
+    d_t = NULL, d_prev = NULL, cat_t = c2, cat_prev = c1,
+    h_prev = h1, h_curr = h2,
+    lambda_g = lambda_g, lambda_d = lambda_d,
+    sigma2_g = sigma2_g, sigma2_d = NA_real_,
+    discrete_timegap = TRUE
+  )
+  ld_clock_w3 <- .wave_emission_vec(
+    s_t = s3, s_prev = s2, g_t = g3, g_prev = g2,
+    d_t = NULL, d_prev = NULL, cat_t = c3, cat_prev = c2,
+    h_prev = h2, h_curr = h3,
+    lambda_g = lambda_g, lambda_d = lambda_d,
+    sigma2_g = sigma2_g, sigma2_d = NA_real_,
+    discrete_timegap = TRUE
+  )
+
+  # =========================================================================
+  # POPULATION MARGINAL: N-vectors per wave
+  # =========================================================================
+  lp_pop_w1 <- .pop_marginal_vec(s1, g1, c1, lambda_g, lambda_d, sigma2_g)
+  lp_pop_w2 <- .pop_marginal_vec(s2, g2, c2, lambda_g, lambda_d, sigma2_g)
+  lp_pop_w3 <- .pop_marginal_vec(s3, g3, c3, lambda_g, lambda_d, sigma2_g)
+
+  # =========================================================================
+  # MIXTURE EMISSION + CONTAMINATION WEIGHTS: N x H per wave (fully vectorised)
+  # b_w* = log(rho) + lp_pop_w* is an N-vector independent of history j.
+  # Replicate to N x H once, then all ops are pure matrix arithmetic in C.
+  # =========================================================================
+  log_1mr <- log(1 - rho)
+  log_r   <- log(rho)
+  b_w1 <- log_r + lp_pop_w1   # length-N vector
+  b_w2 <- log_r + lp_pop_w2
+  b_w3 <- log_r + lp_pop_w3
+
+  # a_w* matrices: N x H  (log_1mr is scalar; ld_clock_w* is N x H)
+  a_w1 <- log_1mr + ld_clock_w1
+  a_w2 <- log_1mr + ld_clock_w2
+  a_w3 <- log_1mr + ld_clock_w3
+
+  # Replicate N-vectors to N x H for element-wise ops
+  b_w1_mat <- matrix(b_w1, nrow = N, ncol = H)
+  b_w2_mat <- matrix(b_w2, nrow = N, ncol = H)
+  b_w3_mat <- matrix(b_w3, nrow = N, ncol = H)
+
+  # log-sum-exp mixture (all in C, no R loop over H)
+  mx1 <- pmax(a_w1, b_w1_mat)
+  mx2 <- pmax(a_w2, b_w2_mat)
+  mx3 <- pmax(a_w3, b_w3_mat)
+  ld_mix_w1 <- mx1 + log(exp(a_w1 - mx1) + exp(b_w1_mat - mx1))
+  ld_mix_w2 <- mx2 + log(exp(a_w2 - mx2) + exp(b_w2_mat - mx2))
+  ld_mix_w3 <- mx3 + log(exp(a_w3 - mx3) + exp(b_w3_mat - mx3))
+
+  # Posterior contamination weights omega: N x H per wave
+  omega_w1 <- plogis(b_w1_mat - a_w1)
+  omega_w2 <- plogis(b_w2_mat - a_w2)
+  omega_w3 <- plogis(b_w3_mat - a_w3)
+
+  # Total log emission (mixture across all 3 waves)
+  ld <- ld_mix_w1 + ld_mix_w2 + ld_mix_w3
+
+  # =========================================================================
+  # POSTERIOR RESPONSIBILITIES: N x H
+  # =========================================================================
+  if (pi_par == 0) {
+    match_idx <- s1 + 1L + 2L * s2 + 4L * s3
+    gamma_mat <- matrix(0, nrow = N, ncol = H)
+    gamma_mat[cbind(seq_len(N), match_idx)] <- 1
+    log_lik_i <- log_prior[match_idx] + ld[cbind(seq_len(N), match_idx)]
+    ll <- sum(wi * log_lik_i)
+  } else {
+    log_kernel <- sweep(lq + ld, 2, log_prior, "+")
+    row_max <- pmax(
+      log_kernel[,1], log_kernel[,2], log_kernel[,3], log_kernel[,4],
+      log_kernel[,5], log_kernel[,6], log_kernel[,7], log_kernel[,8]
+    )
+    log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
+    gamma_mat <- exp(log_kernel - log_denom)
+    ll <- sum(wi * log_denom)
+  }
+
+  # =========================================================================
+  # SUFFICIENT STATISTICS
+  # =========================================================================
+  wg <- gamma_mat * wi  # N x H weighted responsibilities
+  wg_cs <- colSums(wg)
+
+  # --- Markov transition stats (identical to base model) ---
+  C1 <- sum(wg_cs * h1)
+  C0 <- sum(wg_cs * (1 - h1))
+
+  D1  <- sum(wg_cs * (h1 == 1)) + sum(wg_cs * (h2 == 1))
+  D0  <- sum(wg_cs * (h1 == 0)) + sum(wg_cs * (h2 == 0))
+  T11 <- sum(wg_cs * (h1 == 1 & h2 == 1)) +
+         sum(wg_cs * (h2 == 1 & h3 == 1))
+  T01 <- sum(wg_cs * (h1 == 0 & h2 == 1)) +
+         sum(wg_cs * (h2 == 0 & h3 == 1))
+
+  # --- Misclassification count (unchanged) ---
+  n_mis_mat <- outer(s1, h1, "!=") + outer(s2, h2, "!=") + outer(s3, h3, "!=")
+  M_count <- sum(wg * n_mis_mat)
+
+  # --- Total omega for rho update ---
+  Omega_total <- sum(wg * (omega_w1 + omega_w2 + omega_w3))
+
+  # --- (1-omega)-weighted variance stats for sigma2_g ---
+  Sg <- 0; Ng <- 0
+  Sg_start <- 0; Ng_start <- 0
+
+  for (j in seq_len(H)) {
+    wj <- wg[, j]
+
+    # ---- t = 2 ----
+    if (h1[j] == 1 && h2[j] == 1) {
+      mask <- (s2 == 1) & (s1 == 1)
+      if (any(mask)) {
+        dg <- g2[mask] - g1[mask] - .QUARTER_YEARS
+        one_m_omega <- 1 - omega_w2[mask, j]
+        Sg <- Sg + sum(wj[mask] * one_m_omega * dg^2)
+        Ng <- Ng + sum(wj[mask] * one_m_omega)
+      }
+    }
+    if (h1[j] == 0 && h2[j] == 1) {
+      mask <- (s2 == 1)
+      if (any(mask)) {
+        one_m_omega <- 1 - omega_w2[mask, j]
+        Sg_start <- Sg_start +
+          sum(wj[mask] * one_m_omega * (g2[mask] - .QUARTER_YEARS)^2)
+        Ng_start <- Ng_start + sum(wj[mask] * one_m_omega)
+      }
+    }
+
+    # ---- t = 3 ----
+    if (h2[j] == 1 && h3[j] == 1) {
+      mask <- (s3 == 1) & (s2 == 1)
+      if (any(mask)) {
+        dg <- g3[mask] - g2[mask] - .QUARTER_YEARS
+        one_m_omega <- 1 - omega_w3[mask, j]
+        Sg <- Sg + sum(wj[mask] * one_m_omega * dg^2)
+        Ng <- Ng + sum(wj[mask] * one_m_omega)
+      }
+    }
+    if (h2[j] == 0 && h3[j] == 1) {
+      mask <- (s3 == 1)
+      if (any(mask)) {
+        one_m_omega <- 1 - omega_w3[mask, j]
+        Sg_start <- Sg_start +
+          sum(wj[mask] * one_m_omega * (g3[mask] - .QUARTER_YEARS)^2)
+        Ng_start <- Ng_start + sum(wj[mask] * one_m_omega)
+      }
+    }
+  }
+
+  # --- EMG-lambda_g sufficient stats ---
+  # Same structure as base model; weights are w_i * gamma_ih (NOT omega-weighted)
+  # because both clock and pop components use the same EMG density for lambda_g
+  emg_g_x_list <- vector("list", H)
+  emg_g_w_list <- vector("list", H)
+
+  for (j in seq_len(H)) {
+    wj <- wg[, j]
+    mask <- (s1 == 1)
+    ex_g <- g1[mask]; ew_g <- wj[mask]
+    if (h1[j] == 1 && h2[j] == 1) {
+      m <- (s2 == 1) & (s1 == 0)
+      if (any(m)) { ex_g <- c(ex_g, g2[m]); ew_g <- c(ew_g, wj[m]) }
+    }
+    if (h2[j] == 0) {
+      m <- (s2 == 1)
+      if (any(m)) { ex_g <- c(ex_g, g2[m]); ew_g <- c(ew_g, wj[m]) }
+    }
+    if (h2[j] == 1 && h3[j] == 1) {
+      m <- (s3 == 1) & (s2 == 0)
+      if (any(m)) { ex_g <- c(ex_g, g3[m]); ew_g <- c(ew_g, wj[m]) }
+    }
+    if (h3[j] == 0) {
+      m <- (s3 == 1)
+      if (any(m)) { ex_g <- c(ex_g, g3[m]); ew_g <- c(ew_g, wj[m]) }
+    }
+    emg_g_x_list[[j]] <- ex_g
+    emg_g_w_list[[j]] <- ew_g
+  }
+
+  # --- Discrete lambda_d sufficient stats ---
+  cat_d_marginal_c_list <- vector("list", H)
+  cat_d_marginal_w_list <- vector("list", H)
+  cat_d_trans_curr_list <- vector("list", H)
+  cat_d_trans_prev_list <- vector("list", H)
+  cat_d_trans_w_list    <- vector("list", H)
+
+  for (j in seq_len(H)) {
+    wj <- wg[, j]
+    m1 <- (s1 == 0)
+    ec <- c1[m1]; ew <- wj[m1]
+    if (h1[j] == 0 && h2[j] == 0) {
+      m <- (s2 == 0) & (s1 == 1)
+      if (any(m)) { ec <- c(ec, c2[m]); ew <- c(ew, wj[m]) }
+    }
+    if (h1[j] == 1 && h2[j] == 0) {
+      m <- (s2 == 0)
+      if (any(m)) { ec <- c(ec, c2[m]); ew <- c(ew, wj[m]) }
+    }
+    if (h2[j] == 1) {
+      m <- (s2 == 0)
+      if (any(m)) { ec <- c(ec, c2[m]); ew <- c(ew, wj[m]) }
+    }
+    if (h2[j] == 0 && h3[j] == 0) {
+      m <- (s3 == 0) & (s2 == 1)
+      if (any(m)) { ec <- c(ec, c3[m]); ew <- c(ew, wj[m]) }
+    }
+    if (h2[j] == 1 && h3[j] == 0) {
+      m <- (s3 == 0)
+      if (any(m)) { ec <- c(ec, c3[m]); ew <- c(ew, wj[m]) }
+    }
+    if (h3[j] == 1) {
+      m <- (s3 == 0)
+      if (any(m)) { ec <- c(ec, c3[m]); ew <- c(ew, wj[m]) }
+    }
+    cat_d_marginal_c_list[[j]] <- ec
+    cat_d_marginal_w_list[[j]] <- ew
+
+    if (h1[j] == 0 && h2[j] == 0) {
+      m <- (s2 == 0) & (s1 == 0)
+      cat_d_trans_curr_list[[j]] <- c(cat_d_trans_curr_list[[j]], c2[m])
+      cat_d_trans_prev_list[[j]] <- c(cat_d_trans_prev_list[[j]], c1[m])
+      cat_d_trans_w_list[[j]]    <- c(cat_d_trans_w_list[[j]],    wj[m])
+    }
+    if (h2[j] == 0 && h3[j] == 0) {
+      m <- (s3 == 0) & (s2 == 0)
+      cat_d_trans_curr_list[[j]] <- c(cat_d_trans_curr_list[[j]], c3[m])
+      cat_d_trans_prev_list[[j]] <- c(cat_d_trans_prev_list[[j]], c2[m])
+      cat_d_trans_w_list[[j]]    <- c(cat_d_trans_w_list[[j]],    wj[m])
+    }
+  }
+
+  # --- Assemble sufficient stats ---
+  suff <- list(
+    C1 = C1, C0 = C0,
+    D1 = D1, D0 = D0,
+    T11 = T11, T01 = T01,
+    M = M_count,
+    Omega = Omega_total,
+    Sg = Sg, Ng = Ng,
+    Sg_start = Sg_start, Ng_start = Ng_start,
+    emg_g_x = unlist(emg_g_x_list, use.names = FALSE),
+    emg_g_w = unlist(emg_g_w_list, use.names = FALSE),
+    cat_d_marginal_c = unlist(cat_d_marginal_c_list, use.names = FALSE),
+    cat_d_marginal_w = unlist(cat_d_marginal_w_list, use.names = FALSE),
+    cat_d_trans_curr = unlist(cat_d_trans_curr_list, use.names = FALSE),
+    cat_d_trans_prev = unlist(cat_d_trans_prev_list, use.names = FALSE),
+    cat_d_trans_w    = unlist(cat_d_trans_w_list,    use.names = FALSE)
+  )
 
   return(list(gamma = gamma_mat, loglik = ll, suff = suff))
 }

@@ -569,3 +569,130 @@ m_step <- function(suff, total_weight,
   }
   out
 }
+
+
+# ##############################################################################
+# RHO-AUGMENTED M-STEP (duration contamination model)
+# ##############################################################################
+# Extends the base M-step with:
+# 1. Closed-form rho update from Omega / (3*W)
+# 2. (1-omega)-weighted sigma2_g from augmented sufficient statistics
+# All other updates are identical to the base M-step.
+#
+# Only supports discrete_timegap = TRUE.
+#
+# Created: 2026-04-29
+# TeX ref: "EM tenure rho.tex", Eqs (mstep_rho), (mstep_sigma_g_rho)
+# ##############################################################################
+
+#' M-step with duration contamination (rho model)
+#'
+#' @param suff Named list of sufficient statistics from \code{e_step_rho()}.
+#'   Must include \code{Omega} (total posterior contamination weight).
+#' @param total_weight Sum of survey weights.
+#' @param stationary Logical; if TRUE, impose stationarity on alpha.
+#' @param linked Logical (default FALSE). If TRUE, use CTMC link.
+#' @param sigma_floor Minimum value for sigma2_g (default 1e-8).
+#' @param theta_cap Maximum value for theta1/theta0 (default 0.999).
+#' @param pi_cap Maximum value for pi (default 0.49).
+#' @param rho_cap Maximum value for rho (default 0.49).
+#' @return Named list: alpha, theta0, theta1, pi, rho, sigma2_g, lambda_g, lambda_d.
+#' @references TeX: \emph{EM tenure rho.tex}, Eqs. \texttt{mstep\_rho},
+#'   \texttt{mstep\_sigma\_g\_rho}, \texttt{suff\_omega}.
+#' @export
+m_step_rho <- function(suff, total_weight,
+                       stationary = FALSE,
+                       linked = FALSE,
+                       sigma_floor = 1e-8,
+                       theta_cap = 0.999,
+                       pi_cap = 0.49,
+                       rho_cap = 0.49) {
+  # --- Guard: ensure Omega sufficient statistic is valid ---
+  stopifnot(!is.null(suff$Omega), is.finite(suff$Omega))
+
+  # --- Misclassification (unchanged) ---
+  pi_hat <- suff$M / (3 * total_weight)
+  pi_hat <- .bound01(pi_hat, eps = 0)
+  pi_hat <- min(pi_hat, pi_cap)
+
+  # --- Duration contamination (new) ---
+  rho_hat <- suff$Omega / (3 * total_weight)
+  rho_hat <- .bound01(rho_hat, eps = 0)
+  rho_hat <- max(rho_hat, 1e-4)    # small floor to avoid log(0)
+  rho_hat <- min(rho_hat, rho_cap)
+
+  # --- Measurement variance for tenure: (1-omega)-weighted ---
+  denom_g <- 2 * (suff$Ng + suff$Ng_start)
+  sigma2_g <- if (denom_g > 0) {
+    (suff$Sg + 2 * suff$Sg_start) / denom_g
+  } else {
+    sigma_floor
+  }
+  sigma2_g <- max(sigma2_g, sigma_floor)
+
+  # --- theta1 ---
+  theta1_seed <- if (suff$D1 > 0) .bound01(suff$T11 / suff$D1, eps = 1e-6) else 0.9
+
+  if (linked) {
+    theta1 <- .m_step_theta_newton(
+      T_stay = suff$T11, D_from = suff$D1,
+      emg_x = suff$emg_g_x, emg_w = suff$emg_g_w,
+      sigma2 = sigma2_g,
+      theta_seed = theta1_seed, theta_cap = theta_cap
+    )
+  } else {
+    theta1 <- max(1e-6, min(theta1_seed, theta_cap))
+  }
+
+  # --- theta0 ---
+  theta0_seed <- if (suff$D0 > 0) .bound01(suff$T01 / suff$D0, eps = 1e-6) else 0.1
+
+  if (linked) {
+    theta0 <- .m_step_theta0_brent_discrete(
+      T01 = suff$T01, D0 = suff$D0,
+      cat_marg = suff$cat_d_marginal_c,
+      w_marg   = suff$cat_d_marginal_w,
+      cat_curr = suff$cat_d_trans_curr,
+      cat_prev = suff$cat_d_trans_prev,
+      w_trans  = suff$cat_d_trans_w,
+      theta_seed = theta0_seed, theta_cap = theta_cap
+    )
+  } else {
+    theta0 <- max(1e-6, min(theta0_seed, theta_cap))
+  }
+
+  if (stationary) {
+    alpha <- theta0 / (theta0 + 1 - theta1)
+  } else {
+    alpha <- .bound01(suff$C1 / (suff$C1 + suff$C0), eps = 1e-6)
+  }
+
+  # --- Exponential rates ---
+  if (linked) {
+    lambda_g <- ctmc_lambda_from_persistence(theta1)
+    lambda_d <- ctmc_lambda_from_transition(theta0)
+  } else {
+    lambda_g <- .m_step_lambda_g_brent(
+      emg_x = suff$emg_g_x, emg_w = suff$emg_g_w,
+      sigma2 = sigma2_g
+    )
+    lambda_d <- .m_step_lambda_d_brent(
+      cat_marg = suff$cat_d_marginal_c,
+      w_marg   = suff$cat_d_marginal_w,
+      cat_curr = suff$cat_d_trans_curr,
+      cat_prev = suff$cat_d_trans_prev,
+      w_trans  = suff$cat_d_trans_w
+    )
+  }
+
+  list(
+    alpha    = alpha,
+    theta0   = theta0,
+    theta1   = theta1,
+    pi       = pi_hat,
+    rho      = rho_hat,
+    sigma2_g = sigma2_g,
+    lambda_g = lambda_g,
+    lambda_d = lambda_d
+  )
+}

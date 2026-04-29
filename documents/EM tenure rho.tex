@@ -1,0 +1,188 @@
+% ==============================================================================
+% EM tenure with duration contamination (rho model)
+% Created: 2026-04-29
+%
+% This document extends "EM tenure.tex" with a duration contamination parameter
+% rho that separates tenure reporting error from employment misclassification.
+% The original document is NOT modified; this is a self-contained companion.
+% ==============================================================================
+\documentclass[12pt]{article}
+\usepackage[margin=2cm]{geometry}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1em}
+
+\usepackage{amsmath}
+\usepackage{booktabs,dcolumn,setspace, float}
+
+\begin{document}
+
+\section{Duration Contamination Extension of the EM Framework}
+
+This document presents an extension of the EM framework in ``EM tenure.tex'' that introduces a duration contamination probability~\(\rho\). The extension addresses the empirical finding that approximately 37\% of tenure increments in the QLFS are inconsistent with the clock model (non-standard increments), even though the individuals are correctly classified as employed. The base model attributes these to state misclassification, inflating~\(\pi\) from~\(\sim\!3\%\) to~\(\sim\!25\%\). The~\(\rho\) model provides a separate error channel for ``correct state, wrong duration.''
+
+All notation, conventions, and base-model equations follow ``EM tenure.tex'' exactly. We describe only the changes and additions here.
+
+\subsection{Motivation}
+
+In the South African QLFS, 63\% of employed\(\to\)employed tenure increments are exactly 0.25~years (to machine precision), consistent with the clock model \(\Delta^g_t = 0\) and \(\sigma^2_g = 0\). The remaining 37\% include 15\% negative increments (median \(-21\)~months, far exceeding any plausible within-quarter job change) and 22\% positive but non-standard increments. These are the signature of \emph{tenure reporting error}: the same person at the same job reports tenure differently across waves due to rounding, recall bias, or respondent substitution.
+
+The base model has one error channel (\(\pi\)) that handles employment state misclassification. It has no mechanism for ``correct state, wrong duration.'' When \(\sigma^2_g \to 0\) (as the MLE correctly finds), all non-standard increments must be explained through misclassification histories, inflating~\(\pi\).
+
+\subsection{Extended observation model}
+
+\paragraph{Duration contamination.}
+We introduce a per-wave latent indicator \(m_{it} \in \{0,1\}\) with
+\[
+\Pr(m_{it} = 1) = \rho, \qquad \Pr(m_{it} = 0) = 1 - \rho.
+\]
+When \(m_{it} = 0\) (``clock-consistent''), the duration emission follows the base model. When \(m_{it} = 1\) (``contaminated''), the reported duration is an uninformative draw from the population marginal, independent of the individual's trajectory.
+
+\paragraph{Modified per-wave emission.}
+The per-wave contribution to the individual likelihood becomes:
+\begin{equation}
+\ell^*_t(y_{it} \mid h, \Theta) = q(s_{it} \mid h_t, \pi) \times \Big[(1 - \rho)\,\ell^{\mathrm{dur}}_t(y_{it} \mid h, s_{it}, \Theta) + \rho\,f^{\mathrm{dur}}_{\mathrm{pop}}(y_{it} \mid s_{it}, \Theta)\Big],
+\label{eq:emission_rho}
+\end{equation}
+where:
+\begin{itemize}
+\item \(q(s_{it} \mid h_t, \pi)\) is the misclassification probability from the base model, unchanged;
+\item \(\ell^{\mathrm{dur}}_t\) is the existing duration emission (Normal increment, EMG, interval-censored, etc.)\ --- exactly the base model's duration component;
+\item \(f^{\mathrm{dur}}_{\mathrm{pop}}\) is the population marginal for the observed duration given the observed state:
+\begin{align}
+f^{\mathrm{dur}}_{\mathrm{pop}}(y_{it} \mid s_{it} = 1, \Theta) &= f_{\mathrm{EMG}}(g_{it};\, \lambda_g,\, \sigma^2_g), \label{eq:fpop_g} \\
+f^{\mathrm{dur}}_{\mathrm{pop}}(y_{it} \mid s_{it} = 0, \Theta) &= P(D \in [a_{k_{it}}, b_{k_{it}}) \mid \lambda_d) \quad \text{(interval-censored Exp)}. \label{eq:fpop_d}
+\end{align}
+\end{itemize}
+
+\paragraph{Key separation.} Misclassification (\(\pi\)) affects the \emph{state observation}: \(P(s_t \neq h_t) = \pi\). Duration contamination (\(\rho\)) affects the \emph{duration observation}: with probability~\(\rho\), the reported duration is uninformative about the trajectory. The two error channels operate on different margins of the data and do not interact in the complete-data log-likelihood.
+
+\subsection{Observed-data likelihood}
+
+The observed-data log-likelihood under the extended model is:
+\begin{equation}
+\ell(\Theta) = \sum_{i=1}^N w_i \log\bigg[\sum_{h \in \mathcal{H}} p(H_i = h \mid \alpha, \theta_0, \theta_1) \prod_{t=1}^3 \ell^*_t(y_{it} \mid h, \Theta)\bigg],
+\label{eq:obs_ll_rho}
+\end{equation}
+with parameter vector \(\Theta = (\alpha, \theta_0, \theta_1, \pi, \rho, \sigma^2_g, \lambda_g, \lambda_d)\).
+
+\subsection{Complete-data formulation}
+
+Introduce both the history indicators \(z_{ih} = \mathbf{1}\{H_i = h\}\) and the contamination indicators \(m_{it} \in \{0,1\}\). The complete-data log-likelihood is:
+\begin{align}
+\log L_c(\Theta) &= \sum_{i=1}^N \sum_{h \in \mathcal{H}} w_i z_{ih} \bigg\{
+\underbrace{\log p(h \mid \alpha, \theta_0, \theta_1)}_{\text{Markov prior}} \nonumber\\
+&\quad + \underbrace{\sum_{t=1}^3 \log q(s_{it} \mid h_t, \pi)}_{\text{state misclassification}} \nonumber\\
+&\quad + \underbrace{\sum_{t=1}^3 \Big[(1 - m_{it}) \log \ell^{\mathrm{dur}}_t + m_{it} \log f^{\mathrm{dur}}_{\mathrm{pop}}\Big]}_{\text{duration emission (mixture)}} \nonumber\\
+&\quad + \underbrace{\sum_{t=1}^3 \Big[m_{it} \log \rho + (1 - m_{it}) \log(1 - \rho)\Big]}_{\text{contamination prior}}
+\bigg\}.
+\label{eq:complete_ll_rho}
+\end{align}
+
+The four blocks in~\eqref{eq:complete_ll_rho} separate cleanly: the Markov prior depends on \((\alpha, \theta_0, \theta_1)\), misclassification on~\(\pi\), the duration mixture on \((\sigma^2_g, \lambda_g, \lambda_d)\), and the contamination prior on~\(\rho\).
+
+\subsection{E-step}
+
+\paragraph{Step 1: Responsibilities.}
+Compute \(\gamma_{ih}\) as in the base model, but using the mixture emission~\eqref{eq:emission_rho}:
+\begin{equation}
+\gamma_{ih} \propto p(h \mid \Theta^{\mathrm{old}}) \prod_{t=1}^3 \ell^*_t(y_{it} \mid h, \Theta^{\mathrm{old}}).
+\label{eq:resp_rho}
+\end{equation}
+
+\paragraph{Step 2: Posterior contamination probabilities.}
+For each observation~\(i\), history~\(h\), and wave~\(t\), compute the posterior probability that the duration is contaminated:
+\begin{equation}
+\omega_{ith} = \frac{\rho^{\mathrm{old}} \cdot f^{\mathrm{dur}}_{\mathrm{pop}}(y_{it} \mid s_{it}, \Theta^{\mathrm{old}})}{(1 - \rho^{\mathrm{old}}) \cdot \ell^{\mathrm{dur}}_t(y_{it} \mid h, \Theta^{\mathrm{old}}) + \rho^{\mathrm{old}} \cdot f^{\mathrm{dur}}_{\mathrm{pop}}(y_{it} \mid s_{it}, \Theta^{\mathrm{old}})}.
+\label{eq:omega}
+\end{equation}
+This is the standard Bayesian posterior for a two-component mixture. When \(\ell^{\mathrm{dur}}_t\) is large relative to \(f^{\mathrm{dur}}_{\mathrm{pop}}\) (e.g., \(\Delta g_t = 0.25\) exactly), \(\omega_{ith} \approx 0\). When \(\ell^{\mathrm{dur}}_t \approx 0\) (wildly inconsistent duration), \(\omega_{ith} \approx 1\).
+
+\paragraph{Modified sufficient statistics.}
+The Markov transition statistics \((C_1, C_0, D_1, D_0, T_{11}, T_{01})\) and the misclassification count~\(M\) are computed from \(\gamma_{ih}\) exactly as in the base model --- they do \emph{not} use~\(\omega_{ith}\).
+
+The duration variance statistics are modified to use \((1 - \omega)\) weights:
+\begin{align}
+\tilde{S}_g &= \sum_{i,h} w_i \gamma_{ih} \sum_{t:\,\text{cont.}} (1 - \omega_{ith})\, (\Delta^g_{it})^2, \qquad
+\tilde{N}_g = \sum_{i,h} w_i \gamma_{ih} \sum_{t:\,\text{cont.}} (1 - \omega_{ith}), \label{eq:suff_sg_rho} \\
+\tilde{S}^{\mathrm{start}}_g &= \sum_{i,h} w_i \gamma_{ih} \sum_{t:\,\text{start}} (1 - \omega_{ith})\, (g_{it} - 0.25)^2, \qquad
+\tilde{N}^{\mathrm{start}}_g = \sum_{i,h} w_i \gamma_{ih} \sum_{t:\,\text{start}} (1 - \omega_{ith}). \label{eq:suff_sg_start_rho}
+\end{align}
+
+The contamination sufficient statistic is:
+\begin{equation}
+\Omega = \sum_{i,h} w_i \gamma_{ih} \sum_{t=1}^3 \omega_{ith}.
+\label{eq:suff_omega}
+\end{equation}
+
+\subsection{M-step}
+
+\paragraph{Markov prior block} (\(\alpha, \theta_0, \theta_1\)): unchanged from the base model. Uses \(\gamma_{ih}\) only.
+\begin{equation}
+\hat{\alpha} = \frac{C_1}{C_0 + C_1}, \qquad \hat{\theta}_1 = \frac{T_{11}}{D_1}, \qquad \hat{\theta}_0 = \frac{T_{01}}{D_0}.
+\end{equation}
+
+\paragraph{Misclassification} (\(\pi\)): unchanged.
+\begin{equation}
+\hat{\pi} = \frac{M}{3W}, \qquad W = \sum_i w_i.
+\end{equation}
+
+\paragraph{Duration contamination} (\(\rho\)): closed-form.
+\begin{equation}
+\hat{\rho} = \frac{\Omega}{3W},
+\label{eq:mstep_rho}
+\end{equation}
+where \(\Omega\) is from~\eqref{eq:suff_omega}. This is the weighted average posterior contamination probability.
+
+\paragraph{Measurement variance for tenure} (\(\sigma^2_g\)): uses \((1 - \omega)\)-weighted statistics.
+\begin{equation}
+\hat{\sigma}^2_g = \frac{\tilde{S}_g + 2\,\tilde{S}^{\mathrm{start}}_g}{2(\tilde{N}_g + \tilde{N}^{\mathrm{start}}_g)}.
+\label{eq:mstep_sigma_g_rho}
+\end{equation}
+
+\paragraph{Exponential rates} (\(\lambda_g, \lambda_d\)): The Brent root-finding for \(\lambda_g\) and \(\lambda_d\) proceeds exactly as in the base model. All EMG-type observations contribute --- both clock-consistent and contaminated use the same distributional form \(f_{\mathrm{EMG}}(x; \lambda_g, \sigma^2_g)\), so the FOC is unchanged. The EMG weights for each observation become \(w_i \gamma_{ih}\) (summing over both \(m_{it} = 0\) and \(m_{it} = 1\) contributions, since both involve the same EMG density).
+
+\subsection{Identification}
+\label{sec:identification_rho}
+
+\paragraph{\(\pi\) vs \(\rho\): separate margins.}
+\(\pi\) is identified from the \emph{state observation}: the misclassification probability \(q(s_t \mid h_t, \pi) = \pi^{\mathbf{1}\{s_t \neq h_t\}}\!(1 - \pi)^{\mathbf{1}\{s_t = h_t\}}\) does not involve any duration data. The M-step update \(\hat{\pi} = M / (3W)\) uses only the state disagreement count~\(M\), which depends on the observed states~\(s_t\) and the latent histories~\(h_t\) through \(\gamma_{ih}\) but does \emph{not} depend on~\(\omega_{ith}\).
+
+\(\rho\) is identified from the \emph{duration observation}: the posterior \(\omega_{ith}\) compares the clock-consistent density \(\ell^{\mathrm{dur}}_t\) to the population marginal \(f^{\mathrm{dur}}_{\mathrm{pop}}\). When the increment is exactly 0.25~years, \(\ell^{\mathrm{dur}}_t\) is very large (near a point mass as \(\sigma^2_g \to 0\)) while \(f^{\mathrm{dur}}_{\mathrm{pop}}\) is moderate, so \(\omega_{ith} \approx 0\). When the increment deviates wildly, \(\ell^{\mathrm{dur}}_t \approx 0\) while \(f^{\mathrm{dur}}_{\mathrm{pop}}\) is reasonable, so \(\omega_{ith} \approx 1\).
+
+\paragraph{How durations inform \(\theta_1\) and \(\pi\) through \(\gamma_{ih}\).}
+Although the M-step updates for \(\theta\) and \(\pi\) do not use~\(\omega\) directly, the \emph{E-step responsibilities}~\(\gamma_{ih}\) depend on the duration data through the mixture emission~\eqref{eq:emission_rho}. This is the key channel by which durations inform transition and misclassification estimates:
+\begin{itemize}
+\item For an individual observed (1,\,0,\,1) with \(g_3 = 0.25\): tenure3 is consistent with a fresh start, so \(\gamma\) is pushed toward \(h = (1,0,1)\) (genuine transition, not misclassification).
+\item For an individual observed (1,\,0,\,1) with \(g_3 = 5.5\): tenure3 is consistent with continuous employment, so \(\gamma\) is pushed toward \(h = (1,1,1)\) (state misclassification at wave~2).
+\end{itemize}
+The \(\rho\) model preserves this channel while discounting the duration signal for observations where the duration is clearly contaminated (high~\(\omega\)).
+
+\subsection{Nesting and testing}
+
+The base model is nested: setting \(\rho = 0\) in~\eqref{eq:emission_rho} recovers the base emission \(\ell^{\mathrm{dur}}_t\) exactly. The likelihood ratio test
+\[
+\mathrm{LR} = 2\big[\ell_{\rho} - \ell_{\text{base}}\big] \sim \chi^2_1 \quad \text{under } H_0: \rho = 0
+\]
+tests whether duration contamination is statistically significant. One degree of freedom because the only additional parameter is~\(\rho\).
+
+\subsection{Summary of parameterisations}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Block & Base model & \(\rho\)-extended model & Notes \\
+\midrule
+\(\alpha\) & Closed form & Same & Stationarity option. \\
+\((\theta_1, \theta_0)\) & Closed form & Same & From prior only. \\
+\(\pi\) & Closed form & Same & From state disagreements. \\
+\(\rho\) & --- & Closed form \eqref{eq:mstep_rho} & New: from \(\omega_{ith}\). \\
+\(\sigma^2_g\) & Closed form & \((1-\omega)\)-weighted \eqref{eq:mstep_sigma_g_rho} & Clock-consistent obs only. \\
+\(\lambda_g\) & Brent & Same & All EMG obs contribute. \\
+\(\lambda_d\) & Brent & Same & All interval obs contribute. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The \(\rho\)-extended M-step retains the clean block structure of the base model, adding one closed-form update for~\(\rho\) and replacing the raw sufficient statistics for~\(\sigma^2_g\) with their \((1-\omega)\)-weighted counterparts. All other updates are unchanged.
+
+\end{document}

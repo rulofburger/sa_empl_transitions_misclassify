@@ -71,14 +71,15 @@ log_misclass_prob <- function(s_vec, hmat, pi) {
 #' @export
 log_emg <- function(x, lambda, sigma2) {
   sigma <- sqrt(.pos(sigma2))
-  # Compute the argument of erfc
+  # z = (lambda*sigma^2 - x) / (sqrt(2)*sigma)
+  # Numerically stable form: log(erfc(z)/2) = pnorm(-z*sqrt(2), log.p=TRUE)
+  # This avoids erfc(z) -> 0 underflow for large positive z (short/fast spells).
   z <- (lambda * sigma2 - x) / (sqrt(2) * sigma)
 
   log_density <- log(lambda) +
     (lambda^2 * sigma2 / 2) -
     lambda * x +
-    log(erfc(z)) -
-    log(2)
+    pnorm(-z * sqrt(2), log.p = TRUE)
 
   ifelse(x > 0, log_density, -Inf)
 }
@@ -267,12 +268,14 @@ log_emission_start_d <- function(d, sigma2_d) {
 #' @return Log-probability vector. -Inf for cat outside 1:7.
 #' @export
 log_emission_interval_d <- function(cat, lambda_d) {
-  result <- rep(-Inf, length(cat))
-  valid <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
-  for (i in which(valid)) {
-    iv <- .timegap_interval(cat[i])
-    result[i] <- .log_interval_prob(iv[1], iv[2], lambda_d)
-  }
+  # Build 7-element lookup table (only 7 distinct inputs possible)
+  lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
+    iv <- .timegap_interval(k)
+    .log_interval_prob(iv[1], iv[2], lambda_d)
+  }, numeric(1))
+  result        <- rep(-Inf, length(cat))
+  valid         <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
+  result[valid] <- lut[cat[valid]]
   result
 }
 
@@ -305,37 +308,30 @@ log_emission_interval_d <- function(cat, lambda_d) {
 log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
   n <- length(cat_curr)
   stopifnot(length(cat_prev) == n)
-  result <- rep(-Inf, n)
 
-  for (i in seq_len(n)) {
-    j <- cat_prev[i]
-    k <- cat_curr[i]
-    if (is.na(j) || is.na(k) || j < 1L || j > .N_TIMEGAP_CATS ||
-        k < 1L || k > .N_TIMEGAP_CATS) {
-      next
-    }
-
+  # Precompute 7x7 log-transition matrix; only 49 distinct (prev,curr) pairs.
+  K <- .N_TIMEGAP_CATS
+  tmat <- matrix(-Inf, K, K)
+  for (j in seq_len(K)) {
     iv_j <- .timegap_interval(j)
-    iv_k <- .timegap_interval(k)
     a_j <- iv_j[1]; b_j <- iv_j[2]
-    a_k <- iv_k[1]; b_k <- iv_k[2]
-
-    # Intersection interval: the part of [a_j, b_j) that, after adding 0.25,
-    # maps into [a_k, b_k). Equivalently, D_{t-1} in [a_k-0.25, b_k-0.25)
-    # intersected with [a_j, b_j).
-    L <- max(a_j, a_k - .QUARTER_YEARS)
-    U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
-
-    if (L >= U) next  # unreachable transition
-
-    log_numerator   <- .log_interval_prob(L, U, lambda_d)
-    log_denominator <- .log_cat_mass(j, lambda_d)
-
-    if (is.infinite(log_denominator) && log_denominator < 0) next
-
-    result[i] <- log_numerator - log_denominator
+    log_denom <- .log_cat_mass(j, lambda_d)
+    if (is.infinite(log_denom) && log_denom < 0) next
+    for (k in seq_len(K)) {
+      iv_k <- .timegap_interval(k)
+      a_k <- iv_k[1]; b_k <- iv_k[2]
+      L <- max(a_j, a_k - .QUARTER_YEARS)
+      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+      if (L >= U) next
+      tmat[j, k] <- .log_interval_prob(L, U, lambda_d) - log_denom
+    }
   }
 
+  result <- rep(-Inf, n)
+  valid  <- !is.na(cat_prev) & !is.na(cat_curr) &
+            cat_prev >= 1L & cat_prev <= K &
+            cat_curr >= 1L & cat_curr <= K
+  result[valid] <- tmat[cbind(cat_prev[valid], cat_curr[valid])]
   result
 }
 
@@ -373,25 +369,19 @@ log_emission_start_d_cat <- function(cat) {
 #' @return Gradient vector. NA for cat outside 1:7.
 #' @export
 interval_grad_lambda_d <- function(cat, lambda_d) {
-  result <- rep(NA_real_, length(cat))
-  valid <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
-  for (i in which(valid)) {
-    iv <- .timegap_interval(cat[i])
+  # Build 7-element lookup table (only 7 distinct inputs possible)
+  lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
+    iv <- .timegap_interval(k)
     a  <- iv[1]; b <- iv[2]
-    if (is.infinite(b)) {
-      result[i] <- -a
-    } else {
-      ea <- exp(-lambda_d * a)
-      eb <- exp(-lambda_d * b)
-      denom <- ea - eb
-      if (abs(denom) < 1e-15) {
-        # Near-zero denominator: use limit (L'Hopital) -> -(a+b)/2
-        result[i] <- -(a + b) / 2
-      } else {
-        result[i] <- (-a * ea + b * eb) / denom
-      }
-    }
-  }
+    if (is.infinite(b)) return(-a)
+    ea    <- exp(-lambda_d * a)
+    eb    <- exp(-lambda_d * b)
+    denom <- ea - eb
+    if (abs(denom) < 1e-15) -(a + b) / 2 else (-a * ea + b * eb) / denom
+  }, numeric(1))
+  result        <- rep(NA_real_, length(cat))
+  valid         <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
+  result[valid] <- lut[cat[valid]]
   result
 }
 
@@ -413,47 +403,122 @@ interval_grad_lambda_d <- function(cat, lambda_d) {
 transition_grad_lambda_d <- function(cat_curr, cat_prev, lambda_d) {
   n <- length(cat_curr)
   stopifnot(length(cat_prev) == n)
-  result <- rep(NA_real_, n)
 
-  for (i in seq_len(n)) {
-    j <- cat_prev[i]
-    k <- cat_curr[i]
-    if (is.na(j) || is.na(k) || j < 1L || j > .N_TIMEGAP_CATS ||
-        k < 1L || k > .N_TIMEGAP_CATS) {
-      next
-    }
-
+  # Precompute 7x7 gradient matrix; only 49 distinct (prev,curr) pairs.
+  K    <- .N_TIMEGAP_CATS
+  gmat <- matrix(NA_real_, K, K)
+  for (j in seq_len(K)) {
     iv_j <- .timegap_interval(j)
-    iv_k <- .timegap_interval(k)
     a_j <- iv_j[1]; b_j <- iv_j[2]
-    a_k <- iv_k[1]; b_k <- iv_k[2]
-
-    L <- max(a_j, a_k - .QUARTER_YEARS)
-    U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
-
-    if (L >= U) next  # unreachable transition
-
-    # grad = d/dlambda log P([L,U)) - d/dlambda log P([a_j, b_j))
-    # Each term is computed using the same formula as interval_grad_lambda_d
-    grad_num <- if (is.infinite(U)) {
-      -L
-    } else {
-      eL <- exp(-lambda_d * L); eU <- exp(-lambda_d * U)
-      dLU <- eL - eU
-      if (abs(dLU) < 1e-15) -(L + U) / 2 else (-L * eL + U * eU) / dLU
-    }
-
-    ea <- exp(-lambda_d * a_j)
-    eb <- if (is.infinite(b_j)) 0 else exp(-lambda_d * b_j)
-    denom <- ea - eb
-    grad_den <- if (abs(denom) < 1e-15) {
+    ea  <- exp(-lambda_d * a_j)
+    eb  <- if (is.infinite(b_j)) 0 else exp(-lambda_d * b_j)
+    dab <- ea - eb
+    grad_den <- if (abs(dab) < 1e-15) {
       -(a_j + (if (is.infinite(b_j)) a_j else b_j)) / 2
     } else {
-      (-a_j * ea + (if (is.infinite(b_j)) 0 else b_j * eb)) / denom
+      (-a_j * ea + (if (is.infinite(b_j)) 0 else b_j * eb)) / dab
     }
-
-    result[i] <- grad_num - grad_den
+    for (k in seq_len(K)) {
+      iv_k <- .timegap_interval(k)
+      a_k <- iv_k[1]; b_k <- iv_k[2]
+      L <- max(a_j, a_k - .QUARTER_YEARS)
+      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+      if (L >= U) next
+      grad_num <- if (is.infinite(U)) {
+        -L
+      } else {
+        eL <- exp(-lambda_d * L); eU <- exp(-lambda_d * U)
+        dLU <- eL - eU
+        if (abs(dLU) < 1e-15) -(L + U) / 2 else (-L * eL + U * eU) / dLU
+      }
+      gmat[j, k] <- grad_num - grad_den
+    }
   }
 
+  result <- rep(NA_real_, n)
+  valid  <- !is.na(cat_prev) & !is.na(cat_curr) &
+            cat_prev >= 1L & cat_prev <= K &
+            cat_curr >= 1L & cat_curr <= K
+  # NA entries in gmat (unreachable transitions) stay NA as expected
+  result[valid] <- gmat[cbind(cat_prev[valid], cat_curr[valid])]
   result
+}
+
+
+# ##############################################################################
+# RHO-AUGMENTED EMISSION FUNCTIONS (duration contamination model)
+# ##############################################################################
+# These functions support the rho model where per-wave duration emission is a
+# mixture: (1-rho) * ell_clock + rho * f_pop. The population marginal f_pop
+# is the EMG for employment durations and the interval-censored Exp for
+# nonemployment durations.
+#
+# Created: 2026-04-29
+# TeX ref: "EM tenure rho.tex", Eqs (fpop_g), (fpop_d), (emission_rho)
+# ##############################################################################
+
+#' Log population marginal density for employment durations
+#'
+#' Used as the contamination component f_pop(y | s=1) in the rho model.
+#' This is simply the EMG density, identical to wave-1 matched employment.
+#'
+#' @param g Observed tenure (scalar or vector, in years). Must be > 0.
+#' @param lambda_g Exponential rate for employment spells.
+#' @param sigma2_g Employment measurement variance.
+#' @return Log-density value(s).
+#' @references TeX: \emph{EM tenure rho.tex}, Eq. \texttt{fpop\_g}.
+#' @export
+log_emission_pop_g <- function(g, lambda_g, sigma2_g) {
+  log_emg(g, lambda_g, sigma2_g)
+}
+
+#' Log population marginal probability for nonemployment durations (discrete)
+#'
+#' Used as the contamination component f_pop(y | s=0) in the rho model.
+#' This is the interval-censored Exp(lambda_d) probability for category k.
+#'
+#' @param cat Integer vector of category codes in 1:7.
+#' @param lambda_d Exponential rate for nonemployment durations.
+#' @return Log-probability vector.
+#' @references TeX: \emph{EM tenure rho.tex}, Eq. \texttt{fpop\_d}.
+#' @export
+log_emission_pop_d <- function(cat, lambda_d) {
+  log_emission_interval_d(cat, lambda_d)
+}
+
+#' Log mixture emission for the rho model (scalar, single observation type)
+#'
+#' Computes log[(1-rho) * exp(log_clock) + rho * exp(log_pop)] in a
+#' numerically stable way using the log-sum-exp trick.
+#'
+#' @param log_clock Log-density from the clock-consistent emission.
+#' @param log_pop Log-density from the population marginal.
+#' @param rho Duration contamination probability in (0, 1).
+#' @return Log-density of the mixture.
+#' @keywords internal
+.log_mix_rho <- function(log_clock, log_pop, rho) {
+  # log[(1-rho)*exp(a) + rho*exp(b)] = log-sum-exp with weights
+
+  a <- log(1 - rho) + log_clock
+  b <- log(rho) + log_pop
+  mx <- pmax(a, b)
+  mx + log(exp(a - mx) + exp(b - mx))
+}
+
+#' Posterior contamination probability omega (vectorised)
+#'
+#' Computes omega = rho * f_pop / [(1-rho)*ell_clock + rho*f_pop]
+#' in log-space for numerical stability.
+#'
+#' @param log_clock Log-density (or vector) from the clock-consistent emission.
+#' @param log_pop Log-density (or vector) from the population marginal.
+#' @param rho Duration contamination probability in (0, 1).
+#' @return Numeric vector of posterior contamination probabilities in [0, 1].
+#' @keywords internal
+.omega_rho <- function(log_clock, log_pop, rho) {
+  # omega = rho*f_pop / [(1-rho)*ell_clock + rho*f_pop]
+  #       = sigmoid(log(rho) - log(1-rho) + log_pop - log_clock)
+  #       = plogis(log_pop - log_clock + log(rho / (1 - rho)))
+  log_ratio <- log(1 - rho) - log(rho) + log_clock - log_pop
+  plogis(-log_ratio)
 }

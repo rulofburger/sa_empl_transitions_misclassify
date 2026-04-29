@@ -77,34 +77,70 @@ message("=== Estimating EM models ===")
 
 custom_init <- init_params(df_qlfs, discrete_timegap = TRUE, linked = FALSE)
 
-# Warm-start: load converged params from the most recent fit_miscl run, if available.
-# Falls back to init_params() defaults when no previous results exist.
-.prev_rds_files <- list.files(
+# Warm-start: interactively select a previous fit_miscl run to warm-start from.
+# Shows all available results with their log-likelihood and iteration count,
+# then prompts the user to choose one (or use default initial parameters).
+.prev_rds_files <- sort(list.files(
   "output/results",
   pattern    = "^fit_miscl_\\d{8}_\\d{6}\\.rds$",
   full.names = TRUE
-)
+))
 if (length(.prev_rds_files) > 0) {
-  .prev_rds <- sort(.prev_rds_files) |> tail(1)
-  .prev_fit <- readRDS(.prev_rds)
-  # Only overwrite keys present in custom_init to stay compatible with
-  # stationary and non-stationary models downstream.
-  for (.k in intersect(names(.prev_fit$params), names(custom_init))) {
-    custom_init[[.k]] <- .prev_fit$params[[.k]]
+  # Build a display table: filename | loglik | iterations | converged
+  .prev_meta <- lapply(.prev_rds_files, function(f) {
+    tryCatch({
+      obj <- readRDS(f)
+      list(
+        path      = f,
+        label     = sprintf(
+          "%-40s  loglik = %10.4f  iter = %3d  converged = %s",
+          basename(f), obj$loglik, obj$iterations,
+          if (isTRUE(obj$converged)) "YES" else "NO "
+        )
+      )
+    }, error = function(e) {
+      list(path = f, label = sprintf("%-40s  [unreadable]", basename(f)))
+    })
+  })
+
+  message("\nAvailable warm-start candidates:")
+  for (.i in seq_along(.prev_meta)) {
+    message(sprintf("  [%d] %s", .i, .prev_meta[[.i]]$label))
   }
-  use_custom <- TRUE
-  message(sprintf(
-    "Warm-start: loaded params from %s  [loglik = %.4f, iter = %d]",
-    basename(.prev_rds), .prev_fit$loglik, .prev_fit$iterations
-  ))
-  rm(.prev_rds_files, .prev_rds, .prev_fit, .k)
+
+  .choice <- menu(
+    choices = c(
+      vapply(.prev_meta, `[[`, character(1), "label"),
+      "--- Use default initial parameters (no warm-start) ---"
+    ),
+    title = "\nSelect a warm-start file (or choose the last option to skip):"
+  )
+
+  if (.choice > 0 && .choice <= length(.prev_meta)) {
+    .prev_rds <- .prev_meta[[.choice]]$path
+    .prev_fit <- readRDS(.prev_rds)
+    # Only overwrite keys present in custom_init to stay compatible with
+    # stationary and non-stationary models downstream.
+    for (.k in intersect(names(.prev_fit$params), names(custom_init))) {
+      custom_init[[.k]] <- .prev_fit$params[[.k]]
+    }
+    use_custom <- TRUE
+    message(sprintf(
+      "Warm-start: loaded params from %s  [loglik = %.4f, iter = %d]",
+      basename(.prev_rds), .prev_fit$loglik, .prev_fit$iterations
+    ))
+    rm(.prev_fit, .k)
+  } else {
+    use_custom <- FALSE
+    message("Using default initial parameters (no warm-start selected).")
+  }
+  rm(.prev_rds_files, .prev_meta, .choice)
 } else {
   use_custom <- FALSE
   message("No previous results found — using default initial parameters.")
-  rm(.prev_rds_files)
 }
 if (use_custom) {
-  message("Warm-starting from previous converged parameters.")
+  message("Warm-starting from selected previous parameters.")
 } else {
   message("Using default initial parameters.")
 }
@@ -117,6 +153,7 @@ set.seed(1234)  # reproducibility — placed here so both fits are seeded
 run_id     <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- "output/results"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+summary_csv <- file.path(results_dir, "run_summary.csv")
 
 message("=== Estimating non-stationary model (free) ===")
 fit_em <- em_fit_tenure(
@@ -217,6 +254,7 @@ fits <- list(
     theta0      = p$theta0,
     theta1      = p$theta1,
     pi          = p$pi,
+    rho         = NA_real_,   # base model has no rho; keeps CSV columns aligned
     sigma2_g    = p$sigma2_g,
     lambda_g    = p$lambda_g,
     lambda_d    = p$lambda_d,
@@ -228,7 +266,6 @@ summary_rows <- data.table::rbindlist(
   lapply(names(fits), function(m) .make_summary_row(run_id, m, fits[[m]]))
 )
 
-summary_csv <- file.path(results_dir, "run_summary.csv")
 data.table::fwrite(
   summary_rows,
   summary_csv,
@@ -236,3 +273,119 @@ data.table::fwrite(
   col.names = !file.exists(summary_csv)
 )
 message(sprintf("Summary appended: %s  [run_id = %s]", summary_csv, run_id))
+
+
+# ##############################################################################
+# RHO-AUGMENTED ESTIMATION (duration contamination model)
+# ##############################################################################
+# The rho model adds a duration contamination probability rho that separates
+# tenure reporting error (correct state, wrong duration) from employment
+# misclassification (wrong state, correct duration for that state).
+#
+# Created: 2026-04-29
+# ##############################################################################
+
+message("\n=== Estimating rho model (free, non-stationary) ===")
+
+# Warm-start from the free non-stationary fit
+rho_init <- fit_em$params
+rho_init$rho <- 0.15  # initial contamination rate
+
+fit_rho <- em_fit_tenure_rho(
+  df         = df_qlfs,
+  params0    = rho_init,
+  stationary = FALSE,
+  linked     = FALSE,
+  verbose    = 2L
+)
+
+message("\n=== Estimating rho model (free, stationary) ===")
+fit_rho_stationary <- em_fit_tenure_rho(
+  df         = df_qlfs,
+  params0    = rho_init,
+  stationary = TRUE,
+  linked     = FALSE,
+  verbose    = 2L
+)
+
+message("\n=== Estimating rho model (CTMC-linked, non-stationary) ===")
+rho_linked_init <- rho_init
+rho_linked_init$theta1  <- fit_rho$params$theta1
+rho_linked_init$theta0  <- fit_rho$params$theta0
+
+fit_rho_linked <- em_fit_tenure_rho(
+  df         = df_qlfs,
+  params0    = rho_linked_init,
+  stationary = FALSE,
+  linked     = TRUE,
+  verbose    = 2L
+)
+
+message("\n=== Estimating rho model (CTMC-linked, stationary) ===")
+fit_rho_stationary_linked <- em_fit_tenure_rho(
+  df         = df_qlfs,
+  params0    = rho_linked_init,
+  stationary = TRUE,
+  linked     = TRUE,
+  verbose    = 2L
+)
+
+# --- Save rho model results ---
+saveRDS(fit_rho,
+        file.path(results_dir, sprintf("fit_rho_%s.rds", run_id)))
+saveRDS(fit_rho_stationary,
+        file.path(results_dir, sprintf("fit_rho_stationary_%s.rds", run_id)))
+saveRDS(fit_rho_linked,
+        file.path(results_dir, sprintf("fit_rho_linked_%s.rds", run_id)))
+saveRDS(fit_rho_stationary_linked,
+        file.path(results_dir, sprintf("fit_rho_stationary_linked_%s.rds", run_id)))
+
+message(sprintf("\nLog-likelihood (rho, free, non-stationary): %.4f", fit_rho$loglik))
+message(sprintf("Log-likelihood (rho, free, stationary):     %.4f", fit_rho_stationary$loglik))
+message(sprintf("Log-likelihood (rho, linked, non-stat):     %.4f", fit_rho_linked$loglik))
+message(sprintf("Log-likelihood (rho, linked, stationary):   %.4f", fit_rho_stationary_linked$loglik))
+
+# LR test: rho model vs base model (1 df for rho)
+lr_stat <- 2 * (fit_rho$loglik - fit_em$loglik)
+lr_pval <- pchisq(lr_stat, df = 1, lower.tail = FALSE)
+message(sprintf("\nLR test (rho vs base): stat = %.4f, p = %.6f", lr_stat, lr_pval))
+
+# Summary rows for rho models
+.make_summary_row_rho <- function(run_id, model, fit) {
+  p <- fit$params
+  data.table::data.table(
+    run_id      = run_id,
+    model       = model,
+    converged   = fit$converged,
+    iterations  = fit$iterations,
+    loglik      = fit$loglik,
+    alpha       = p$alpha,
+    theta0      = p$theta0,
+    theta1      = p$theta1,
+    pi          = p$pi,
+    rho         = p$rho,
+    sigma2_g    = p$sigma2_g,
+    lambda_g    = p$lambda_g,
+    lambda_d    = p$lambda_d,
+    sigma2_d    = NA_real_   # rho model uses discrete timegap; sigma2_d not estimated
+  )
+}
+
+rho_fits <- list(
+  rho_free              = fit_rho,
+  rho_stationary        = fit_rho_stationary,
+  rho_linked            = fit_rho_linked,
+  rho_stationary_linked = fit_rho_stationary_linked
+)
+
+rho_summary <- data.table::rbindlist(
+  lapply(names(rho_fits), function(m) .make_summary_row_rho(run_id, m, rho_fits[[m]]))
+)
+
+data.table::fwrite(
+  rho_summary,
+  summary_csv,
+  append    = TRUE,
+  col.names = FALSE
+)
+message(sprintf("Rho summary appended: %s  [run_id = %s]", summary_csv, run_id))
