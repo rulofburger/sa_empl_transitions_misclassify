@@ -20,5 +20,6 @@ source(file.path(.em_tenure_r, "estep.R"),             local = FALSE)
 source(file.path(.em_tenure_r, "mstep.R"),             local = FALSE)
 source(file.path(.em_tenure_r, "em_driver.R"),         local = FALSE)
 source(file.path(.em_tenure_r, "simulate.R"),          local = FALSE)
+source(file.path(.em_tenure_r, "diagnostics.R"),       local = FALSE)
 
 rm(.em_tenure_root, .em_tenure_r)

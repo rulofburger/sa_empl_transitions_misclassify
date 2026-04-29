@@ -24,6 +24,11 @@
 #' @param sigma2_g Employment measurement variance.
 #' @param sigma2_d Nonemployment measurement variance. Ignored (and set to NA
 #'   in output) when \code{discrete_timegap = TRUE}.
+#' @param lambda_g Optional employment spell rate. If NULL (default), derived
+#'   from theta1 via the CTMC link. Provide explicitly to simulate data
+#'   inconsistent with the CTMC restriction (for testing the free specification).
+#' @param lambda_d Optional nonemployment spell rate. If NULL (default), derived
+#'   from theta0 via the CTMC link.
 #' @param discrete_timegap Logical (default \code{TRUE}). When \code{TRUE},
 #'   nonemployment durations are represented as integer category codes (1–7)
 #'   matching the QLFS survey instrument, and the timegap columns are
@@ -50,12 +55,14 @@ simulate_panel <- function(n,
                            pi = 0.05,
                            sigma2_g = 0.01,
                            sigma2_d = 0.01,
+                           lambda_g = NULL,
+                           lambda_d = NULL,
                            discrete_timegap = TRUE,
                            seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
 
-  lambda_g <- ctmc_lambda_from_theta(theta1)
-  lambda_d <- ctmc_lambda_from_theta(theta0)
+  if (is.null(lambda_g)) lambda_g <- ctmc_lambda_from_persistence(theta1)
+  if (is.null(lambda_d)) lambda_d <- ctmc_lambda_from_transition(theta0)
   sigma_g  <- sqrt(sigma2_g)
   sigma_d  <- if (discrete_timegap) NA_real_ else sqrt(sigma2_d)
 
@@ -143,10 +150,18 @@ simulate_panel <- function(n,
       # --- Observed as nonemployed: discrete category generation ---
 
       # Case 5: Truly nonemp, continuation, prev observed (s_{t-1}=0 → cat known)
+      # NOTE (known discrepancy): The simulator uses the *midpoint* of the
+      # previous category as a point estimate for D_{t-1}, then adds 0.25 to
+      # determine the new category. The E-step (log_emission_transition_d)
+      # instead computes exact conditional probabilities P(c_t | c_{t-1})
+      # via intersection intervals. For narrow categories 1–4 (deterministic
+      # transitions), the two approaches agree. For wide categories 5–6
+      # (probabilistic, two possible destinations), the midpoint approx may
+      # produce slightly different splitting rates than the theoretical model.
       mask <- obs_non & !is_emp & !was_emp_t & !prev_obs_emp
       if (any(mask)) {
         # True duration = D_{t-1} + 0.25; D_{t-1} in [a_{c_{t-1}}, b_{c_{t-1}})
-        # We use midpoint of prev category as point estimate for D_{t-1}
+        # Midpoint approximation (see note above)
         prev_d_approx <- .TIMEGAP_MIDPOINTS_MONTHS[d_cat[mask, tt - 1]] / 12
         true_d_new <- prev_d_approx + .QUARTER_YEARS
         d_cat[mask, tt] <- .continuous_to_cat(true_d_new)
@@ -161,6 +176,13 @@ simulate_panel <- function(n,
         d[mask, tt] <- .TIMEGAP_MIDPOINTS_MONTHS[d_cat[mask, tt]] / 12
       }
       # Case 7: Truly nonemp, start (new spell: duration < 0.25 years → cat 1)
+      # NOTE (known discrepancy): The simulator assigns cat=1 deterministically
+      # (correct under the model: a new nonemp spell is < 0.25 yrs → cat 1).
+      # The E-step evaluates log_emission_interval_d(cat, lambda_d) — the
+      # marginal interval probability, not log_emission_start_d_cat() which
+      # returns 0 for cat=1. Impact is minimal: for small lambda_d,
+      # log P(D < 0.25) ≈ log(lambda_d * 0.25) which is close to 0 in
+      # log-probability terms relative to other emission contributions.
       mask <- obs_non & !is_emp & was_emp_t
       if (any(mask)) {
         d_cat[mask, tt] <- 1L
