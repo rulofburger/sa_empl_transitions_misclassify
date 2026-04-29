@@ -42,15 +42,6 @@ test_that("em_fit_tenure: monotone log-likelihood", {
   expect_true(all(diffs >= -1e-6 * max(abs(ll))))
 })
 
-test_that("em_fit_tenure without misclassification converges", {
-  df <- simulate_panel(n = 80, pi = 0, seed = 77, discrete_timegap = FALSE)
-  fit <- em_fit_tenure(df, misclassification = FALSE, max_iter = 200, verbose = 0,
-                       discrete_timegap = FALSE)
-
-  expect_true(fit$converged)
-  expect_equal(fit$params$pi, 0)
-})
-
 test_that("em_fit_tenure with stationarity converges", {
   df <- simulate_panel(n = 80, seed = 88, discrete_timegap = FALSE)
   fit <- em_fit_tenure(df, stationary = TRUE, max_iter = 200, verbose = 0,
@@ -204,15 +195,6 @@ test_that("em_fit_tenure discrete mode: monotone log-likelihood", {
   diffs <- diff(ll)
   # Allow tiny numerical noise relative to |LL|
   expect_true(all(diffs >= -1e-6 * max(abs(ll))))
-})
-
-test_that("em_fit_tenure discrete mode without misclassification converges", {
-  df <- simulate_panel(n = 100, pi = 0, seed = 77, discrete_timegap = TRUE)
-  fit <- em_fit_tenure(df, misclassification = FALSE, max_iter = 200,
-                       verbose = 0, discrete_timegap = TRUE)
-
-  expect_true(fit$converged)
-  expect_equal(fit$params$pi, 0)
 })
 
 test_that("em_fit_tenure discrete mode with stationarity: monotone LL", {

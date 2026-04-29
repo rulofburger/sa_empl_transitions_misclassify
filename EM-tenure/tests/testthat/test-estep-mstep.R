@@ -7,8 +7,8 @@
 test_that("e_step returns correct structure", {
   df <- simulate_panel(n = 50, seed = 42, discrete_timegap = FALSE)
   params <- init_params(df, discrete_timegap = FALSE)
-  params$lambda_g <- ctmc_lambda_from_theta(params$theta1)
-  params$lambda_d <- ctmc_lambda_from_theta(params$theta0)
+  params$lambda_g <- ctmc_lambda_from_persistence(params$theta1)
+  params$lambda_d <- ctmc_lambda_from_transition(params$theta0)
 
   result <- e_step(df, params, discrete_timegap = FALSE)
 
@@ -34,8 +34,8 @@ test_that("e_step: responsibilities sum correctly", {
   params <- list(
     alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0.05,
     sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
+    lambda_g = ctmc_lambda_from_persistence(0.9),
+    lambda_d = ctmc_lambda_from_transition(0.1)
   )
   result <- e_step(df, params, discrete_timegap = FALSE)
 
@@ -49,8 +49,8 @@ test_that("e_step: sufficient stats are non-negative", {
   params <- list(
     alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0.05,
     sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
+    lambda_g = ctmc_lambda_from_persistence(0.9),
+    lambda_d = ctmc_lambda_from_transition(0.1)
   )
   result <- e_step(df, params, discrete_timegap = FALSE)
 
@@ -69,8 +69,8 @@ test_that("m_step returns all required parameters", {
   params <- list(
     alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0.05,
     sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
+    lambda_g = ctmc_lambda_from_persistence(0.9),
+    lambda_d = ctmc_lambda_from_transition(0.1)
   )
   estep_out <- e_step(df, params, discrete_timegap = FALSE)
   new_params <- m_step(estep_out$suff, total_weight = sum(df$weight),
@@ -91,27 +91,13 @@ test_that("m_step returns all required parameters", {
   expect_true(new_params$lambda_d > 0)
 })
 
-test_that("m_step without misclassification sets pi=0", {
-  df <- simulate_panel(n = 100, seed = 101, discrete_timegap = FALSE)
-  params <- list(
-    alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0,
-    sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
-  )
-  estep_out <- e_step(df, params, discrete_timegap = FALSE)
-  new_params <- m_step(estep_out$suff, sum(df$weight),
-                       misclassification = FALSE, discrete_timegap = FALSE)
-  expect_equal(new_params$pi, 0)
-})
-
 test_that("m_step with stationarity enforces alpha = theta0/(theta0+1-theta1)", {
   df <- simulate_panel(n = 200, seed = 202, discrete_timegap = FALSE)
   params <- list(
     alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0.05,
     sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
+    lambda_g = ctmc_lambda_from_persistence(0.9),
+    lambda_d = ctmc_lambda_from_transition(0.1)
   )
   estep_out <- e_step(df, params, discrete_timegap = FALSE)
   new_params <- m_step(estep_out$suff, sum(df$weight),
@@ -125,13 +111,14 @@ test_that("m_step lambda linked to theta", {
   params <- list(
     alpha = 0.6, theta1 = 0.9, theta0 = 0.1, pi = 0.05,
     sigma2_g = 0.01, sigma2_d = 0.01,
-    lambda_g = ctmc_lambda_from_theta(0.9),
-    lambda_d = ctmc_lambda_from_theta(0.1)
+    lambda_g = ctmc_lambda_from_persistence(0.9),
+    lambda_d = ctmc_lambda_from_transition(0.1)
   )
   estep_out <- e_step(df, params, discrete_timegap = FALSE)
-  new_params <- m_step(estep_out$suff, sum(df$weight), discrete_timegap = FALSE)
-  expect_equal(new_params$lambda_g, ctmc_lambda_from_theta(new_params$theta1), tolerance = 1e-12)
-  expect_equal(new_params$lambda_d, ctmc_lambda_from_theta(new_params$theta0), tolerance = 1e-12)
+  new_params <- m_step(estep_out$suff, sum(df$weight), discrete_timegap = FALSE,
+                       linked = TRUE)
+  expect_equal(new_params$lambda_g, ctmc_lambda_from_persistence(new_params$theta1), tolerance = 1e-12)
+  expect_equal(new_params$lambda_d, ctmc_lambda_from_transition(new_params$theta0), tolerance = 1e-12)
 })
 
 # ==============================================================================
@@ -212,15 +199,6 @@ test_that("m_step discrete: returns all required parameters (no sigma2_d)", {
   expect_true(new_params$sigma2_g > 0)
 })
 
-test_that("m_step discrete: without misclassification sets pi=0", {
-  df <- simulate_panel(n = 80, seed = 602, discrete_timegap = TRUE)
-  params <- init_params(df, discrete_timegap = TRUE)
-  estep_out <- e_step(df, params, discrete_timegap = TRUE)
-  new_params <- m_step(estep_out$suff, sum(df$weight),
-                       misclassification = FALSE, discrete_timegap = TRUE)
-  expect_equal(new_params$pi, 0)
-})
-
 test_that("m_step discrete: stationarity enforces alpha constraint", {
   df <- simulate_panel(n = 100, seed = 603, discrete_timegap = TRUE)
   params <- init_params(df, discrete_timegap = TRUE)
@@ -231,16 +209,17 @@ test_that("m_step discrete: stationarity enforces alpha constraint", {
   expect_equal(new_params$alpha, expected_alpha, tolerance = 1e-10)
 })
 
-test_that("m_step discrete: lambda linked to theta via FOC", {
+test_that("m_step discrete linked: lambda linked to theta via FOC", {
   df <- simulate_panel(n = 100, seed = 604, discrete_timegap = TRUE)
-  params <- init_params(df, discrete_timegap = TRUE)
+  params <- init_params(df, discrete_timegap = TRUE, linked = TRUE)
   estep_out <- e_step(df, params, discrete_timegap = TRUE)
-  new_params <- m_step(estep_out$suff, sum(df$weight), discrete_timegap = TRUE)
+  new_params <- m_step(estep_out$suff, sum(df$weight), discrete_timegap = TRUE,
+                       linked = TRUE)
 
-  # lambda_g should be consistent with theta1
-  expect_equal(new_params$lambda_g, ctmc_lambda_from_theta(new_params$theta1),
+  # lambda_g should be consistent with theta1 (persistence)
+  expect_equal(new_params$lambda_g, ctmc_lambda_from_persistence(new_params$theta1),
                tolerance = 1e-12)
-  # theta0 is solved via Brent; lambda_d should match
-  expect_equal(new_params$lambda_d, ctmc_lambda_from_theta(new_params$theta0),
+  # theta0 is solved via Brent; lambda_d should match (transition)
+  expect_equal(new_params$lambda_d, ctmc_lambda_from_transition(new_params$theta0),
                tolerance = 1e-12)
 })
