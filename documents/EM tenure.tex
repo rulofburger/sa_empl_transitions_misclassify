@@ -38,24 +38,33 @@ p(H=h\mid\alpha,\theta_0,\theta_1)=
 \label{eq:priorH}
 \end{equation}
 
-\paragraph{Continuous-time embedding and duration parameters.}
-Assume a two-state continuous-time Markov chain with intensities \(\alpha_1\) (job loss, \(1\to 0\)) and \(\alpha_0\) (job entry, \(0\to 1\)). With quarterly spacing \(\Delta=1\) quarter \(=3\) months, the discrete-time transition probabilities and the continuous-time intensities are linked by
+\paragraph{Duration model and exponential spell lengths.}
+We model \emph{true} spell lengths as exponential random variables:
+\(
+G\sim \mathrm{Exp}(\lambda_g),\quad D\sim \mathrm{Exp}(\lambda_d),
+\)
+where \(\lambda_g>0\) governs the rate at which employment spells end and \(\lambda_d>0\) governs the rate at which nonemployment spells end. The exponential is a natural starting point because it arises from a two-state continuous-time Markov chain (CTMC).
+
+\paragraph{CTMC motivation.}
+If the underlying process were a two-state CTMC with intensities \(\alpha_1\) (job loss, \(1\to 0\)) and \(\alpha_0\) (job entry, \(0\to 1\)), then with quarterly spacing \(\Delta=3\) months, the discrete-time transition probabilities and the continuous-time intensities would be related by
 \begin{equation}
 \theta_1 = 1 - e^{-\alpha_1\cdot 3},\qquad
-\theta_0 = 1 - e^{-\alpha_0\cdot 3}.
+\theta_0 = 1 - e^{-\alpha_0\cdot 3},
 \label{eq:ctmc_link}
 \end{equation}
-The memoryless property implies \emph{true} spell lengths are exponential:
-\(
-G\sim \mathrm{Exp}(\lambda_g),\ D\sim \mathrm{Exp}(\lambda_d)
-\)
-with \(\lambda_g=\alpha_1\) and \(\lambda_d=\alpha_0\). Thus, under the \emph{linked} specification,
+and the memoryless property would imply \(\lambda_g=\alpha_1\), \(\lambda_d=\alpha_0\), giving the deterministic ``linked'' relationship
 \begin{equation}
-\lambda_g \equiv -\tfrac{1}{3}\log(1-\theta_1),\qquad
-\lambda_d \equiv -\tfrac{1}{3}\log(1-\theta_0).
+\lambda_g = -\tfrac{1}{3}\log(1-\theta_1),\qquad
+\lambda_d = -\tfrac{1}{3}\log(1-\theta_0).
 \label{eq:lambdas_link}
 \end{equation}
-There are two alternatives in estimation: (i) \emph{linked} (enforce \eqref{eq:lambdas_link}), or (ii) \emph{free} (estimate \(\lambda_g,\lambda_d\) directly. We only propose the first, the challenged with the latter are described below.
+
+\paragraph{Free specification (primary).}
+In practice, the CTMC memoryless property rarely holds for employment data. Real employment spells exhibit positive duration dependence: longer spells tend to be more stable, producing tenure distributions with heavy right tails that are inconsistent with the exponential implied by any single transition probability. Imposing \eqref{eq:lambdas_link} forces a single parameter \(\theta_1\) to simultaneously match the quarterly transition counts (which want \(\theta_1\) high, e.g.\ 0.97) and the tenure distribution (which requires \(\lambda_g\) to be small, pulling \(\theta_1\) down). This creates an irreconcilable tension in estimation.
+
+We therefore adopt the \textbf{free specification}: the exponential rates \(\lambda_g, \lambda_d\) are estimated as independent parameters, separate from the transition probabilities \(\theta_0, \theta_1\). The transition probabilities govern the \emph{Markov prior} over latent histories \eqref{eq:priorH}, while the exponential rates govern the \emph{duration emission} densities. Each is identified from its own part of the data (Section~\ref{sec:identification}).
+
+The CTMC link \eqref{eq:lambdas_link} is retained as a \emph{testable restriction}: after fitting the free model, one can test \(H_0: \lambda_g = -\tfrac{1}{3}\log(1-\theta_1)\) via a likelihood ratio test (Section~\ref{sec:ctmc_test}).
 
 \subsection{Deterministic clocks for tenure and nonemployment}
 Given a history \(h\), the \emph{true} tenure and nonemployment clocks evolve deterministically at quarterly grid points:
@@ -146,12 +155,11 @@ where \(\ell_t\) selects the EMG/Normal-increment/Exponential factor appropriate
 \end{equation}
 with parameters
 \[
-\Theta=
-\begin{cases}
-(\alpha,\theta_0,\theta_1,\pi,\sigma_g^2,\sigma_d^2) & \text{(linked: }\lambda\text{s via \eqref{eq:lambdas_link})},\\
-(\alpha,\theta_0,\theta_1,\pi,\sigma_g^2,\sigma_d^2,\lambda_g,\lambda_d) & \text{(free).}
-\end{cases}
+\Theta=(\alpha,\theta_0,\theta_1,\pi,\sigma_g^2,\lambda_g,\lambda_d).
 \]
+In the free specification \(\lambda_g\) and \(\lambda_d\) are estimated independently. Under the linked (CTMC) restriction, \(\lambda_g\) and \(\lambda_d\) are deterministic functions of \((\theta_0,\theta_1)\) via \eqref{eq:lambdas_link}, reducing the free parameter count by two.
+
+\textbf{Remark on nonemployment measurement variance.} In our application, nonemployment duration is observed as a categorical variable (7~bins). The only source of measurement error on the timegap side is state misclassification --- being placed in the wrong bin entirely. There is no continuous measurement noise \(\sigma_d^2\) to estimate. On the employment side, tenure is observed as a continuous variable, so \(\sigma_g^2\) captures reporting noise in tenure levels.
 
 Note, this is the standard mixture likelihood for the mixture log-likelihood. 
 
@@ -177,7 +185,7 @@ Taking the log gives the complete-data log-likelihood as:
 \label{eq:complete_ll}
 \end{align}
 
-The three terms in \eqref{eq:complete_ll} correspond to (i) the Markov prior over histories, (ii) state misclassification, and (iii) duration emissions. The misclassification block depends only on \(\pi\), and \(\alpha\) appears only in the prior block, so both can be maximised independently. However, under the linked specification \eqref{eq:lambdas_link}, the transition probabilities \(\theta_1, \theta_0\) appear in \emph{both} the prior block (through the Markov transition terms) and the emission block (through \(\lambda_g(\theta_1), \lambda_d(\theta_0)\) in the EMG densities). Therefore these two blocks cannot be maximised independently with respect to \(\theta\); the M-step must account for both contributions simultaneously.
+The three terms in \eqref{eq:complete_ll} correspond to (i) the Markov prior over histories, (ii) state misclassification, and (iii) duration emissions. Crucially, under the \textbf{free specification}, these three blocks can be maximised \emph{independently}: the Markov prior depends on \((\alpha, \theta_0, \theta_1)\), misclassification depends only on \(\pi\), and the emission block depends on \((\sigma_g^2, \lambda_g, \lambda_d)\). This clean separation is the key advantage of the free specification --- each parameter is updated from its own part of the data, avoiding the conflicting signals that arise under the linked specification (where \(\theta\) appears in both the prior and emission blocks through the CTMC link).
 
 \subsection{EM algorithm}
 Starting from \(\Theta^{(0)}\), iterate E- and M-steps until convergence of \(\ell(\Theta)\).
@@ -293,7 +301,7 @@ where \(\ell_t(y_{it}\mid s_{it},h_{t-1},h_t;\Theta)\) is the duration emission 
 \]
 \end{itemize}
 
-Under the \textbf{linked specification}, \(\lambda_g\) and \(\lambda_d\) are computed from the transition probabilities via \eqref{eq:lambdas_link} at each iteration.
+Under the \textbf{free specification}, \(\lambda_g\) and \(\lambda_d\) are independent parameters updated in the M-step from the duration emission data. Under the \textbf{linked specification} (testable restriction), they are computed from the transition probabilities via \eqref{eq:lambdas_link} at each iteration.
 
 
 \medskip
@@ -346,9 +354,11 @@ N_d^{\mathrm{start}} &= \sum_{i,h} w_i\gamma_{ih}\sum_{t=2}^3\mathbf{1}\{h_{t-1}
 
 \textbf{Remark on within-panel starts.} Within-panel starts follow \(N(0.25, \sigma^2)\) and yield closed-form sufficient statistics \((S_g^{\mathrm{start}}, N_g^{\mathrm{start}}, S_d^{\mathrm{start}}, N_d^{\mathrm{start}})\), which are pooled with the continuation statistics in the M-step for \(\sigma_g^2\) and \(\sigma_d^2\).
 
-\textbf{EMG gradient statistics for the joint \(\theta\) update.}
+\textbf{EMG sufficient statistics for the \(\lambda\) update.}
 
-Under the linked specification \eqref{eq:lambdas_link}, the EMG emission terms depend on \(\theta_1\) through \(\lambda_g(\theta_1) = -\tfrac{1}{3}\log(1-\theta_1)\), and on \(\theta_0\) through \(\lambda_d(\theta_0) = -\tfrac{1}{3}\log(1-\theta_0)\). Since these terms appear in the Q function alongside the Markov prior, the M-step for \(\theta\) must account for both contributions. The EMG log-density is
+Under the free specification, the EMG emission terms depend on \(\lambda_g\) (and symmetrically \(\lambda_d\)) but \emph{not} on \(\theta_1\) or \(\theta_0\). The E-step accumulates the weighted EMG observations needed by the M-step.
+
+The EMG log-density is
 \begin{equation}
 \log f_{\mathrm{EMG}}(x; \lambda, \sigma^2) = \log \lambda + \tfrac{\lambda^2 \sigma^2}{2} - \lambda x + \log \Phi\!\left(\frac{x - \lambda\sigma^2}{\sigma}\right) + \mathrm{const},
 \label{eq:log_emg}
@@ -360,223 +370,180 @@ where \(\Phi(\cdot)\) is the standard Normal CDF. Its derivative with respect to
 \end{equation}
 where \(u = (x - \lambda\sigma^2)/\sigma\) and \(\phi(u)/\Phi(u)\) is the inverse Mills ratio.
 
-Six observation types contribute EMG terms involving \(\lambda_g\) (and symmetrically for \(\lambda_d\)):
+Three observation types contribute EMG terms involving \(\lambda_g\):
 \begin{enumerate}
 \item \textbf{Wave~1 matched employment} (\(t=1\), \(h_1=1\), \(s_{i1}=1\)): contributes \(\log f_{\mathrm{EMG}}(g_{i1}; \lambda_g, \sigma_g^2)\).
 \item \textbf{Employment continuation, previous misclassified} (\(t\ge 2\), \(h_{t-1}=1\), \(h_t=1\), \(s_{it}=1\), \(s_{i,t-1}=0\)): contributes \(\log f_{\mathrm{EMG}}(g_{it}; \lambda_g, \sigma_g^2)\).
 \item \textbf{Misclassified as employed} (\(h_t=0\), \(s_{it}=1\)): contributes \(\log f_{\mathrm{EMG}}(g_{it}; \lambda_g, \sigma_g^2)\).
 \end{enumerate}
-The corresponding three types for \(\lambda_d\) are: wave~1 matched nonemployment (\(h_1=0\), \(s_{i1}=0\)); nonemployment continuation, previous misclassified (\(h_{t-1}=0\), \(h_t=0\), \(s_{it}=0\), \(s_{i,t-1}=1\)); and misclassified as nonemployed (\(h_t=1\), \(s_{it}=0\)).
-
-Define the weighted EMG gradient contributions accumulated during the E-step:
-\begin{align}
-E_g &= \sum_{(i,t,h) \in \mathcal{E}_g} w_i\gamma_{ih}\,\frac{\partial \log f_{\mathrm{EMG}}(x_{it}; \lambda_g, \sigma_g^2)}{\partial \lambda_g}, \nonumber\\
-E_d &= \sum_{(i,t,h) \in \mathcal{E}_d} w_i\gamma_{ih}\,\frac{\partial \log f_{\mathrm{EMG}}(x_{it}; \lambda_d, \sigma_d^2)}{\partial \lambda_d},
-\label{eq:suff_emg_grad}
-\end{align}
-where \(\mathcal{E}_g\) (resp.\ \(\mathcal{E}_d\)) denotes the set of all \((i,t,h)\) triples belonging to the three observation types above, and \(x_{it}\) is the observed duration (\(g_{it}\) or \(d_{it}\)) at that wave. The partial derivatives are evaluated at the \emph{current} parameter values \(\lambda_g^{\text{old}}, \sigma_g^{2,\text{old}}\) (resp.\ \(\lambda_d^{\text{old}}, \sigma_d^{2,\text{old}}\)).
+Let \(\mathcal{E}_g\) denote the set of all \((i,t,h)\) triples belonging to these three types. The E-step collects the pairs \((x_{it}, w_i\gamma_{ih})\) for all elements of \(\mathcal{E}_g\) and passes them to the M-step for the \(\lambda_g\) update. The corresponding three types for \(\lambda_d\) are: wave~1 matched nonemployment; nonemployment continuation with previous misclassified; and misclassified as nonemployed.
 
 
+\paragraph{M-step (free specification).}
+The E-step computes the responsibilities \(\gamma_{ih}\) via \eqref{eq:resp}. The M-step maximises the expected complete-data log-likelihood \(Q(\Theta\mid\Theta^{\text{old}})\), which amounts to replacing \(z_{ih}\) by \(\gamma_{ih}\) in \eqref{eq:complete_ll}.
 
-\paragraph{Free specification (which we don't use).}
-
-If one were to estimate \(\lambda_g, \lambda_d\) independently of the transition probabilities (``free mode''), the M-step would require numerical optimization because all duration observations involving \(\lambda\) use the EMG distribution, which has no closed-form MLE. Specifically, one would need to maximize:
-\begin{align}
-Q(\lambda_g) = \sum_{i,h} w_i\gamma_{ih}\bigg[&\mathbf{1}\{h_1=1,\,s_{i1}=1\}\log f_{\mathrm{EMG}}(g_{i1};\lambda_g,\sigma_g^2) \nonumber\\
-+\sum_{t=2}^3 &\mathbf{1}\{h_{t-1}=1,\,h_t=1,\,s_{it}=1,\,s_{i,t-1}=0\}\log f_{\mathrm{EMG}}(g_{it};\lambda_g,\sigma_g^2) \nonumber\\
-+\sum_{t=1}^3 &\mathbf{1}\{h_t=0,\,s_{it}=1\}\log f_{\mathrm{EMG}}(g_{it};\lambda_g,\sigma_g^2)\bigg]
-\label{eq:Q_lambda_free}
-\end{align}
-
-using numerical methods at each M-step. This approach is:
-\begin{itemize}
-\item Computationally expensive (nested optimization within EM)
-\item Potentially poorly identified (EMG confounds \(\lambda\) and \(\sigma^2\))
-\item Theoretically redundant (the CTMC link provides strong structural information)
-\end{itemize}
-
-We instead focus on the theoretically justified linked specification.
-
-
-
-
-
-
-
-
-
-
-%-----------------------------------
-
-
-
-
-
-
-
-
-
-
-\paragraph{M-step.}
-The E-step allows us to compute the responsibilities, $\gamma_{ih}$, as in eq \eqref{eq:resp}, which is the posterior probability that an individual $i$
- has the true history $h$ given the data and current parameters $\Theta^{\text{old}}$. The soft assignments allow us to compute the expected complete data log-likelihood, $Q(\Theta\mid\Theta^{\text{old}})$, and maximize it treating the responsibilities as fixed.
-
-Maximizing \(Q(\Theta\mid\Theta^{\text{old}})=\mathbb{E}[\log L_c(\Theta)\mid \{y_i\};\Theta^{\text{old}}]\), which amounts to replacing \(z_{ih}\) by \(\gamma_{ih}\) in \eqref{eq:complete_ll}. The Q function decomposes additively into three blocks. The misclassification block (\(\pi\)) and the measurement-variance block (\(\sigma_g^2, \sigma_d^2\)) can each be maximised independently in closed form. However, under the linked specification, \(\theta_1\) and \(\theta_0\) enter both the Markov prior block and the EMG emission block (via \(\lambda_g(\theta_1), \lambda_d(\theta_0)\)), so the M-step for \(\theta\) must jointly account for both contributions. We derive the joint first-order conditions below.
+The key advantage of the free specification is that \(Q\) decomposes into blocks that can be maximised \emph{independently}. We derive each update in turn.
 
 \textbf{Initial-state probability:}
 \begin{equation}
 \hat{\alpha}=\frac{C_1}{C_0+C_1}.
 \label{eq:mstep_alpha}
 \end{equation}
-If stationarity is imposed, set \(\alpha \leftarrow \theta_0/(\theta_0+1-\theta_1)\).
+In words: the fraction of (weighted, responsibility-adjusted) individuals who are truly employed at wave~1. If stationarity is imposed, set \(\alpha \leftarrow \theta_0/(\theta_0+1-\theta_1)\) instead.
+
+\textbf{Transition probabilities (closed form):}
+
+Under the free specification, \(\theta_1\) and \(\theta_0\) appear \emph{only} in the Markov prior block of \(Q\). They do not appear in the emission block (because \(\lambda_g\) and \(\lambda_d\) are separate parameters). The M-step is therefore the standard closed-form MLE for a Markov chain, weighted by responsibilities:
+\begin{equation}
+\hat{\theta}_1 = \frac{T_{11}}{D_1}, \qquad \hat{\theta}_0 = \frac{T_{01}}{D_0}.
+\label{eq:mstep_theta_free}
+\end{equation}
+In words: \(\hat{\theta}_1\) is the fraction of ``from-employed'' periods that result in continued employment, and \(\hat{\theta}_0\) is the fraction of ``from-nonemployed'' periods that result in employment. These are exactly the formulas that the simple binary-sequence MLE uses --- the only difference is that the counts are soft (weighted by responsibilities \(\gamma_{ih}\)) rather than hard.
 
 \textbf{Misclassification:}
 \begin{equation}
 \hat{\pi}=\frac{M}{3\sum_i w_i}.
 \label{eq:mstep_pi}
 \end{equation}
+In words: the average (weighted) fraction of wave-observations where the observed state disagrees with the latent history.
 
+\textbf{Measurement variance for tenure (pooling continuations and starts):}
 
-
-\textbf{Measurement variances (pooling continuations and starts):}
-
-Continuations contribute \(\Delta^g_{it}\sim N(0,2\sigma_g^2)\) and starts contribute \((g_{it}-0.25)\sim N(0,\sigma_g^2)\). Writing \(v=\sigma_g^2\), the joint profile log-likelihood is
-\[
-\ell(v) = -\tfrac{N_g}{2}\log(2v) - \frac{S_g}{4v} - \tfrac{N_g^{\mathrm{start}}}{2}\log(v) - \frac{S_g^{\mathrm{start}}}{2v}.
-\]
-Setting \(\partial\ell/\partial v=0\) and multiplying through by \(2v^2\) gives
-\[
-(N_g+N_g^{\mathrm{start}})\,v = \tfrac{1}{2}S_g + S_g^{\mathrm{start}},
-\]
-so the pooled MLE is
+This is unchanged from the general derivation. Continuations contribute \(\Delta^g_{it}\sim N(0,2\sigma_g^2)\) and starts contribute \((g_{it}-0.25)\sim N(0,\sigma_g^2)\). The pooled MLE is
 \begin{equation}
-\widehat{\sigma}_g^2=\frac{S_g + 2\,S_g^{\mathrm{start}}}{2(N_g + N_g^{\mathrm{start}})},\qquad
-\widehat{\sigma}_d^2=\frac{S_d + 2\,S_d^{\mathrm{start}}}{2(N_d + N_d^{\mathrm{start}})}.
-\label{eq:mstep_sigmas}
+\widehat{\sigma}_g^2=\frac{S_g + 2\,S_g^{\mathrm{start}}}{2(N_g + N_g^{\mathrm{start}})}.
+\label{eq:mstep_sigma_g}
 \end{equation}
-The factor of 2 on \(S^{\mathrm{start}}\) rescales start contributions (variance \(\sigma^2\)) to the continuation scale (variance \(2\sigma^2\)). When \(N^{\mathrm{start}}=0\), this reduces to \(\hat{\sigma}_g^2 = S_g/(2N_g)\). Enforce small floors if needed.
+The factor of 2 on \(S^{\mathrm{start}}\) rescales start contributions (variance \(\sigma^2\)) to the continuation scale (variance \(2\sigma^2\)). Enforce a small floor if needed.
 
+\textbf{Exponential rate for tenure \(\lambda_g\) (Brent's method):}
 
-
-
-
-
-
-%------------
-
-
-\textbf{Transition probabilities and exponential rates (joint update):}
-
-Under the linked specification, \(\theta_1\) enters both the Markov prior block (via the transition counts \(T_{11}, D_1\)) and the emission block (via \(\lambda_g(\theta_1)\) in the EMG densities). The M-step must therefore maximise \(Q\) jointly with respect to \(\theta_1\), collecting gradient contributions from both blocks. An analogous derivation applies to \(\theta_0\).
-
-Using \(\lambda_g = -\tfrac{1}{3}\log(1-\theta_1)\), we have
-\[
-\frac{d\lambda_g}{d\theta_1} = \frac{1}{3(1-\theta_1)}.
-\]
-
-The first-order condition \(\partial Q / \partial \theta_1 = 0\) collects two terms:
+Under the free specification, \(\lambda_g\) appears only in the EMG emission terms. The M-step maximises:
 \begin{equation}
-\underbrace{\frac{T_{11}}{\theta_1} - \frac{D_1 - T_{11}}{1-\theta_1}}_{\text{from } Q_{\mathrm{prior}}} \;+\; \underbrace{\frac{1}{3(1-\theta_1)} \cdot E_g}_{\text{from } Q_{\mathrm{emission}}} \;=\; 0,
-\label{eq:foc_theta1}
+Q_{\mathrm{EMG}}(\lambda_g) = \sum_{(i,t,h)\in\mathcal{E}_g} w_i\gamma_{ih}\,\log f_{\mathrm{EMG}}(x_{it};\lambda_g,\hat{\sigma}_g^2),
+\label{eq:Q_lambda_g_free}
 \end{equation}
-where \(E_g\) is the weighted EMG gradient contribution defined in \eqref{eq:suff_emg_grad}. If the EMG terms were absent (\(E_g = 0\)), this reduces to the standard closed-form update \(\hat{\theta}_1 = T_{11}/D_1\). With \(E_g \neq 0\), the equation has no closed-form solution because \(E_g\) depends on \(\lambda_g(\theta_1)\) through both the exponential and inverse Mills ratio terms in \eqref{eq:demg_dlambda}.
-
-We solve \eqref{eq:foc_theta1} by one-dimensional Newton--Raphson on \(\theta_1 \in (0,1)\), seeded at the prior-only estimate \(T_{11}/D_1\). The second derivative (Hessian) combines the prior curvature
-\[
-\frac{\partial^2 Q_{\mathrm{prior}}}{\partial \theta_1^2} = -\frac{T_{11}}{\theta_1^2} - \frac{D_1 - T_{11}}{(1-\theta_1)^2}
-\]
-with the emission curvature obtained by differentiating \eqref{eq:demg_dlambda} again. The Newton step is
-\[
-\theta_1^{(k+1)} = \theta_1^{(k)} - \left(\frac{\partial^2 Q}{\partial \theta_1^2}\right)^{\!-1} \frac{\partial Q}{\partial \theta_1},
-\]
-projected onto \((\varepsilon, 1-\varepsilon)\) for numerical safety. In practice, convergence to machine precision requires 2--5 Newton iterations because the seed \(T_{11}/D_1\) is already close to the optimum.
-
-The analogous FOC for \(\theta_0\) is
+where \(\mathcal{E}_g\) collects all EMG-type observations for the employment side (wave-1 matched, continuation with previous misclassified, and misclassified-as-employed). The first-order condition is
 \begin{equation}
-\frac{T_{01}}{\theta_0} - \frac{D_0 - T_{01}}{1-\theta_0} + \frac{1}{3(1-\theta_0)} \cdot E_d = 0,
-\label{eq:foc_theta0}
+\sum_{(i,t,h)\in\mathcal{E}_g} w_i\gamma_{ih}\left[\frac{1}{\lambda_g} + \lambda_g\hat{\sigma}_g^2 - x_{it} - \hat{\sigma}_g\,\frac{\phi(u_{it})}{\Phi(u_{it})}\right] = 0,
+\label{eq:foc_lambda_g}
 \end{equation}
-solved identically by Newton--Raphson seeded at \(T_{01}/D_0\).
+where \(u_{it} = (x_{it} - \lambda_g\hat{\sigma}_g^2)/\hat{\sigma}_g\). This is a one-dimensional root-finding problem in \(\lambda_g\), solved by Brent's method on the interval \((\varepsilon, \lambda_{\max})\). Convergence typically requires 5--15 iterations.
 
-Once \(\hat{\theta}_1\) and \(\hat{\theta}_0\) are obtained, the exponential rates follow deterministically:
+Note: because \(\hat{\sigma}_g^2\) is already computed (from the step above) and is \emph{independent} of \(\lambda_g\), the EMG log-likelihood \eqref{eq:Q_lambda_g_free} is concave in \(\lambda_g\) given \(\hat{\sigma}_g^2\), guaranteeing a unique root.
+
+\textbf{Exponential rate for nonemployment \(\lambda_d\) (interval-censored MLE):}
+
+Nonemployment duration is observed as a discrete category \(k\in\{1,\dots,7\}\) corresponding to intervals \([a_k, b_k)\). Under the exponential model, the probability of observing category \(k\) is
+\[
+P(D\in[a_k,b_k)\mid\lambda_d) = e^{-\lambda_d a_k} - e^{-\lambda_d b_k}.
+\]
+The M-step maximises the weighted interval-censored log-likelihood:
 \begin{equation}
-\hat{\lambda}_g = -\tfrac{1}{3}\log(1-\hat{\theta}_1),\qquad
-\hat{\lambda}_d = -\tfrac{1}{3}\log(1-\hat{\theta}_0).
-\label{eq:mstep_lambda}
+Q_{\mathrm{cat}}(\lambda_d) = \sum_{(i,t,h)\in\mathcal{E}_d} w_i\gamma_{ih}\,\log\!\big(e^{-\lambda_d a_{k_{it}}} - e^{-\lambda_d b_{k_{it}}}\big),
+\label{eq:Q_lambda_d_free}
 \end{equation}
-
-This joint update ensures that the M-step maximises \(Q\) with respect to \(\theta\) (and hence \(\lambda\)) globally, restoring the standard EM monotonicity guarantee.
-
-Under the free specification (not implemented), one would instead maximise \(Q(\lambda_g)\) in \eqref{eq:Q_lambda_free} numerically at each M-step, since the EMG distribution has no closed-form MLE for the rate parameter.
-
-
-
-
-
-%\textbf{Exponential rates.} Two alternatives:
-
-%\noindent\underline{Linked (CTMC) model:} set \(\lambda_g,\lambda_d\) by \eqref{eq:lambdas_link} using \((\hat\theta_1,\hat\theta_0)\). No separate M-step is needed.
-
-%\noindent\underline{Semi-linked/free model:} use misclassification draws and matched starts.
-%\begin{itemize}\itemsep4pt
-%\item From misclassification: \(\hat{\lambda}_g^{\text{(mis)}}=n_g/K_g,\ \hat{\lambda}_d^{\text{(mis)}}=n_d/K_d\).
-%\item From matched starts (EMG): either (A) \emph{maximize} the EMG contribution numerically in \((\lambda_g,\sigma_g^2)\) and in \((\lambda_d,\sigma_d^2)\) using weighted samples \(\mathcal{S}_g,\mathcal{S}_d\); or (B) \emph{augment} by latent exponentials at starts (call them \(X_{it}\) and \(Y_{it}\)) and set
-%\[
-%\hat{\lambda}_g^{\text{(start)}}=\frac{\sum_{(i,t,h)\in\mathcal{S}_g} w_i\gamma_{ih}}{\sum_{(i,t,h)\in\mathcal{S}_g} w_i\gamma_{ih}\,\mathbb{E}[X_{it}\mid g_{it},\lambda_g,\sigma_g^2]},\quad
-%\hat{\lambda}_d^{\text{(start)}}=\frac{\sum_{(i,t,h)\in\mathcal{S}_d} w_i\gamma_{ih}}{\sum_{(i,t,h)\in\mathcal{S}_d} w_i\gamma_{ih}\,\mathbb{E}[Y_{it}\mid d_{it},\lambda_d,\sigma_d^2]},
-%\]
-%where the EMG conditional expectations have closed form via Mills ratios.
-%\end{itemize}
-%Combine the two sources (e.g. inverse-variance weighting or joint maximization of their summed log-likelihoods). If one prefers to softly \emph{link} \(\lambda\)s to \(\theta\)s, add a quadratic penalty \(\rho\big(\lambda_g + \frac{1}{3}\log(1-\theta_1)\big)^2+\rho\big(\lambda_d + \frac{1}{3}\log(1-\theta_0)\big)^2\).
+where \(\mathcal{E}_d\) collects all interval-censored observations for the nonemployment side and \(k_{it}\) is the observed category at wave \(t\). The first-order condition
+\begin{equation}
+\sum_{(i,t,h)\in\mathcal{E}_d} w_i\gamma_{ih}\,\frac{-a_{k_{it}} e^{-\lambda_d a_{k_{it}}} + b_{k_{it}} e^{-\lambda_d b_{k_{it}}}}{e^{-\lambda_d a_{k_{it}}} - e^{-\lambda_d b_{k_{it}}}} = 0
+\label{eq:foc_lambda_d}
+\end{equation}
+is solved by Brent's method on \((\varepsilon, \lambda_{\max})\). This is concave in \(\lambda_d\) (standard exponential family result), so the root is unique.
 
 
+\paragraph{M-step under the linked specification (testable restriction).}
+\label{sec:ctmc_test}
 
-%-----------------------------------
+Under the linked (CTMC) specification, one imposes the restrictions \(\lambda_g = -\tfrac{1}{3}\log(1-\theta_1)\) and \(\lambda_d = -\tfrac{1}{3}\log(1-\theta_0)\). This means \(\theta_1\) enters \emph{both} the Markov prior block and the EMG emission block. The M-step can no longer update \(\theta\) in closed form; instead, one solves a joint first-order condition by Brent's method:
+\begin{equation}
+\underbrace{\frac{T_{11}}{\theta_1} - \frac{D_1 - T_{11}}{1-\theta_1}}_{\text{from } Q_{\mathrm{prior}}} \;+\; \underbrace{\frac{1}{3(1-\theta_1)} \cdot \sum_{(i,t,h)\in\mathcal{E}_g} w_i\gamma_{ih}\,\frac{\partial \log f_{\mathrm{EMG}}}{\partial \lambda_g}}_{\text{from } Q_{\mathrm{emission}}} \;=\; 0.
+\label{eq:foc_theta1_linked}
+\end{equation}
+An analogous equation holds for \(\theta_0\). Once \(\hat{\theta}_1, \hat{\theta}_0\) are obtained, the rates follow deterministically: \(\hat{\lambda}_g = -\tfrac{1}{3}\log(1-\hat{\theta}_1)\), \(\hat{\lambda}_d = -\tfrac{1}{3}\log(1-\hat{\theta}_0)\).
 
+The linked specification reduces the parameter count by 2 (from 7 to 5 free parameters), but forces the transition probabilities and duration rates to satisfy the CTMC restriction. If this restriction does not hold in the data --- for example, because real employment spells exhibit positive duration dependence --- the joint FOC produces a ``compromise'' estimate that satisfies neither the transition data nor the duration data.
 
+\textbf{Testing the CTMC restriction.} After fitting both the free and linked models, one can test
+\[
+H_0: \lambda_g = -\tfrac{1}{3}\log(1-\theta_1) \;\text{and}\; \lambda_d = -\tfrac{1}{3}\log(1-\theta_0)
+\]
+via a likelihood ratio test with 2 degrees of freedom: \(\mathrm{LR} = 2[\ell_{\text{free}} - \ell_{\text{linked}}] \sim \chi^2_2\) under \(H_0\). Rejection indicates that the CTMC memoryless property is violated and the free specification is preferred.
 
 
 \paragraph{Iteration and convergence.}
-Iterate \((\text{E-step},\text{M-step})\) until \(\ell(\Theta)\) in \eqref{eq:obs_ll} increases by less than a tolerance. The E-step uses \eqref{eq:resp}; the M-step applies \eqref{eq:mstep_alpha}, \eqref{eq:mstep_pi}, \eqref{eq:mstep_sigmas}, \eqref{eq:foc_theta1}--\eqref{eq:foc_theta0}, and \eqref{eq:mstep_lambda}. Monotone ascent is guaranteed because every M-step update maximises \(Q\): \(\alpha\), \(\pi\), and \((\sigma_g^2, \sigma_d^2)\) in closed form; \((\theta_1, \theta_0)\) via Newton--Raphson on the joint first-order conditions \eqref{eq:foc_theta1}--\eqref{eq:foc_theta0} that account for both the Markov prior and EMG emission contributions.
+Iterate \((\text{E-step},\text{M-step})\) until \(\ell(\Theta)\) in \eqref{eq:obs_ll} increases by less than a tolerance. Under the free specification, the E-step uses \eqref{eq:resp}; the M-step applies \eqref{eq:mstep_alpha}, \eqref{eq:mstep_theta_free}, \eqref{eq:mstep_pi}, \eqref{eq:mstep_sigma_g}, \eqref{eq:foc_lambda_g}, and \eqref{eq:foc_lambda_d}. Monotone ascent is guaranteed because each M-step block independently maximises its portion of the Q function: \(\alpha\), \(\theta_1\), \(\theta_0\), and \(\pi\) in closed form; \(\sigma_g^2\) in closed form; \(\lambda_g\) and \(\lambda_d\) via Brent's method on concave one-dimensional sub-problems.
 
 \newpage
 
-\subsection{Identification and practical considerations}
+\subsection{Identification under the free specification}
+\label{sec:identification}
+
+A natural concern when decoupling \(\lambda\) from \(\theta\) is whether the model remains identified. We show below that each parameter group is identified from a \emph{distinct} piece of the data, so there is no confounding or ridge between them. The argument proceeds in three steps.
+
+\paragraph{Step 1: \(\sigma_g^2\) is identified from continuation increments.}
+When an individual is truly employed at two consecutive waves (\(h_{t-1}=h_t=1\)) and correctly classified at both (\(s_{t-1}=s_t=1\)), the tenure increment is
+\[
+\Delta^g_t = (g_t - g_{t-1}) - 0.25 \sim N(0, 2\sigma_g^2).
+\]
+This random variable involves \emph{only} \(\sigma_g^2\) --- it does not depend on \(\lambda_g\), \(\theta_1\), \(\pi\), or any other parameter. The MLE is the familiar variance estimator \(\hat{\sigma}_g^2 = S_g / (2N_g)\) (plus the pooled within-panel start contribution). With \(N\approx 260{,}000\) observations and high persistence (\(\theta_1\approx 0.97\)), the vast majority of employed individuals contribute a continuation increment, providing abundant data for this estimate.
+
+\paragraph{Step 2: Given \(\sigma_g^2\), \(\lambda_g\) is identified from EMG observations.}
+The three EMG-type observations (wave-1 matched, continuation with previous misclassified, misclassified-as-employed) all follow the density \(f_{\mathrm{EMG}}(x; \lambda_g, \sigma_g^2)\). With \(\sigma_g^2\) pinned from Step~1, the EMG density has a single free parameter \(\lambda_g\). The log-likelihood is concave in \(\lambda_g\) given \(\sigma_g^2\) (because the EMG is a one-parameter exponential family in \(\lambda\) when \(\sigma^2\) is fixed), so the MLE for \(\lambda_g\) is unique.
+
+Intuitively: if an individual reports 5~years of tenure at wave~1, the model asks ``what exponential rate \(\lambda_g\) makes this spell length most likely, given the known measurement noise \(\sigma_g^2\)?'' Long average tenure points to small \(\lambda_g\); short tenure points to large \(\lambda_g\). This is a standard exponential-rate estimation problem.
+
+\paragraph{Step 3: \(\theta_1\) is identified from the Markov prior counts.}
+The transition probabilities \(\theta_1, \theta_0\) appear only in the Markov prior \eqref{eq:priorH} and enter the Q function through the weighted transition counts \(T_{11}, D_1, T_{01}, D_0\). Under the free specification, the duration emissions contribute \emph{nothing} to the \(\theta\) update. The MLE is the standard closed-form estimator \(\hat{\theta}_1 = T_{11}/D_1\), \(\hat{\theta}_0 = T_{01}/D_0\), weighted by responsibilities.
+
+\paragraph{Summary.} The three parameter groups \((\sigma_g^2)\), \((\lambda_g)\), and \((\theta_1)\) are identified from disjoint pieces of the likelihood: continuation increments, EMG level observations, and Markov transition counts, respectively. There is no ridge or confounding between them. The same argument applies to the nonemployment side (\(\lambda_d\) from interval-censored categories, \(\theta_0\) from Markov counts), except that there is no \(\sigma_d^2\) to estimate (the timegap is categorical with no continuous measurement noise).
+
+\paragraph{Practical diagnostics.}
+While the theoretical identification argument is clean, one may wish to verify identification empirically on a given dataset. Three diagnostics are available:
+\begin{enumerate}
+\item \textbf{Multiple starts}: re-fit from \(K\) perturbed initial values. If all starts converge to the same log-likelihood and parameter values (within tolerance), identification is confirmed. If different starts yield similar log-likelihoods but different \((\lambda, \sigma^2)\) pairs, there is a ridge --- a sign of weak identification.
+\item \textbf{Profile likelihood}: fix \(\lambda_g\) at a grid of values, re-optimise all other parameters, and plot the profile log-likelihood. A sharp peak indicates strong identification; a flat region indicates weakness.
+\item \textbf{Numerical Hessian}: compute the observed information matrix at the MLE. If the eigenvalues corresponding to \(\lambda_g\) and \(\sigma_g^2\) are well-separated from zero, the parameters are locally identified. A near-zero eigenvalue signals a flat direction.
+\end{enumerate}
+
+\subsection{Additional practical considerations}
 \begin{itemize}\itemsep4pt
-\item \emph{CTMC link and joint identification.} Under the linked specification, the exponential rates \(\lambda_g,\lambda_d\) are not free parameters but are determined by the transition probabilities \(\theta_1,\theta_0\) via \eqref{eq:lambdas_link}. This ties the discrete-time Markov dynamics and the continuous-time duration model into a single consistent framework, reducing the parameter count and avoiding separate (poorly identified) estimation of the rates.
 \item \emph{What identifies \(\pi\)?} Duration data provides strong identification of misclassification. If a person reports employment at all three waves but with tenure increments inconsistent with \(N(0,2\sigma_g^2)\), the model attributes this to misclassification rather than measurement noise. The EMG emission densities for misclassified observations have a different shape from the Normal densities used for correctly classified observations, allowing the two to be distinguished.
-\item \emph{What identifies \(\sigma_g^2,\sigma_d^2\)?} Continuation increments from correctly classified consecutive waves identify \(\sigma_g^2\) and \(\sigma_d^2\) directly via \eqref{eq:mstep_sigmas}, independently of \(\pi\) and \(\lambda\). Within-panel starts provide additional information. These two sources are pooled in the M-step.
-\item \emph{Overidentification.} With 3 waves there are \(2^3=8\) observed state patterns and continuous duration data at each wave. The linked specification has 6 parameters \((\alpha,\theta_0,\theta_1,\pi,\sigma_g^2,\sigma_d^2)\). The model is overidentified, which allows for specification testing.
-\item \emph{Different measurement variances.} Allowing \(\sigma_g^2\neq\sigma_d^2\) captures regime-specific noise and prevents the model from attributing asymmetric measurement error to \(\pi\) or the transition probabilities.
+\item \emph{Overidentification.} With 3 waves there are \(2^3=8\) observed state patterns and continuous duration data at each wave. The free specification has 7 parameters \((\alpha,\theta_0,\theta_1,\pi,\sigma_g^2,\lambda_g,\lambda_d)\). The model is overidentified, which allows for specification testing (including the CTMC restriction test).
+\item \emph{Asymmetric measurement model.} Employment tenure is observed as a continuous variable, so \(\sigma_g^2\) captures reporting noise. Nonemployment duration (timegap) is observed as a categorical variable (7~bins), so the only measurement error on the timegap side is state misclassification --- being placed in the wrong bin entirely. There is no continuous \(\sigma_d^2\) to estimate.
 \item \emph{Increment likelihoods.} Using \eqref{eq:emp_increment}--\eqref{eq:nonemp_increment} differences out the unknown true duration level, leaving only measurement noise. This yields a clean \(N(0,2\sigma^2)\) density that identifies \(\sigma^2\) without dependence on \(\lambda\), and avoids using the same measurement error twice in consecutive level likelihoods.
-\item \emph{Regularization.} Small floors on \(\sigma_g^2,\sigma_d^2\) guard against pathological solutions typical in mixture-like settings. Transition caps (e.g., \(\theta_1\le 0.995\)) can be imposed if needed.
+\item \emph{Regularization.} Small floors on \(\sigma_g^2\) guard against pathological solutions typical in mixture-like settings. Transition caps (e.g., \(\theta_1\le 0.995\)) and rate bounds (e.g., \(\lambda_g \in [\varepsilon, 50]\)) can be imposed if needed.
 \item \emph{Weights.} All sufficient statistics are weight-adjusted via \(w_i\gamma_{ih}\); likewise, the observed-data log-likelihood \eqref{eq:obs_ll} uses weights.
 \end{itemize}
 
+\subsection{Never-worked population}
+
+Individuals who have never held a job report no nonemployment duration because the survey question refers to time since last employment. We include these individuals by treating them as continuously nonemployed since the working-age threshold of 16~years. Their nonemployment duration at wave~\(t\) is \((a_{it} - 16)\times 12\) months, where \(a_{it}\) is age in years. This is mapped to a timegap category using the standard binning:
+\begin{itemize}
+\item Age 18: duration = 24 months, category 5 (\([12,36)\) months).
+\item Age 21: duration = 60 months, category 7 (\([60,\infty)\) months).
+\item Age 25+: duration \(\ge\) 108 months, category 7.
+\end{itemize}
+This assumption is conservative: the true nonemployment spell is at least as long as \((a_{it} - 16)\times 12\) months. The exponential model treats these as any other category-7 observation (contributing \(P(D\ge 5\text{ years}\mid\lambda_d) = e^{-\lambda_d\cdot 5}\) to the interval-censored likelihood), which helps pin down \(\lambda_d\) in the right tail. Excluding the never-worked population would bias the estimation sample toward shorter nonemployment spells.
+
 \newpage
-
-
 
 \subsection{Summary of parameterizations}
 \begin{center}
-\begin{tabular}{lll}
+\begin{tabular}{llll}
 \toprule
-Block & Update & Notes \\
+Block & Free specification & Linked (testable restriction) & Notes \\
 \midrule
-\(\alpha\) & Closed form \eqref{eq:mstep_alpha} & Stationary option available.\\
-\((\theta_1,\theta_0)\) & Newton--Raphson \eqref{eq:foc_theta1}--\eqref{eq:foc_theta0} & Joint FOC: Markov + EMG terms. 2--5 iters.\\
-\(\pi\) & Closed form \eqref{eq:mstep_pi} & \\
-\((\sigma_g^2,\sigma_d^2)\) & Closed form \eqref{eq:mstep_sigmas} & Pools continuations and starts.\\
-\((\lambda_g,\lambda_d)\) & Deterministic from \((\hat\theta_1,\hat\theta_0)\) via \eqref{eq:mstep_lambda} & Free: numerical, see \eqref{eq:Q_lambda_free}.\\
+\(\alpha\) & Closed form \eqref{eq:mstep_alpha} & Same & Stationarity option.\\
+\((\theta_1,\theta_0)\) & Closed form \eqref{eq:mstep_theta_free} & Brent on joint FOC \eqref{eq:foc_theta1_linked} & Free: from prior only.\\
+\(\pi\) & Closed form \eqref{eq:mstep_pi} & Same & \\
+\(\sigma_g^2\) & Closed form \eqref{eq:mstep_sigma_g} & Same & Pools increments + starts.\\
+\(\lambda_g\) & Brent on \eqref{eq:foc_lambda_g} & Deterministic from \(\hat\theta_1\) & Free: EMG emissions only.\\
+\(\lambda_d\) & Brent on \eqref{eq:foc_lambda_d} & Deterministic from \(\hat\theta_0\) & Free: interval-censored Exp.\\
 \bottomrule
 \end{tabular}
 \end{center}
-All M-step updates maximise \(Q\): \(\alpha\), \(\pi\), and \(\sigma^2\) in closed form; \(\theta_1\) and \(\theta_0\) via a cheap one-dimensional Newton--Raphson (2--5 iterations) on the joint first-order conditions that collect gradient contributions from both the Markov prior and the EMG emission blocks.
+Under the free specification, the M-step factorises into independent blocks: \(\alpha\), \(\theta_1\), \(\theta_0\), \(\pi\), and \(\sigma_g^2\) in closed form; \(\lambda_g\) and \(\lambda_d\) via one-dimensional Brent solves on concave sub-problems. Under the linked specification, the \(\theta\) update becomes a joint FOC that combines Markov prior and EMG emission terms, which is computationally cheap but forces a single parameter to satisfy two potentially conflicting data signals.
+
 \newpage
-
-
-
-
-
 
 \end{document}
