@@ -208,14 +208,18 @@ load_warm_starts <- function(results_dir, df, verbose = TRUE) {
   # Prefixes are ordered from most specific to least specific so that, e.g.,
   # "fit_miscl_stationary_linked_" does not match "fit_miscl_" accidentally.
   .model_specs <- list(
-    miscl_stationary_linked  = list(prefix = "fit_miscl_stationary_linked_",  linked = TRUE,  rho = FALSE),
-    miscl_linked             = list(prefix = "fit_miscl_linked_",             linked = TRUE,  rho = FALSE),
-    miscl_stationary         = list(prefix = "fit_miscl_stationary_",         linked = FALSE, rho = FALSE),
-    miscl                    = list(prefix = "fit_miscl_",                    linked = FALSE, rho = FALSE),
-    rho_stationary_linked    = list(prefix = "fit_rho_stationary_linked_",    linked = TRUE,  rho = TRUE),
-    rho_linked               = list(prefix = "fit_rho_linked_",               linked = TRUE,  rho = TRUE),
-    rho_stationary           = list(prefix = "fit_rho_stationary_",           linked = FALSE, rho = TRUE),
-    rho                      = list(prefix = "fit_rho_",                      linked = FALSE, rho = TRUE)
+    miscl_stationary_linked  = list(prefix = "fit_miscl_stationary_linked_",  linked = TRUE,  rho = FALSE, eps = FALSE),
+    miscl_linked             = list(prefix = "fit_miscl_linked_",             linked = TRUE,  rho = FALSE, eps = FALSE),
+    miscl_stationary         = list(prefix = "fit_miscl_stationary_",         linked = FALSE, rho = FALSE, eps = FALSE),
+    miscl                    = list(prefix = "fit_miscl_",                    linked = FALSE, rho = FALSE, eps = FALSE),
+    rho_stationary_linked    = list(prefix = "fit_rho_stationary_linked_",    linked = TRUE,  rho = TRUE,  eps = FALSE),
+    rho_linked               = list(prefix = "fit_rho_linked_",               linked = TRUE,  rho = TRUE,  eps = FALSE),
+    rho_stationary           = list(prefix = "fit_rho_stationary_",           linked = FALSE, rho = TRUE,  eps = FALSE),
+    rho                      = list(prefix = "fit_rho_",                      linked = FALSE, rho = TRUE,  eps = FALSE),
+    eps_stationary_linked    = list(prefix = "fit_eps_stationary_linked_",    linked = TRUE,  rho = FALSE, eps = TRUE),
+    eps_linked               = list(prefix = "fit_eps_linked_",               linked = TRUE,  rho = FALSE, eps = TRUE),
+    eps_stationary           = list(prefix = "fit_eps_stationary_",           linked = FALSE, rho = FALSE, eps = TRUE),
+    eps                      = list(prefix = "fit_eps_",                      linked = FALSE, rho = FALSE, eps = TRUE)
   )
 
   out <- vector("list", length(.model_specs))
@@ -252,7 +256,9 @@ load_warm_starts <- function(results_dir, df, verbose = TRUE) {
     }
 
     # Build a type-appropriate baseline, then overwrite with loaded keys.
-    .base <- if (spec$rho) {
+    .base <- if (spec$eps) {
+      init_params_eps(df, linked = spec$linked)
+    } else if (spec$rho) {
       init_params_rho(df, linked = spec$linked)
     } else {
       init_params(df, discrete_timegap = TRUE, linked = spec$linked)

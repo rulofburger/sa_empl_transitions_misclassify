@@ -19,7 +19,16 @@ source(file.path(.em_tenure_r, "emissions.R"),         local = FALSE)
 source(file.path(.em_tenure_r, "estep.R"),             local = FALSE)
 source(file.path(.em_tenure_r, "mstep.R"),             local = FALSE)
 source(file.path(.em_tenure_r, "em_driver.R"),         local = FALSE)
-source(file.path(.em_tenure_r, "simulate.R"),          local = FALSE)
-source(file.path(.em_tenure_r, "diagnostics.R"),       local = FALSE)
+# eps (Spec I) model: depends on emissions.R (interval-censored d emissions),
+# mstep.R (.m_step_lambda_d_brent, .m_step_theta0_brent_discrete), and
+# latent_histories.R (latent_histories, prior_over_histories).
+source(file.path(.em_tenure_r, "emissions_eps.R"),     local = FALSE)
+source(file.path(.em_tenure_r, "estep_eps.R"),         local = FALSE)
+source(file.path(.em_tenure_r, "mstep_eps.R"),         local = FALSE)
+source(file.path(.em_tenure_r, "init_params_eps.R"),   local = FALSE)
+source(file.path(.em_tenure_r, "em_driver_eps.R"),     local = FALSE)
+source(file.path(.em_tenure_r, "simulate.R"),               local = FALSE)
+source(file.path(.em_tenure_r, "diagnostics.R"),            local = FALSE)
+source(file.path(.em_tenure_r, "compare_distributions.R"),  local = FALSE)
 
 rm(.em_tenure_root, .em_tenure_r)

@@ -1,6 +1,7 @@
 # ==============================================================================
 # EM-tenure: End-to-end estimation pipeline
 # ==============================================================================
+# Created: 2026-04-29
 # This script:
 #   1. Sources the EM-tenure module
 #   2. Sources the data ingestion script
@@ -13,11 +14,21 @@
 #   source("EM-tenure/estimate_pipeline.R")
 # ==============================================================================
 
+# Verify working directory: all paths are relative to the project root.
+if (!file.exists("EM-tenure/R/source_all.R")) {
+  stop("estimate_pipeline.R must be sourced from the project root. ",
+       "Expected to find 'EM-tenure/R/source_all.R' relative to cwd.")
+}
+
 # --- Load EM-tenure module ---
 source("EM-tenure/R/source_all.R")
 
 # --- Ingest data ---
 # Always re-ingest to avoid stale data from a previous session.
+if (!file.exists("data/raw/df_qlfs_A.rds")) {
+  stop("Missing input data: 'data/raw/df_qlfs_A.rds'. ",
+       "Obtain the QLFS data and place it at that path before running the pipeline.")
+}
 library("tidyverse")
 source("scripts/ingest_data_3waves_SA.R")
 
@@ -85,13 +96,23 @@ custom_init_rho  <- init_params_rho(df_qlfs, linked = FALSE)
 # warm-start from rho-converged params (which include the rho parameter).
 # Falls back to init_params() / init_params_rho() defaults when no prior
 # result exists for a given model.
-source("EM-tenure/R/utils.R")
+# load_warm_starts() is defined in utils.R (already sourced via source_all.R above).
 message("\n=== Loading per-model warm-start parameters ===")
 ws <- load_warm_starts("output/results", df_qlfs, verbose = TRUE)
 
+message("Warm-start status:")
+for (.nm in c("miscl", "miscl_stationary", "miscl_linked", "miscl_stationary_linked",
+              "rho", "rho_stationary", "rho_linked", "rho_stationary_linked",
+              "eps", "eps_stationary", "eps_linked", "eps_stationary_linked")) {
+  message(sprintf("  %-30s: %s", .nm, if (!is.null(ws[[.nm]])) "warm-start loaded" else "INIT_PARAMS (no prior run)"))
+}
+rm(.nm)
+
 # --- Results storage setup ---
 # run_id ties together the .rds files and the summary CSV row for this run.
-set.seed(1234)  # reproducibility — placed here so both fits are seeded
+# NOTE: The EM algorithm is fully deterministic given fixed data and starting
+# parameters (no random operations in e-step, m-step, or driver). set.seed()
+# is not needed here.
 run_id     <- format(Sys.time(), "%Y%m%d_%H%M%S")
 results_dir <- "output/results"
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
@@ -187,7 +208,9 @@ fits <- list(
   miscl_stationary_linked  = fit_stationary_linked
 )
 
-# Flat summary — one row per model per run
+# Flat summary — one row per model per run.
+# A single unified function covers base, rho, and eps models: model-specific
+# fields (rho, eps, sigma2_g, sigma2_d) fall back to NA_real_ when absent.
 .make_summary_row <- function(run_id, model, fit) {
   p <- fit$params
   data.table::data.table(
@@ -200,8 +223,9 @@ fits <- list(
     theta0      = p$theta0,
     theta1      = p$theta1,
     pi          = p$pi,
-    rho         = NA_real_,   # base model has no rho; keeps CSV columns aligned
-    sigma2_g    = p$sigma2_g,
+    rho         = p$rho      %||% NA_real_,
+    eps         = p$eps      %||% NA_real_,
+    sigma2_g    = p$sigma2_g %||% NA_real_,
     lambda_g    = p$lambda_g,
     lambda_d    = p$lambda_d,
     sigma2_d    = p$sigma2_d %||% NA_real_
@@ -294,27 +318,6 @@ lr_stat <- 2 * (fit_rho$loglik - fit_em$loglik)
 lr_pval <- pchisq(lr_stat, df = 1, lower.tail = FALSE)
 message(sprintf("\nLR test (rho vs base): stat = %.4f, p = %.6f", lr_stat, lr_pval))
 
-# Summary rows for rho models
-.make_summary_row_rho <- function(run_id, model, fit) {
-  p <- fit$params
-  data.table::data.table(
-    run_id      = run_id,
-    model       = model,
-    converged   = fit$converged,
-    iterations  = fit$iterations,
-    loglik      = fit$loglik,
-    alpha       = p$alpha,
-    theta0      = p$theta0,
-    theta1      = p$theta1,
-    pi          = p$pi,
-    rho         = p$rho,
-    sigma2_g    = p$sigma2_g,
-    lambda_g    = p$lambda_g,
-    lambda_d    = p$lambda_d,
-    sigma2_d    = NA_real_   # rho model uses discrete timegap; sigma2_d not estimated
-  )
-}
-
 rho_fits <- list(
   rho_free              = fit_rho,
   rho_stationary        = fit_rho_stationary,
@@ -323,7 +326,7 @@ rho_fits <- list(
 )
 
 rho_summary <- data.table::rbindlist(
-  lapply(names(rho_fits), function(m) .make_summary_row_rho(run_id, m, rho_fits[[m]]))
+  lapply(names(rho_fits), function(m) .make_summary_row(run_id, m, rho_fits[[m]]))
 )
 
 data.table::fwrite(
@@ -353,4 +356,171 @@ total_runtime <- sum(vapply(model_runtimes, function(x) {
   as.numeric(x, units = "secs")
 }, numeric(1L)))
 message(sprintf("Total model runtime: %.2f seconds", total_runtime))
+
+
+# ##############################################################################
+# EPSILON-AUGMENTED ESTIMATION (Spec I: point-mass + Exp contamination)
+# ##############################################################################
+# The eps model replaces the Gaussian-EMG measurement model with a structurally
+# correct point-mass + Exponential contamination mixture, and adds a spell-pair
+# joint emission so that tenure flanks identify misclassification (Story A).
+# Companion spec: documents/EM tenure epsilon.tex
+# Design rationale: EM-tenure/feedback/2026-04-30-epsilon-spec-design.md
+#
+# Created: 2026-04-30
+# ##############################################################################
+
+message("\n=== Estimating eps model (Spec I) ===")
+
+# Initial parameters for eps model — separate objects for free vs linked
+# variants so the fallback parameter structure matches each model's spec.
+custom_init_eps        <- init_params_eps(df_qlfs, linked = FALSE)
+custom_init_eps_linked <- init_params_eps(df_qlfs, linked = TRUE)
+
+message("=== Estimating eps model (free, non-stationary) ===")
+t1_fit_eps <- Sys.time()
+fit_eps <- em_fit_tenure_eps(
+  df         = df_qlfs,
+  params0    = ws$eps %||% custom_init_eps,
+  stationary = FALSE,
+  linked     = FALSE,
+  verbose    = 2L
+)
+t2_fit_eps <- Sys.time()
+
+message("=== Estimating eps model (free, stationary) ===")
+t1_fit_eps_stationary <- Sys.time()
+fit_eps_stationary <- em_fit_tenure_eps(
+  df         = df_qlfs,
+  params0    = ws$eps_stationary %||% custom_init_eps,
+  stationary = TRUE,
+  linked     = FALSE,
+  verbose    = 2L
+)
+t2_fit_eps_stationary <- Sys.time()
+
+message("=== Estimating eps model (CTMC-linked, non-stationary) ===")
+t1_fit_eps_linked <- Sys.time()
+fit_eps_linked <- em_fit_tenure_eps(
+  df         = df_qlfs,
+  params0    = ws$eps_linked %||% custom_init_eps_linked,
+  stationary = FALSE,
+  linked     = TRUE,
+  verbose    = 2L
+)
+t2_fit_eps_linked <- Sys.time()
+
+message("=== Estimating eps model (CTMC-linked, stationary) ===")
+t1_fit_eps_stationary_linked <- Sys.time()
+fit_eps_stationary_linked <- em_fit_tenure_eps(
+  df         = df_qlfs,
+  params0    = ws$eps_stationary_linked %||% custom_init_eps_linked,
+  stationary = TRUE,
+  linked     = TRUE,
+  verbose    = 2L
+)
+t2_fit_eps_stationary_linked <- Sys.time()
+
+# --- Save eps model results ---
+saveRDS(fit_eps,
+        file.path(results_dir, sprintf("fit_eps_%s.rds", run_id)))
+saveRDS(fit_eps_stationary,
+        file.path(results_dir, sprintf("fit_eps_stationary_%s.rds", run_id)))
+saveRDS(fit_eps_linked,
+        file.path(results_dir, sprintf("fit_eps_linked_%s.rds", run_id)))
+saveRDS(fit_eps_stationary_linked,
+        file.path(results_dir, sprintf("fit_eps_stationary_linked_%s.rds", run_id)))
+
+message(sprintf("\nLog-likelihood (eps, free, non-stationary): %.4f", fit_eps$loglik))
+message(sprintf("Log-likelihood (eps, free, stationary):     %.4f", fit_eps_stationary$loglik))
+message(sprintf("Log-likelihood (eps, linked, non-stat):     %.4f", fit_eps_linked$loglik))
+message(sprintf("Log-likelihood (eps, linked, stationary):   %.4f", fit_eps_stationary_linked$loglik))
+
+# Delta-LL vs base (non-nested in distribution family but informative)
+lr_eps_vs_base <- 2 * (fit_eps$loglik - fit_em$loglik)
+message(sprintf("\nDelta-LL (eps vs base, non-stat): %.4f", lr_eps_vs_base))
+
+eps_fits <- list(
+  eps_free              = fit_eps,
+  eps_stationary        = fit_eps_stationary,
+  eps_linked            = fit_eps_linked,
+  eps_stationary_linked = fit_eps_stationary_linked
+)
+
+eps_summary <- data.table::rbindlist(
+  lapply(names(eps_fits), function(m) .make_summary_row(run_id, m, eps_fits[[m]]))
+)
+
+data.table::fwrite(
+  eps_summary,
+  summary_csv,
+  append    = TRUE,
+  col.names = FALSE
+)
+message(sprintf("Eps summary appended: %s  [run_id = %s]", summary_csv, run_id))
+
+# Eps model runtimes
+eps_runtimes <- list(
+  fit_eps                   = t2_fit_eps - t1_fit_eps,
+  fit_eps_stationary        = t2_fit_eps_stationary - t1_fit_eps_stationary,
+  fit_eps_linked            = t2_fit_eps_linked - t1_fit_eps_linked,
+  fit_eps_stationary_linked = t2_fit_eps_stationary_linked - t1_fit_eps_stationary_linked
+)
+message(sprintf("  fit_eps:                    %.1f s", as.numeric(eps_runtimes$fit_eps,                   units = "secs")))
+message(sprintf("  fit_eps_stationary:         %.1f s", as.numeric(eps_runtimes$fit_eps_stationary,        units = "secs")))
+message(sprintf("  fit_eps_linked:             %.1f s", as.numeric(eps_runtimes$fit_eps_linked,            units = "secs")))
+message(sprintf("  fit_eps_stationary_linked:  %.1f s", as.numeric(eps_runtimes$fit_eps_stationary_linked, units = "secs")))
+
+total_runtime_eps <- sum(vapply(eps_runtimes, function(x) as.numeric(x, units = "secs"), numeric(1L)))
+message(sprintf("Total eps model runtime: %.2f seconds", total_runtime_eps))
+
+# ##############################################################################
+# LIKELIHOOD RATIO TESTS: fit_eps_stationary_linked vs other eps models
+# ##############################################################################
+# fit_eps_stationary_linked is the preferred model (most parsimonious: 4 free
+# parameters -- theta0, theta1, pi, eps).  The three alternative models are
+# strictly less restricted, so all three tests are proper nested LR tests.
+#
+# Parameter counts:
+#   fit_eps                     : 7 (alpha, theta0, theta1, pi, eps, lambda_g, lambda_d)
+#   fit_eps_stationary          : 6 (alpha = theta1/(theta0+theta1) imposed; -1 df)
+#   fit_eps_linked              : 5 (CTMC link lambda_g, lambda_d imposed; -2 df)
+#   fit_eps_stationary_linked   : 4 (both restrictions; -3 df vs free model)
+# ##############################################################################
+
+message("\n=== LR tests: fit_eps_stationary_linked (H0) vs less-restricted eps models ===")
+
+# --- H0: stationary_linked  vs  H1: linked (non-stationary) ---
+# Tests the stationarity restriction alpha = theta1 / (theta0 + theta1); 1 df.
+lr_stat_vs_linked <- 2 * (fit_eps_linked$loglik - fit_eps_stationary_linked$loglik)
+lr_pval_vs_linked <- pchisq(lr_stat_vs_linked, df = 1L, lower.tail = FALSE)
+message(sprintf(
+  "  stationary_linked vs linked (non-stationary) | df=1 | LR=%.4f | p=%.6f",
+  lr_stat_vs_linked, lr_pval_vs_linked
+))
+
+# --- H0: stationary_linked  vs  H1: stationary (free lambda) ---
+# Tests the CTMC-link restrictions lambda_g = -log(theta1)/Delta and
+# lambda_d = -log(1-theta0)/Delta; 2 df.
+lr_stat_vs_stationary <- 2 * (fit_eps_stationary$loglik - fit_eps_stationary_linked$loglik)
+lr_pval_vs_stationary <- pchisq(lr_stat_vs_stationary, df = 2L, lower.tail = FALSE)
+message(sprintf(
+  "  stationary_linked vs stationary (free lambda) | df=2 | LR=%.4f | p=%.6f",
+  lr_stat_vs_stationary, lr_pval_vs_stationary
+))
+
+# --- H0: stationary_linked  vs  H1: free (non-stationary, free lambda) ---
+# Tests both the stationarity restriction and the CTMC-link jointly; 3 df.
+lr_stat_vs_free <- 2 * (fit_eps$loglik - fit_eps_stationary_linked$loglik)
+lr_pval_vs_free <- pchisq(lr_stat_vs_free, df = 3L, lower.tail = FALSE)
+message(sprintf(
+  "  stationary_linked vs free (non-stat, free lambda) | df=3 | LR=%.4f | p=%.6f",
+  lr_stat_vs_free, lr_pval_vs_free
+))
+
+message(sprintf(
+  "\n  Preferred model: fit_eps_stationary_linked  (loglik = %.4f)",
+  fit_eps_stationary_linked$loglik
+))
+
 
