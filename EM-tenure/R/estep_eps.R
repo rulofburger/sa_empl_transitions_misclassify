@@ -181,8 +181,8 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   ld               <- matrix(0, nrow = N, ncol = H)
   lambda_count_mat <- matrix(0, nrow = N, ncol = H)
   lambda_xsum_mat  <- matrix(0, nrow = N, ncol = H)
-  eps_num_mat      <- matrix(0, nrow = N, ncol = H)  # tau_sum (E[# contam waves], spells K>=2)
-  eps_den_mat      <- matrix(0, nrow = N, ncol = H)  # K (# obs waves, spells K>=2)
+  eps_num_mat      <- matrix(0, nrow = N, ncol = H)  # tau_sum (E[# contam waves], eps-informative spells)
+  eps_den_mat      <- matrix(0, nrow = N, ncol = H)  # K (# obs waves, eps-informative spells)
 
   # Pre-compute full N x 3 tenure matrix (s_full is already computed above).
   g_full <- cbind(g1, g2, g3)
@@ -205,13 +205,12 @@ e_step_eps <- function(df, params, check_df = TRUE) {
       lambda_count_mat[, j] <- lambda_count_mat[, j] + out$lambda_count
       lambda_xsum_mat[, j]  <- lambda_xsum_mat[, j]  + out$lambda_xsum
 
-      # eps stats: contributions only from spells where per-wave contamination
-      # information exists (K >= 2). K = 1 spells have tau_sum = 0 and
-      # contribute nothing.
-      mask_ge2 <- out$K >= 2L
-      if (any(mask_ge2)) {
-        eps_num_mat[mask_ge2, j] <- eps_num_mat[mask_ge2, j] + out$tau_sum[mask_ge2]
-        eps_den_mat[mask_ge2, j] <- eps_den_mat[mask_ge2, j] + out$K[mask_ge2]
+      # eps stats: accumulate for all eps-informative spells (K >= 2, or
+      # K = 1 with offset > 0 where clean/contaminated branches differ).
+      mask_eps <- out$eps_informative
+      if (any(mask_eps)) {
+        eps_num_mat[mask_eps, j] <- eps_num_mat[mask_eps, j] + out$tau_sum[mask_eps]
+        eps_den_mat[mask_eps, j] <- eps_den_mat[mask_eps, j] + out$K[mask_eps]
       }
     }
 

@@ -4,6 +4,7 @@
 # Created: 2026-04-30
 # Updated: 2026-05-01 — replaced all-or-nothing (AON) approximation with full
 #   per-wave Bernoulli contamination enumeration (2^K patterns for K <= 3).
+# Updated: 2026-05-01 — fixed K=1 handler for t_1 > a (shifted Exp mixture).
 #
 # Implements the spell-pair joint tenure emission of Spec I:
 #   - Spell length T_g ~ Exp(lambda_g) (no sigma).
@@ -21,7 +22,10 @@
 #       If T_g <= 0 (impossible spell start), pattern density = 0.
 #
 #   - For K = 0 spells: contributes nothing to the tenure emission.
-#   - For K = 1 spells: single Exp evaluation; no information about eps.
+#   - For K = 1 spells with offset = 0 (t_1 = a): plain Exp; eps drops out.
+#   - For K = 1 spells with offset > 0 (t_1 > a): 2-pattern mixture;
+#     clean branch is shifted Exp, contaminated branch is unshifted Exp.
+#     eps is identifiable; tau_sum = P(contaminated | g).
 #   - For K = 2: full 4-pattern enumeration (CC, CX, XC, XX).
 #   - For K = 3: full 8-pattern enumeration (CCC, ..., XXX).
 #
@@ -66,7 +70,12 @@
 #' \enumerate{
 #'   \item \eqn{K_i = \sum_t s_{it}} (number of observed tenures in spell).
 #'   \item If \eqn{K_i = 0}: log-emission = 0; no contribution to suff stats.
-#'   \item If \eqn{K_i = 1}: log-emission = log Exp(g_obs). tau_sum = 0.
+#'   \item If \eqn{K_i = 1} and offset = 0 (\eqn{t_1 = a}): both patterns
+#'     give the same density so \eqn{\varepsilon} drops out.
+#'     log-emission = \eqn{\log\lambda_g - \lambda_g g}. tau_sum = 0.
+#'   \item If \eqn{K_i = 1} and offset > 0 (\eqn{t_1 > a}): clean branch
+#'     gives shifted Exp, contaminated gives unshifted. 2-pattern mixture;
+#'     tau_sum = P(contaminated | g) > 0.
 #'   \item If \eqn{K_i \ge 2}: full \eqn{2^{K_i}} contamination-pattern
 #'     enumeration (4 patterns for K=2; 8 for K=3). For each pattern
 #'     \eqn{m = (m_1, \ldots, m_K) \in \{0,1\}^K}:
@@ -105,7 +114,10 @@
 #' @param eps Per-wave contamination probability in (0, 1).
 #' @param tol Tolerance for clock-consistency check (default 1e-6 years).
 #' @return Named list with N-vectors: \code{loglik}, \code{tau_sum}
-#'   (0 for K<2), \code{K}, \code{lambda_count}, \code{lambda_xsum}.
+#'   (0 for K=0 or K=1/offset=0; positive for K=1/offset>0 and K>=2),
+#'   \code{eps_informative} (logical; TRUE when spell contributes to eps
+#'   sufficient statistics: K>=2 or K=1 with offset>0),
+#'   \code{K}, \code{lambda_count}, \code{lambda_xsum}.
 #' @references TeX: \emph{EM tenure epsilon.tex}, Section 3.5.
 #' @examples
 #' \dontrun{
@@ -128,7 +140,7 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
   if (length(t_offsets) != ncol(s_mat)) {
     stop("log_emission_spell_g: t_offsets must have length ncol(s_mat).")
   }
-  if (!is.integer(t_offsets) || any(t_offsets < 0L)) {
+  if (!is.integer(t_offsets) || any(is.na(t_offsets)) || any(t_offsets < 0L)) {
     stop("log_emission_spell_g: t_offsets must be a non-negative integer vector (use 0L, 1L, ...).")
   }
   if (!is.finite(tol) || tol <= 0) {
@@ -140,8 +152,8 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("log_emission_spell_g: eps must be in (0, 1); got %.4g", eps))
   }
-  if (any(is.na(g_mat[s_mat]))) {
-    stop("log_emission_spell_g: NA tenure at an observed (s=TRUE) position.")
+  if (any(!is.finite(g_mat[s_mat]))) {
+    stop("log_emission_spell_g: NA/Inf tenure at an observed (s=TRUE) position.")
   }
 
   N <- nrow(s_mat)
@@ -155,31 +167,85 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
     ))
   }
 
-  loglik       <- numeric(N)
-  tau_sum      <- numeric(N)   # E[# contaminated waves | g]; 0 for K <= 1
-  lambda_count <- numeric(N)
-  lambda_xsum  <- numeric(N)
+  loglik          <- numeric(N)
+  tau_sum         <- numeric(N)    # E[# contaminated waves | g]; 0 for K=0 or K=1/offset=0
+  eps_informative <- logical(N)    # TRUE iff spell contributes to eps sufficient stats
+  lambda_count    <- numeric(N)
+  lambda_xsum     <- numeric(N)
 
   if (N == 0L) {
     return(list(loglik = loglik, tau_sum = tau_sum, K = K,
+                eps_informative = eps_informative,
                 lambda_count = lambda_count,
                 lambda_xsum = lambda_xsum))
   }
 
   Delta   <- .QUARTER_YEARS
+  if (!is.finite(Delta) || Delta <= 0) {
+    stop(sprintf("log_emission_spell_g: .QUARTER_YEARS is not a positive finite value; got %.4g", Delta))
+  }
   log_lam <- log(lambda_g)
   log_1me <- log1p(-eps)   # log(1 - eps)
   log_e   <- log(eps)
 
   # --- K = 1 -----------------------------------------------------------------
+  # When t_1 = a (offset == 0): both contamination patterns yield
+  #   lambda_g * exp(-lambda_g * g_obs), so eps drops out. Plain Exp eval.
+  # When t_1 > a (offset > 0): the clean branch gives a *shifted* Exp density
+  #   lambda_g * exp(-lambda_g * (g - d*Delta)), while the contaminated branch
+  #   gives the unshifted lambda_g * exp(-lambda_g * g). They differ, so eps
+  #   is identifiable and a 2-pattern mixture is required.
+  # See EM tenure epsilon.tex, Section 3.4 (Singletons paragraph).
   mask1 <- K == 1L
   if (any(mask1)) {
-    col_obs <- max.col(s_mat[mask1, , drop = FALSE], ties.method = "first")
-    g_obs   <- g_mat[mask1, , drop = FALSE][cbind(seq_len(sum(mask1)), col_obs)]
-    loglik[mask1]       <- log_lam - lambda_g * g_obs
-    lambda_count[mask1] <- 1
-    lambda_xsum[mask1]  <- g_obs
-    # tau_sum remains 0 for K=1 (no information about eps from a single obs)
+    s_sub1  <- s_mat[mask1, , drop = FALSE]
+    g_sub1  <- g_mat[mask1, , drop = FALSE]
+    n1      <- sum(mask1)
+    col_obs <- max.col(s_sub1, ties.method = "first")
+    g_obs   <- g_sub1[cbind(seq_len(n1), col_obs)]
+    d_obs   <- t_offsets[col_obs]   # relative wave offset from spell start
+
+    # Split: at-start (d=0) vs shifted (d>0)
+    at_start <- d_obs == 0L
+
+    # Precompute indices to avoid double-subscript intermediate copies
+    idx1   <- which(mask1)
+    idx_at <- idx1[at_start]
+    idx_sh <- idx1[!at_start]
+
+    # --- K=1, t_1 = a (d=0): eps drops out, plain Exp ---
+    if (any(at_start)) {
+      loglik[idx_at]       <- log_lam - lambda_g * g_obs[at_start]
+      lambda_count[idx_at] <- 1L
+      lambda_xsum[idx_at]  <- g_obs[at_start]
+      # tau_sum and eps_informative remain FALSE/0: no eps info from offset-0 singletons
+    }
+
+    # --- K=1, t_1 > a (d>0): 2-pattern mixture (clean vs contaminated) ---
+    if (any(!at_start)) {
+      g1s  <- g_obs[!at_start]
+      d1s  <- d_obs[!at_start]
+      T_g  <- g1s - d1s * Delta        # T_g implied by clean branch
+      v    <- T_g > 0                  # T_g must be positive; invalid → clean branch = -Inf
+
+      # log-densities for the two patterns
+      lp_clean  <- rep(-Inf, sum(!at_start))
+      if (any(v)) lp_clean[v]  <- log_1me + log_lam - lambda_g * T_g[v]
+      lp_contam <- log_e + log_lam - lambda_g * g1s   # always finite (g > 0)
+
+      # log-sum-exp (lp_contam is always finite, so lp_mx is always finite)
+      lp_mx   <- pmax(lp_clean, lp_contam)
+      ll_k1   <- lp_mx + log(exp(lp_clean - lp_mx) + exp(lp_contam - lp_mx))
+
+      nu       <- exp(lp_contam - ll_k1)  # P(contaminated | g): weight on contam branch
+      T_g_safe <- pmax(T_g, 0)            # guard 0 * (-Inf) NaN when T_g <= 0 (nu=1 there)
+
+      loglik[idx_sh]          <- ll_k1
+      tau_sum[idx_sh]         <- nu
+      eps_informative[idx_sh] <- TRUE     # K=1/offset>0: eps is identifiable
+      lambda_count[idx_sh]    <- 1L
+      lambda_xsum[idx_sh]     <- nu * g1s + (1 - nu) * T_g_safe
+    }
   }
 
   # --- K = 2 -----------------------------------------------------------------
@@ -252,10 +318,11 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
            (g1  + T2s) * w_xc +
            (g1  + g2)  * w_xx
 
-    loglik[mask2]       <- ll2
-    tau_sum[mask2]      <- tau2
-    lambda_count[mask2] <- lc2
-    lambda_xsum[mask2]  <- lx2
+    loglik[mask2]           <- ll2
+    tau_sum[mask2]          <- tau2
+    eps_informative[mask2]  <- TRUE   # K=2: always eps-informative
+    lambda_count[mask2]     <- lc2
+    lambda_xsum[mask2]      <- lx2
   }
 
   # --- K = 3 -----------------------------------------------------------------
@@ -345,13 +412,15 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
            (g1  + g2  + T3s)* w_mat[,7] +
            sum123            * w_mat[,8]
 
-    loglik[mask3]       <- ll3_out
-    tau_sum[mask3]      <- tau3
-    lambda_count[mask3] <- lc3
-    lambda_xsum[mask3]  <- lx3
+    loglik[mask3]           <- ll3_out
+    tau_sum[mask3]          <- tau3
+    eps_informative[mask3]  <- TRUE   # K=3: always eps-informative
+    lambda_count[mask3]     <- lc3
+    lambda_xsum[mask3]      <- lx3
   }
 
   list(loglik = loglik, tau_sum = tau_sum, K = K,
+       eps_informative = eps_informative,
        lambda_count = lambda_count, lambda_xsum = lambda_xsum)
 }
 

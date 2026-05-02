@@ -73,9 +73,168 @@ test_that("log_emission_spell_g: K=1 loglik matches log-Exp exactly", {
 
   expected_ll <- log(lambda_g) - lambda_g * g_obs
   expect_equal(out$loglik, expected_ll, tolerance = 1e-10)
-  expect_equal(out$tau_sum, rep(0, N))      # tau_sum = 0 for K=1 (no eps info)
+  expect_equal(out$tau_sum, rep(0, N))      # tau_sum = 0 for K=1, offset=0 (no eps info)
   expect_equal(out$lambda_count, rep(1, N))
   expect_equal(out$lambda_xsum,  g_obs, tolerance = 1e-10)
+})
+
+# ---------------------------------------------------------------------------
+# 2b. log_emission_spell_g: K=1 with offset=0 — regression (eps drops out)
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 offset=0 tau_sum=0 (eps not identifiable)", {
+  # Spell of length 2 but only wave 1 observed (offset 0): t_1 = a.
+  # Both patterns give the same Exp density, so eps drops out.
+  lambda_g <- 0.3; eps <- 0.4; g_obs <- 1.8
+  g_mat <- matrix(c(g_obs, 0), nrow = 1)
+  s_mat <- matrix(c(TRUE, FALSE), nrow = 1)
+
+  out <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L), lambda_g = lambda_g, eps = eps)
+
+  expect_equal(out$loglik,       log(lambda_g) - lambda_g * g_obs, tolerance = 1e-12)
+  expect_equal(out$tau_sum,      0,     tolerance = 1e-12)
+  expect_equal(out$lambda_count, 1,     tolerance = 1e-12)
+  expect_equal(out$lambda_xsum,  g_obs, tolerance = 1e-12)
+})
+
+# ---------------------------------------------------------------------------
+# 2c. log_emission_spell_g: K=1 with offset=1 — 2-pattern mixture
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 offset=1 loglik matches 2-pattern analytical", {
+  # Spell starts at wave 1 (unobserved); tenure observed only at wave 2 (offset 1).
+  # t_1 > a, so clean branch: lambda_g * exp(-lambda_g*(g - Delta)).
+  # Contaminated branch:       lambda_g * exp(-lambda_g*g).
+  lambda_g <- 0.3; eps <- 0.35; Delta <- .QUARTER_YEARS; g_obs <- 2.0
+  T_g <- g_obs - Delta   # = 1.75; T_g > 0 so clean branch is valid.
+
+  lp_clean  <- log(1 - eps) + log(lambda_g) - lambda_g * T_g
+  lp_contam <- log(eps)     + log(lambda_g) - lambda_g * g_obs
+  mx        <- max(lp_clean, lp_contam)
+  expected_ll <- mx + log(exp(lp_clean - mx) + exp(lp_contam - mx))
+
+  nu_expected <- exp(lp_contam - expected_ll)    # P(contaminated | g)
+  lx_expected <- nu_expected * g_obs + (1 - nu_expected) * T_g
+
+  g_mat <- matrix(c(0, g_obs), nrow = 1)
+  s_mat <- matrix(c(FALSE, TRUE), nrow = 1)
+  out   <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L), lambda_g = lambda_g, eps = eps)
+
+  expect_equal(out$loglik,       expected_ll,   tolerance = 1e-10)
+  expect_true(out$tau_sum > 0 && out$tau_sum < 1)  # eps is identifiable
+  expect_equal(out$tau_sum,      nu_expected,   tolerance = 1e-10)
+  expect_equal(out$lambda_count, 1,             tolerance = 1e-12)
+  expect_equal(out$lambda_xsum,  lx_expected,   tolerance = 1e-10)
+  expect_true(out$eps_informative)              # K=1/offset>0 is eps-informative
+})
+
+# ---------------------------------------------------------------------------
+# 2d. log_emission_spell_g: K=1 with offset=2 — 2-pattern mixture, shift=2*Delta
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 offset=2 loglik matches 2-pattern analytical", {
+  # 3-wave spell [1,3], only wave 3 observed (offset 2). T_g = g - 2*Delta.
+  lambda_g <- 0.2; eps <- 0.30; Delta <- .QUARTER_YEARS; g_obs <- 1.0
+  T_g <- g_obs - 2 * Delta   # = 0.5; T_g > 0
+
+  lp_clean  <- log(1 - eps) + log(lambda_g) - lambda_g * T_g
+  lp_contam <- log(eps)     + log(lambda_g) - lambda_g * g_obs
+  mx        <- max(lp_clean, lp_contam)
+  expected_ll <- mx + log(exp(lp_clean - mx) + exp(lp_contam - mx))
+  nu_expected <- exp(lp_contam - expected_ll)
+  lx_expected <- nu_expected * g_obs + (1 - nu_expected) * T_g
+
+  g_mat <- matrix(c(0, 0, g_obs), nrow = 1)
+  s_mat <- matrix(c(FALSE, FALSE, TRUE), nrow = 1)
+  out   <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L, 2L),
+                                lambda_g = lambda_g, eps = eps)
+
+  expect_equal(out$loglik,       expected_ll,   tolerance = 1e-10)
+  expect_equal(out$tau_sum,      nu_expected,   tolerance = 1e-10)
+  expect_equal(out$lambda_count, 1,             tolerance = 1e-12)
+  expect_equal(out$lambda_xsum,  lx_expected,   tolerance = 1e-10)
+  expect_true(out$eps_informative)              # K=1/offset>0 is eps-informative
+})
+
+# ---------------------------------------------------------------------------
+# 2e. log_emission_spell_g: K=1 offset=1, impossible T_g — tau_sum ≈ 1
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 offset=1 with g < Delta gives tau_sum near 1", {
+  # g_obs = 0.1 < Delta = 0.25 means T_g = g - Delta = -0.15 < 0.
+  # Clean branch is impossible (T_g <= 0); only contaminated branch contributes.
+  lambda_g <- 0.4; eps <- 0.35; Delta <- .QUARTER_YEARS; g_obs <- 0.1
+
+  expected_ll <- log(eps) + log(lambda_g) - lambda_g * g_obs
+
+  g_mat <- matrix(c(0, g_obs), nrow = 1)
+  s_mat <- matrix(c(FALSE, TRUE), nrow = 1)
+  out   <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L), lambda_g = lambda_g, eps = eps)
+
+  expect_equal(out$loglik,  expected_ll, tolerance = 1e-10)
+  expect_equal(out$tau_sum, 1,           tolerance = 1e-10)  # fully contaminated
+  expect_equal(out$lambda_xsum, g_obs,   tolerance = 1e-10)  # xsum = g_obs (contam branch)
+  expect_true(out$eps_informative)              # K=1/offset>0 is eps-informative
+})
+
+# ---------------------------------------------------------------------------
+# 2f. log_emission_spell_g: K=1 offset>0 — vectorized (N > 1)
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 offset>0 vectorized over N rows", {
+  # Multiple rows, all K=1 with offset=1. Each row independently computed.
+  lambda_g <- 0.3; eps <- 0.35; Delta <- .QUARTER_YEARS
+  g_obs_vec <- c(0.5, 1.0, 2.0, 3.5)
+  N <- length(g_obs_vec)
+
+  g_mat <- cbind(0, g_obs_vec)             # col1 unobserved, col2 observed
+  s_mat <- matrix(c(rep(FALSE, N), rep(TRUE, N)), nrow = N)
+  out   <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L), lambda_g = lambda_g, eps = eps)
+
+  # Each row should match the single-row analytical result
+  for (ii in seq_len(N)) {
+    g1i <- g_obs_vec[ii]; T_gi <- g1i - Delta
+    lp_c <- if (T_gi > 0) log(1 - eps) + log(lambda_g) - lambda_g * T_gi else -Inf
+    lp_x <- log(eps) + log(lambda_g) - lambda_g * g1i
+    mx_i <- max(lp_c, lp_x)
+    ll_i <- mx_i + log(exp(lp_c - mx_i) + exp(lp_x - mx_i))
+    expect_equal(out$loglik[ii], ll_i, tolerance = 1e-10,
+                 label = sprintf("row %d loglik", ii))
+  }
+
+  expect_equal(out$K,              rep(1L, N))
+  expect_true(all(out$eps_informative))   # all K=1/offset>0 rows are eps-informative
+  expect_true(all(out$tau_sum > 0))       # all have non-trivial mixture
+})
+
+# ---------------------------------------------------------------------------
+# 2g. log_emission_spell_g: mixed K=1 rows (offset=0 and offset>0 in same call)
+# ---------------------------------------------------------------------------
+
+test_that("log_emission_spell_g: K=1 mixed at_start and offset>0 in same call", {
+  # Row 1: K=1, offset=0 (t_1 = a): plain Exp, eps drops out
+  # Row 2: K=1, offset=1 (t_1 > a): 2-pattern mixture
+  lambda_g <- 0.4; eps <- 0.30; Delta <- .QUARTER_YEARS
+  g1 <- 1.5; g2 <- 2.0   # g2 obs at wave 2 (offset 1)
+
+  g_mat <- matrix(c(g1, 0, 0, g2), nrow = 2)
+  s_mat <- matrix(c(TRUE, FALSE, FALSE, TRUE), nrow = 2)
+  out   <- log_emission_spell_g(g_mat, s_mat, c(0L, 1L), lambda_g = lambda_g, eps = eps)
+
+  # Row 1: plain Exp at offset=0
+  expect_equal(out$loglik[1],       log(lambda_g) - lambda_g * g1, tolerance = 1e-10)
+  expect_equal(out$tau_sum[1],      0,                             tolerance = 1e-12)
+  expect_false(out$eps_informative[1])   # offset=0: NOT eps-informative
+
+  # Row 2: 2-pattern mixture at offset=1
+  T_g2 <- g2 - Delta
+  lp_c <- log(1 - eps) + log(lambda_g) - lambda_g * T_g2
+  lp_x <- log(eps)     + log(lambda_g) - lambda_g * g2
+  mx2  <- max(lp_c, lp_x)
+  ll2  <- mx2 + log(exp(lp_c - mx2) + exp(lp_x - mx2))
+  expect_equal(out$loglik[2],  ll2, tolerance = 1e-10)
+  expect_true(out$tau_sum[2] > 0)
+  expect_true(out$eps_informative[2])    # offset>0: IS eps-informative
 })
 
 # ---------------------------------------------------------------------------
@@ -363,6 +522,31 @@ test_that("e_step_eps: Eps_den = 0 and Eps_num = 0 when all spells are K<=1", {
   expect_equal(out$suff$Eps_den, 0)
   expect_equal(out$suff$Eps_num, 0)
   expect_true(is.finite(out$loglik))
+})
+
+# ---------------------------------------------------------------------------
+# 21b. e_step_eps: K=1/offset>0 spells DO contribute to Eps_den
+# ---------------------------------------------------------------------------
+
+test_that("e_step_eps: K=1 offset>0 spells contribute to Eps_den", {
+  # With s=(0,1,0) pattern, history h=(1,1,0) produces an E-spell [1,2] where
+  # wave 2 is observed (offset=1, t_1>a). This is eps-informative (K=1, offset>0).
+  # After the fix, Eps_den must be > 0 for such data.
+  df      <- .make_eps_data(n = 300L, seed = 123L)
+  df$y1   <- 0L
+  df$y3   <- 0L
+  # y2=1 for ~65% (from original draw); tenure1/3 irrelevant but keep finite
+  df$tenure1 <- 0.5
+  df$tenure3 <- 0.5
+
+  out <- e_step_eps(df, .make_eps_params())
+
+  # Some observations have s2=1 which, under h=(1,1,0) or h=(0,1,1), produces
+  # K=1/offset>0 E-spells. Eps_den must be strictly positive.
+  expect_true(out$suff$Eps_den > 0,
+              info = "Eps_den should be > 0 when K=1/offset>0 spells exist")
+  expect_true(out$suff$Eps_num >= 0)
+  expect_true(out$suff$Eps_num <= out$suff$Eps_den + 1e-10)
 })
 
 # ---------------------------------------------------------------------------
