@@ -2,12 +2,12 @@
 % EM tenure with point-mass + Exp contamination (epsilon model)
 % Created: 2026-04-30
 %
-% This document presents Spec I: a structural reformulation of the tenure
+% This document presents a structural reformulation of the tenure
 % measurement model that replaces the Gaussian (sigma^2_g) measurement-error
 % component with a point-mass + Exponential contamination mixture, and
 % replaces the EMG spell distribution with a plain Exponential. The model
 % also introduces a spell-pair joint emission to allow tenure flanks to
-% identify misclassification (Story A in the conversation log).
+% identify misclassification.
 %
 % This document is a self-contained companion to "EM tenure.tex". It does
 % not modify the base specification.
@@ -23,9 +23,9 @@
 
 \begin{document}
 
-\title{Spec I: A point-mass + exponential contamination model for misclassified employment dynamics with tenure}
+\title{Contamination model: A point-mass + exponential contamination model for misclassified employment dynamics with tenure}
 \author{}
-\date{Created 2026-04-30}
+\date{April 2026}
 \maketitle
 
 \section{Motivation}
@@ -45,8 +45,8 @@ measurement model:
   years}. The Gaussian MLE for \(\sigma_g^2\)
   collapses to zero. Among the remaining 36.8\%: 1.5\% are within 0.5 months
   of 3, 7\% are within 1--6 months, and 28\% are wildly off (negatives,
-  year-shifted, or large positive deviations). This is a contamination
-  distribution \textemdash i.e. a mixture \textemdash not a Gaussian additive error.
+  year-shifted, or large positive deviations). This is a so-called \textit{contamination
+  distribution} \textemdash i.e. a mixture \textemdash not a Gaussian additive error.
 \item \textbf{36.7\% of within-panel, new job entrants (state pattern
   \(s_{t-1}=0,s_t=1\)) report tenure \(>\) 12 months.} A genuine job entry
   cannot have 12+ months of tenure. These observations must be
@@ -67,22 +67,31 @@ the latent history \(h=(1,1,1)\) with intermediate misclassification as an
 EMG draw \emph{independent} of \(g_1\), discarding the structural information
 that waves 1 and 3 belong to the same spell. 
 
-\textbf{Importantly}, the base EM tenure model
+\textbf{Importantly}, in the base EM tenure model,
 random EMG draws for tenure can only occur when there has truly been a misclassification
 of employment status. However, we note that it is possible that employment status is reliable
 even when tenure is not. Moreover, even if an individual is completely mismatched such
 that tenure becomes a random draw from the tenure distribution, fthere would still be an
 approximately 50\% chance that their employment status is correct by coincidence due 
 to the employment rate being near 50\%. Under the base EM tenure model, it is required that
-for these observations true employment be different to observed employment. 
+for these observations true employment be different to observed employment, and to accommodate
+that it drives up both mislclassification and true transitions. For example, if \(h=(1,1,1)\) 
+and \(s=(1,1,1)\) but \(g=(1, 5, 1.5)\), the base EM tenure model would see that 
+tenure in wave 2 is inconsistent with 0.25 year increments, and the would not explain this
+tenure pattern using \(\sigma\) because it has collapsed to zero as discussed above. The only
+other way to account for this tenure is to declare a misclassification at wave 2, 
+which requires thinking that \(h=(1,0,1)\) and \(s=(1,1,1)\) such that there is both a transition into
+and out of true employment, but that there was a misclassification at wave 2. In this way, 
+both the true transitions and the misclassification estimates are driven up.
 
-Spec I addresses all three issues. It replaces the Gaussian + EMG measurement
+This contamination specification addresses all three issues. 
+It replaces the Gaussian + EMG measurement
 model with a point-mass + Exponential contamination mixture, eliminating
 \(\sigma_g^2\) entirely, and introduces a \emph{spell-pair} joint emission
 that uses tenure flanks to discriminate misclassification from genuine
 transition.
 
-\section{Notation}
+\section{Notation and terminology}
 
 We follow \texttt{EM tenure.tex} notation.
 Waves \(t \in \{1,2,3\}\), latent state \(h_{t} \in \{0,1\}\), observed
@@ -105,17 +114,31 @@ of true employment produce the tenure clock path
 \(g^*_1, \; g^*_1 + 0.25, \; g^*_1 + 0.50\). Observed tenure may
 deviate from the clock due to contamination (see below).
 
+A \textbf{flank} is a tenure observation at one end of a latent
+employment spell that spans an intermediate wave where tenure is
+unobserved (because \(s_t = 0\)). For example, under state pattern
+\(s = (1,0,1)\) and latent history \(h = (1,1,1)\), the spell runs
+\([1,3]\) but tenure is observed only at waves~1 and~3; \(g_1\) is the
+\emph{left flank} and \(g_3\) the \emph{right flank}. If both flanks
+are clock-consistent, they satisfy \(g_3 = g_1 + 2\Delta\). The
+spell-pair emission (Section~\ref{sec:per_spell}) exploits this
+structural link to identify contamination and, indirectly,
+misclassification.
+
 A \textbf{branch} refers to one component of a mixture density.
 Throughout this document, the tenure measurement model is a two-component
 mixture governed by the latent contamination indicator \(m_{t}\):
 the \emph{clock-consistent branch} (\(m_{t}=0\), probability
 \(1-\varepsilon\)) assigns the observation to its deterministic clock
-value (a point mass), while the \emph{contaminated branch}
+value (a point mass, i.e. a point with probability 1), while the \emph{contaminated branch}
 (\(m_{t}=1\), probability \(\varepsilon\)) treats the observation as an
 independent \(\mathrm{Exp}(\lambda_g)\) draw. At the spell level, the
 per-wave branches combine multiplicatively across the \(K\) observed waves,
 so the spell emission \eqref{eq:spell_emission} sums over all \(2^K\)
-contamination patterns.
+contamination patterns. Throughout this document, a wave is called
+\textbf{clean} when \(m_t = 0\) (its tenure equals the clock) and
+\textbf{contaminated} when \(m_t = 1\) (its tenure is an independent draw
+unrelated to the clock).
 
 \section{Tenure measurement model}
 
@@ -159,6 +182,10 @@ at waves where tenure is observed (\(s_{t}=1\)); when \(s_{t}=0\) the
 survey records a timegap category instead and the tenure emission is not
 evaluated.
 
+The contamination indicators are independent across waves, so the joint 
+probability of all the tenure observations within a spell is just the 
+product of each wave's individual contribution.
+
 \subsection{Latent clock and spell-pair structure}
 \label{sec:spell_pair}
 
@@ -169,13 +196,11 @@ g^*_a(h) = T_g, \qquad
 g^*_t(h) = T_g + (t-a)\Delta \quad\text{for } a < t \le b,
 \label{eq:deterministic_clocks_eps}
 \end{equation}
-where \(T_g \sim \mathrm{Exp}(\lambda_g)\) is a single nuisance latent
+where \(T_g \sim \mathrm{Exp}(\lambda_g)\) is a random variable giving the employment
 spell-elapsed-time at wave \(a\). Under \(m_{a} = 0\), \(g_{a} = T_g\)
-(observed); under \(m_{a}=1\), \(T_g\) is a free latent integrated out.
+(observed).
 
-Within the spell, the joint distribution of observed tenures
-\((g_{a}, g_{a+1}, \dots, g_{b})\) factorises across the contamination
-indicators \((m_{a},\dots,m_{b})\). A wave with \(s_{t}=0\) does not
+A wave with \(s_{t}=0\) does not
 contribute to the tenure emission (the survey records timegap, not tenure)
 but its latent clock value still propagates the spell.
 
@@ -184,15 +209,16 @@ but its latent clock value still propagates the spell.
 
 For each maximal latent E-spell \([a,b]\) under history \(h\), let
 \(\mathcal{O} \subseteq \{a,a+1,\dots,b\}\) denote the wave indices with
-\(s_{t} = 1\) (tenure observed), and let \(t_1 < t_2 < \cdots < t_K\) be
+\(s_{t} = 1\) (meaning \(\mathcal{O}\) gives the set of observed tenure), 
+and let \(t_1 < t_2 < \cdots < t_K\) be
 the elements of \(\mathcal{O}\) with \(K = |\mathcal{O}|\). Each observed
 wave has a latent contamination indicator \(m_t \in \{0,1\}\), drawn
 independently with \(P(m_t = 1) = \varepsilon\). Write
 \(\mathbf{m} = (m_{t_1}, \dots, m_{t_K}) \in \{0,1\}^K\) for a
 contamination pattern, \(\mathcal{C}(\mathbf{m}) = \{t \in \mathcal{O} :
-m_t = 0\}\) for the set of clean waves, and
+m_t = 0\}\) for the set of \textit{clean} waves, and
 \(\mathcal{D}(\mathbf{m}) = \{t \in \mathcal{O} : m_t = 1\}\) for the
-contaminated waves.
+\textit{contaminated} waves.
 
 The joint tenure emission for the spell is the exact mixture over all
 \(2^K\) contamination patterns:
@@ -201,11 +227,12 @@ The joint tenure emission for the spell is the exact mixture over all
 \;=\;
 \sum_{\mathbf{m} \in \{0,1\}^K}
 \biggl[\prod_{t \in \mathcal{O}} \varepsilon^{m_t}(1-\varepsilon)^{1-m_t}\biggr]\,
-f\!\big(\{g_t\} \mid \mathbf{m}, h\big),
+f\!\big(\{g_t\} \mid \mathbf{m}, mathbf{h}\big),
 \label{eq:spell_emission}
 \end{equation}
-where \(f(\{g_t\} \mid \mathbf{m}, h)\) is the conditional density of the
-observed tenures given the contamination pattern, obtained by
+where \(f(\{g_t\} \mid \mathbf{m}, mathbf{h})\) is the conditional density of the
+observed tenures given the contamination pattern, \textbf{m}, and true employment history, 
+\textbf{h}, obtained by
 marginalising the latent spell-start elapsed time
 \(T_g \sim \mathrm{Exp}(\lambda_g)\):
 
@@ -504,10 +531,6 @@ eps-informative spells.
 Spells with \(K = 0\), or \(K = 1\) with \(t_1 = a\), contribute no
 information about \(\varepsilon\) and are excluded from both sums.
 
-\textit{Numerical bounds.} In the implementation \(\hat\varepsilon\) is
-floored at \(10^{-4}\) (to avoid \(\log 0\) in the clean-branch
-log-density) and capped at \(0.95\) (well above the empirically expected
-\(\varepsilon \approx 0.4\)).
 
 \paragraph{Spell-length rate} (\(\lambda_g\)): closed form (Exponential MLE),
 \begin{equation}
@@ -605,20 +628,19 @@ tenure (\(\sim 189\)k observations), (b) misclassified-as-employed tenures
 (d) all observations within contaminated spell-pairs. As a single-parameter
 Exponential MLE, identification is immediate from the inverse-mean.
 
-\section{Comparison with base model and \(\rho\) extension}
+\section{Comparison with base EM tenure model}
 \label{sec:design_choices}
 
 \begin{center}
 \begin{tabular}{llll}
 \toprule
-Feature & Base model & \(\rho\) extension & Spec I (epsilon) \\
+Feature & Base model & Contamination model \\
 \midrule
-Spell-length distribution & EMG\((\lambda_g,\sigma_g^2)\) & EMG (collapsed) & Exp\((\lambda_g)\) \\
-Increment noise & \(N(0,2\sigma_g^2)\) & N (collapsed) & point mass \(\delta(\Delta=\Delta)\) \\
-Contamination channel & none & \(\rho\) (per-wave) & \(\varepsilon\) (per-wave) \\
-Tenure-flank \(\to\) \(\pi\) ID & no & no & yes (spell-pair) \\
-\(\sigma_g^2\) collapse issue & yes & cosmetic only & not present (no \(\sigma\)) \\
-Free parameters & 7 & 8 & 7 \\
+Spell-length distribution & EMG\((\lambda_g,\sigma_g^2)\) & Exp\((\lambda_g)\) \\
+Tenure noise & \(N(0,2\sigma_g^2)\) & point mass \(\delta(\Delta=\Delta)\) or Exp\((\lambda_g)\) through \(\varepsilon\) \\
+Tenure-flank \(\to\) \(\pi\) ID & no & yes (spell-pair) \\
+\(\sigma_g^2\) collapse issue & yes &  not present (no \(\sigma\)) \\
+Free parameters & 7 & 7 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -654,10 +676,6 @@ complementary:
   from non-mismatched observations only.
 \end{itemize}
 
-A future Spec II with both \(\varepsilon\) (tenure-only error) and \(\rho\)
-(joint mismatch) is documented in the brainstorm file
-\texttt{2026-04-30-epsilon-spec-design.md} for reference.
-
 \section{Nesting and tests}
 
 \paragraph{Nesting.} The base specification is recovered by setting
@@ -677,12 +695,148 @@ trivially given the data.
 can be applied to Spec I exactly as in the base model. The LR test is
 \(\chi^2_2\) under the null.
 
+\section{Preliminary results}
+\label{sec:preliminary_results}
+Here we present preliminary evidence on the model presented above. 
+First, some descriprive evidence from the QLFS data are given. 
+Second, the estimation of the tenure contamination model is given. 
+
+\subsection{Descriptive evidence from the QLFS}
+
+We now quantify the empirical regularities noted in Section~1 more
+systematically. Table~\ref{tab:descriptive_tenure} reports diagnostics
+computed from the three-wave QLFS panel.
+
+\begin{table}[H]
+\centering
+\caption{Descriptive duration statistics from the QLFS}
+\label{tab:descriptive_tenure}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Diagnostic & $N$ & Share \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{E$\to$E continuation increments (consecutive employed waves)}} \\[2pt]
+\quad Exact $+3$-month increment ($\Delta g = \Delta$) & 343\,850 & 63.2\% \\
+\quad Deviation $> 12$ months from $+\Delta$ & & 18.7\% \\[4pt]
+\multicolumn{3}{@{}l}{\textit{State pattern $s = (1,0,1)$: tenure-flank classification}} \\[2pt]
+\quad $g_3 \approx g_1 + 2\Delta$ & 5\,997 & 27.4\% \\
+\quad $g_3 \le 3$ months (fresh-start consistent) & & 18.3\% \\[4pt]
+\multicolumn{3}{@{}l}{\textit{Within-panel fresh starts ($s_{t-1}=0,\, s_t=1$)}} \\[2pt]
+\quad Tenure $> 12$ months at entry wave & 35\,389 & 36.7\% \\[4pt]
+\multicolumn{3}{@{}l}{\textit{State pattern $s = (0,1,0)$: timegap-flank consistency}} \\[2pt]
+\quad $k_1 = k_3$ (same timegap category at both flanks) & 6\,445 & 63.7\% \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Method-of-moments $\hat\varepsilon$}} \\[2pt]
+\quad From adjacent E$\to$E pairs: $\hat\varepsilon = 1 - 0.632$ & & 0.368 \\
+\quad From $(1,0,1)$ bridges: $\hat\varepsilon = 1 - \sqrt{0.274}$ & & 0.476 \\
+\bottomrule
+\end{tabular}\\[4pt]
+{\footnotesize\textit{Notes.} $N$ is the number of wave-pairs or panels
+contributing to each diagnostic. Shares are unweighted.}
+\end{table}
+
+Three features stand out. First, 63.2\% of consecutive employed-wave pairs
+report the exact clock-consistent increment of $+3$ months, while 18.7\%
+deviate by more than a year. This bimodal pattern---a point mass at the
+deterministic clock value plus a heavy-tailed residual---directly motivates
+the point-mass + Exp contamination mixture. A simple method-of-moments
+estimator gives $\hat\varepsilon \approx 0.37$ from adjacent pairs.
+
+Second, among within-panel fresh starts ($s_{t-1}=0, s_t=1$), 36.7\%
+report tenure exceeding 12~months. Since a genuine job entry cannot have
+more than $\Delta = 3$~months of tenure at the survey wave, these
+observations imply misclassification of employment status at $t{-}1$ and
+provide a model-free lower bound on the misclassification rate among
+observed $(0 \to 1)$ transitions.
+
+Third, for the state pattern $s = (1,0,1)$, 27.4\% of panels have tenure
+flanks consistent with continuous employment ($g_3 \approx g_1 + 2\Delta$),
+providing direct evidence for the corroboration channel of
+Section~\ref{sec:identification_eps}. An additional 18.3\% have short
+tenure at wave~3 ($g_3 \le 3$~months), consistent with genuine exit and
+re-entry. The remaining $\sim$54\% are ambiguous or show year-rounding
+artefacts.
+
+\subsection{Estimation results}
+
+Table~\ref{tab:eps_estimates} reports parameter estimates from the
+contamination model under specifications alongside the
+baseline simple models that use employment states alone. The preferred
+specification (stationary, CTMC-linked) is in the rightmost column.
+
+\begin{table}[H]
+\centering
+\caption{Parameter estimates: baseline models and contamination model}
+\label{tab:eps_estimates}
+\footnotesize
+\begin{tabular}{@{}l cc cccc@{}}
+\toprule
+& \multicolumn{2}{c}{Simple (no tenure)} & \multicolumn{2}{c}{Contamination model} \\
+\cmidrule(lr){2-3} \cmidrule(l){4-5}
+& No ME & Symm.\ ME  & Linked & \textbf{Stat--Linked} \\
+\midrule
+Entry rate $\theta_0$ (\%) & 8.34 & 2.90 & 4.08 & \textbf{4.14} \\
+Exit rate $1{-}\theta_1$ (\%) & 8.36 & 2.91 & 4.26 & \textbf{4.26} \\
+Miscl.\ rate $\pi$ (\%) & --- & 2.98  & 10.21 & \textbf{10.02} \\
+Contam.\ rate $\varepsilon$ (\%) & --- & ---  & 24.79 & \textbf{24.69} \\
+$\lambda_g$ & --- & --- & 0.174 & \textbf{0.174} \\
+$\lambda_d$ & --- & --- & 0.167 & \textbf{0.169} \\
+\addlinespace
+Mean E spell (months) & --- & --- & 68.9 & \textbf{68.9} \\
+Mean N spell (months) & --- & ---  & 72.0 & \textbf{71.0} \\
+Init.\ empl.\ prob.\ $\alpha$ & --- & ---  & 0.550 & \textbf{0.493} \\
+\addlinespace
+CTMC link & --- & --- & Yes & Yes \\
+Stationarity & --- & ---  & No & Yes \\
+\bottomrule
+\end{tabular}\\[4pt]
+{\footnotesize\textit{Notes.} Simple models estimated by MLE on three-wave
+employment state sequences ($N=22{,}779$). Contamination models estimated
+by EM on three-wave panels with tenure and timegap ($N=402{,}923$).
+``Linked'' constrains $\lambda_g = -\log\theta_1/\Delta$ and
+$\lambda_d = -\log(1-\theta_0)/\Delta$. ``Stationary'' constrains
+$\alpha = \theta_0/(\theta_0 + 1 - \theta_1)$.}
+\end{table}
+
+\paragraph{Contamination rate.}
+$\hat\varepsilon$ is stable across all variants at
+$\approx 24$--$25\%$, below the method-of-moments estimates (36.8\%
+adjacent, 47.6\% bridges) in Table~\ref{tab:descriptive_tenure}. The
+gap arises because the MoM attributes \emph{all} non-exact increments
+to contamination, whereas the EM accounts for the full mixture of latent
+histories: some non-exact increments arise from genuine transitions (new
+spells), not contamination within a continuing spell.
+
+\paragraph{Misclassification rate.}
+The contamination model yields $\hat\pi \approx 10\%$ under the linked
+specifications, substantially above the simple ME model's 2.98\%. This
+reflects the corroboration channel: tenure-flank consistency in the state
+pattern $s = (1,0,1)$ provides direct evidence that some observed
+$(1 \to 0 \to 1)$ sequences are misclassified continuous employment. The
+simple model, lacking tenure information, identifies $\pi$ from the
+$2^3 = 8$ state-pattern frequencies alone. The descriptive finding that
+36.7\% of within-panel fresh starts have impossibly long tenure
+(Table~\ref{tab:descriptive_tenure}) is consistent with a
+misclassification rate well above the simple model's 3\%.
+
+\paragraph{Transition rates.}
+Under the preferred stationary-linked specification, the entry rate is
+$\hat\theta_0 = 4.14\%$ and the exit rate is
+$1 - \hat\theta_1 = 4.26\%$, yielding a steady-state employment rate of
+$\hat\alpha = 49.3\%$. These fall between the na\"ive no-ME rates
+($\sim$8.3\%) and the simple ME rates ($\sim$2.9\%). The na\"ive model
+overstates transitions because observed state changes include
+misclassifications. The simple ME model understates them because, without
+tenure information, it assigns too little probability to misclassification
+and consequently deflates implied true transitions.
+
+
 \section{Summary}
 
-Spec I replaces the Gaussian-EMG measurement model with a structurally
+The contamination model replaces the Gaussian-EMG measurement model with a structurally
 correct point-mass + Exp contamination mixture and introduces a spell-pair
 joint emission that allows tenure flanks to identify misclassification.
-The net result is fewer parameters than the \(\rho\) extension, no
+The net result is no
 \(\sigma_g^2\) collapse issue, and a direct identification channel for
 \(\pi\) via tenure flank consistency in same-spell wave pairs.
 
