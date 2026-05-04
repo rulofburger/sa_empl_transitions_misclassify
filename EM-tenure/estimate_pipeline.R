@@ -366,6 +366,7 @@ message(sprintf("Total model runtime: %.2f seconds", total_runtime))
 # joint emission so that tenure flanks identify misclassification (Story A).
 # Companion spec: documents/EM tenure epsilon.tex
 # Design rationale: EM-tenure/feedback/2026-04-30-epsilon-spec-design.md
+# Discussed in 'EM tenure epsilon.tex'
 #
 # Created: 2026-04-30
 # ##############################################################################
@@ -522,5 +523,7 @@ message(sprintf(
   "\n  Preferred model: fit_eps_stationary_linked  (loglik = %.4f)",
   fit_eps_stationary_linked$loglik
 ))
+
+
 
 
