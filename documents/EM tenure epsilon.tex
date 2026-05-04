@@ -55,9 +55,9 @@ measurement model:
   ongoing spell (or the tenure is wrong).
 \end{enumerate}
 
-Fact (3) is the empirical foundation for this tenure-extension's main claim: tenure
+Fact (3) is an important justification for this \(\varepsilon\) tenure model: tenure
 data corroborates employment-state Markov violations in identifying misclassification.
-The base model fails to exploit this corroboration
+The base endogenous EM tenure model fails to exploit this corroboration
 fully. The base EM tenure model collapses \(\sigma_g^2 \to 0\) and routes all
 contamination through \(\pi\) (which inflates to over 25\%).\footnote{The \(\rho\) model
 restores plausible \(\pi \approx 4\%\) but absorbs all tenure inconsistency
@@ -65,7 +65,16 @@ into \(\rho\), so tenure does not actively inform \(\pi\) beyond what
 state-Markov violations alone provide.} It models the wave-3 tenure under
 the latent history \(h=(1,1,1)\) with intermediate misclassification as an
 EMG draw \emph{independent} of \(g_1\), discarding the structural information
-that waves 1 and 3 belong to the same spell.
+that waves 1 and 3 belong to the same spell. 
+
+\textbf{Importantly}, the base EM tenure model
+random EMG draws for tenure can only occur when there has truly been a misclassification
+of employment status. However, we note that it is possible that employment status is reliable
+even when tenure is not. Moreover, even if an individual is completely mismatched such
+that tenure becomes a random draw from the tenure distribution, fthere would still be an
+approximately 50\% chance that their employment status is correct by coincidence due 
+to the employment rate being near 50\%. Under the base EM tenure model, it is required that
+for these observations true employment be different to observed employment. 
 
 Spec I addresses all three issues. It replaces the Gaussian + EMG measurement
 model with a point-mass + Exponential contamination mixture, eliminating
@@ -208,7 +217,7 @@ marginalising the latent spell-start elapsed time
   \begin{equation}
   f \;=\; \lambda_g\, e^{-\lambda_g\bigl(g_{t_c}\, -\, (t_c-a)\Delta\bigr)}
   \cdot \prod_{\substack{t \in \mathcal{C} \\[2pt] t > t_c}}
-  \!\mathbb{1}\!\big\{g_t = g_{t_c} + (t - t_c)\Delta\big\}
+  \!\mathcal{I}\!\big\{g_t = g_{t_c} + (t - t_c)\Delta\big\}
   \cdot \prod_{t \in \mathcal{D}} \lambda_g\, e^{-\lambda_g g_t}
   \label{eq:per_pattern_density}
   \end{equation}
@@ -229,18 +238,26 @@ When \(K = 1\) and \(t_1 = a\) (i.e.\ the observed wave is the spell
 start), both contamination patterns yield
 \(\lambda_g e^{-\lambda_g g_{t_1}}\), so \(\varepsilon\) drops out and the
 emission reduces to a single \(\mathrm{Exp}(\lambda_g)\) evaluation.
-When \(t_1 > a\) (the spell start is unobserved), the clean and
-contaminated branches differ by a shift of \((t_1 - a)\Delta\), and
-\(\varepsilon\) remains active.
+When \(t_1 > a\) (the spell start is unobserved), the clean branch is
+a \emph{shifted} \(\mathrm{Exp}(\lambda_g)\) density with support
+\(g_{t_1} \ge (t_1-a)\Delta\), while the contaminated branch is the
+unshifted \(\mathrm{Exp}(\lambda_g)\) on \([0,\infty)\); the two differ
+by the factor \(e^{\lambda_g (t_1-a)\Delta}\), and \(\varepsilon\)
+remains active.
 
 \paragraph{Pairs (\(K = 2\)): the identification-critical case.}
 For state pattern \(s = (1,0,1)\) under \(h = (1,1,1)\): spell \([1,3]\),
-\(\mathcal{O} = \{1,3\}\), \(a = 1\), \(K = 2\). The four contamination
-patterns yield
+\(\mathcal{O} = \{1,3\}\), \(a = 1\), \(K = 2\). The contamination
+indicators \((m_1, m_3)\) take four possible values, which are
+mutually exclusive and exhaustive. By the law of total probability, the
+joint emission marginalises over them: each line below is one term, prior probability of the pattern \(\times\) conditional density of
+\((g_1, g_3)\) under that pattern, with the conditional density
+obtained by integrating out the latent spell-start time
+\(T_g \sim \mathrm{Exp}(\lambda_g)\):
 \begin{align}
 \ell^{\mathrm{spell}}_g \;=\;\;
   & (1-\varepsilon)^2\,\lambda_g\, e^{-\lambda_g g_1}\,
-    \mathbb{1}\{g_3 = g_1 + 2\Delta\}
+    \mathcal{I}\{g_3 = g_1 + 2\Delta\}
     && (m_1{=}0,\, m_3{=}0) \notag \\
 +\; & (1-\varepsilon)\,\varepsilon\;\lambda_g^2\,
     e^{-\lambda_g(g_1 + g_3)}
@@ -281,7 +298,12 @@ When \(g_3 = g_1 + 2\Delta\) (about 24.8\% of \(s=(1,0,1)\) observations
 in the QLFS), the \((1,1,1)\) hypothesis fires the point mass and
 dominates, pushing the posterior weight toward \((1,1,1)\) and increasing
 the implied \(\pi\). When \(g_3\) is inconsistent with \(g_1 + 2\Delta\),
-no point mass fires and the Markov prior governs the assignment.
+line~1 of \eqref{eq:spell_emission_k2} contributes zero, but the three
+continuous terms (lines~2--4) remain active and still depend on
+\(\varepsilon\). The assignment is then governed primarily by the Markov
+prior, with secondary adjustment from the relative magnitudes of the
+continuous contamination terms under \((1,1,1)\) versus the two-singleton
+product \(\lambda_g^2 e^{-\lambda_g(g_1+g_3)}\) under \((1,0,1)\).
 
 \paragraph{Triples (\(K = 3\)).}
 For \(s = (1,1,1)\) under \(h = (1,1,1)\): \(\mathcal{O} = \{1,2,3\}\),
@@ -296,18 +318,44 @@ from the empirical fraction of \((1,1,1)\) panels whose tenure
 increments are exactly \(+\Delta\) per wave.
 
 \paragraph{Posterior contamination probability.}
-For a spell with \(K \ge 2\), the posterior probability that at least one
-wave is contaminated is
+For a spell with \(K \ge 2\), let
+\(\tau_h^{\mathrm{spell}}\) denote the posterior probability that
+\emph{at least one} of the \(K\) observed waves in the spell is
+contaminated, given the observed tenures and the latent history \(h\).
+By Bayes' rule, 
 \begin{equation}
 \tau_h^{\mathrm{spell}} \;=\;
+P\!\big(\exists\, t \in \mathcal{O} : m_t = 1 \,\big|\, \{g_t\}, h, \Theta\big)
+\;=\;
 1 \;-\; \frac{(1-\varepsilon)^K \, f_{\mathbf{0}}}
              {\ell^{\mathrm{spell}}_g},
 \label{eq:tau_spell}
 \end{equation}
-where \(f_{\mathbf{0}}\) is the all-clean density (the first line of
-\eqref{eq:spell_emission_k2} in the \(K=2\) case). For exactly
-clock-consistent observations, \(\tau \to 0\); for inconsistent
-observations, \(\tau \to 1\).
+where \(f_{\mathbf{0}} = f(\{g_t\} \mid \mathbf{m} = \mathbf{0}, h)\) is
+the all-clean conditional density (e.g. the first line of
+\eqref{eq:spell_emission_k2} in the \(K=2\) case, including the
+clock-consistency indicator), \((1-\varepsilon)^K\) is the prior
+probability that every wave is clean, and \(\ell^{\mathrm{spell}}_g\)
+from \eqref{eq:spell_emission} is the marginal likelihood summing over
+all \(2^K\) contamination patterns. The numerator
+\((1-\varepsilon)^K f_{\mathbf{0}}\) is therefore the joint probability
+of the data and the all-clean event; dividing by
+\(\ell^{\mathrm{spell}}_g\) gives the posterior of the all-clean event,
+and one minus that is the posterior of its complement.
+
+Two limits are useful. When the data exactly satisfy the clock relations
+required by the all-clean branch (e.g., \(g_3 = g_1 + 2\Delta\) for
+\(K=2\)), the all-clean indicator fires and \(f_{\mathbf{0}}\) is
+finite, while the contaminated branches contribute only continuous
+density at that point. In the limit where the point mass dominates
+(formally, when the dominating measure assigns positive weight only to
+the all-clean event at clock-consistent observations),
+\(\tau \to 0\): the spell is judged clean with certainty. Conversely,
+when the data violate every clock relation, \(f_{\mathbf{0}} = 0\) and
+\(\tau = 1\): the spell must contain at least one contaminated wave.
+Between these extremes \(\tau\) interpolates smoothly, and is the
+quantity that \emph{aggregates} across spells in the M-step
+\eqref{eq:eps_mstep} to deliver \(\hat\varepsilon\).
 
 \subsection{N-spell timegap emission}
 
@@ -338,24 +386,41 @@ or \(h_t=1\) with \(s_t=0\) so tenure is unobserved), the emissions follow:
   emission \eqref{eq:timegap_interval} on observed \(k_{t}\).
 \end{itemize}
 
-\subsection{State misclassification} (unchanged from the base model)
+\subsection{State misclassification} (unchanged from the base non-tenure model)
 
 \begin{equation}
-q_{ab}(\pi) = \pi^{\mathbb{1}\{a \neq b\}}\,(1-\pi)^{\mathbb{1}\{a=b\}}.
+q_{ab}(\pi) = \pi^{\mathcal{I}\{a \neq b\}}\,(1-\pi)^{\mathcal{I}\{a=b\}}.
 \end{equation}
 
 \subsection{Observed-data likelihood}
 
-For an individual with weight \(w_i\), the per-history conditional
-likelihood is
+For individual \(i\), let
+\(y_i = \big(\{s_{it}\}_{t=1}^3,\, \{g_{it}\}_{t:s_{it}=1},\,
+\{k_{it}\}_{t:s_{it}=0}\big)\) collect all observed quantities: the
+three reported employment states, the reported tenures at waves where
+\(s_{it}=1\), and the reported nonemployment-timegap categories
+\(k_{it} \in \{1,\dots,7\}\) at waves where \(s_{it}=0\).
+Given individual weight \(w_i\), the per-history conditional likelihood is
 \begin{equation}
 p(y_i \mid h; \Theta) =
-\Big[\prod_{t=1}^3 q_{s_{it},h_t}(\pi)\Big] \cdot
-\Big[\prod_{[a,b] \in \mathcal{S}_g(h)} \ell^{\mathrm{spell}}_g(\cdot)\Big] \cdot
-\Big[\prod_{t : h_t=0,\,s_{it}=0} P(k_{it} \mid \lambda_d)\Big] \cdot
-\Big[\prod_{t : h_t=1,\,s_{it}=0} P(k_{it} \mid \lambda_d)\Big],
+\underbrace{\Big[\prod_{t=1}^3 q_{s_{it},h_t}(\pi)\Big]}_{\substack{\text{state}\\\text{misclassification}}} \cdot
+\underbrace{\Big[\prod_{[a,b] \in \mathcal{S}_g(h)} \ell^{\mathrm{spell}}_g(\cdot)\Big]}_{\substack{\text{tenure spell}\\\text{emissions (E-spells)}}} \cdot
+\underbrace{\Big[\prod_{t : h_t=0,\,s_{it}=0} P(k_{it} \mid \lambda_d)\Big]}_{\substack{\text{timegap: matched}\\\text{nonemployed}\\(h_t{=}0,\,s_t{=}0)}} \cdot
+\underbrace{\Big[\prod_{t : h_t=1,\,s_{it}=0} P(k_{it} \mid \lambda_d)\Big]}_{\substack{\text{timegap: misclassified-}\\\text{as-nonemployed}\\(h_t{=}1,\,s_t{=}0)}},
 \end{equation}
-where \(\mathcal{S}_g(h)\) is the set of maximal E-spells in \(h\). The
+where \(\mathcal{S}_g(h)\) is the set of maximal E-spells in \(h\), and
+\(P(k_{it} \mid \lambda_d)\) is the interval-censored
+\(\mathrm{Exp}(\lambda_d)\) probability \eqref{eq:timegap_interval}
+assigned to category \(k_{it}\). The first factor scores how well the
+reported state sequence matches the latent history \(h\); the second
+gives the joint density of all observed tenures within each E-spell of
+\(h\) (using the point-mass~+~Exp mixture from \eqref{eq:spell_emission});
+the third and fourth factors score the timegap reports at non-employment
+waves --- separated only because the two cases generate \(k_{it}\) from
+distinct latent durations (a true N-spell duration when \(h_t = 0\),
+versus a fabricated/recall duration when \(h_t = 1\) but the respondent
+reports nonemployment), although both currently use the same
+\(\mathrm{Exp}(\lambda_d)\) emission. The
 observed-data log-likelihood is
 \begin{equation}
 \ell(\Theta) = \sum_{i=1}^N w_i \log\bigg[\sum_{h \in \mathcal{H}} p(H_i = h \mid \alpha,\theta_0,\theta_1) \cdot p(y_i \mid h; \Theta)\bigg].
@@ -365,7 +430,7 @@ observed-data log-likelihood is
 
 \subsection{Complete-data formulation}
 
-Introduce indicators \(z_{ih} = \mathbb{1}\{H_i = h\}\) and per-spell
+Introduce indicators \(z_{ih} = \mathcal{I}\{H_i = h\}\) and per-spell
 contamination pattern vectors \(\mathbf{m}_{i,[a,b],h} \in \{0,1\}^K\) for
 each maximal E-spell of length \(K \ge 1\) under history \(h\).
 The complete-data log-likelihood factors into independent blocks for
@@ -442,8 +507,7 @@ information about \(\varepsilon\) and are excluded from both sums.
 \textit{Numerical bounds.} In the implementation \(\hat\varepsilon\) is
 floored at \(10^{-4}\) (to avoid \(\log 0\) in the clean-branch
 log-density) and capped at \(0.95\) (well above the empirically expected
-\(\varepsilon \approx 0.4\); unlike \(\pi\), \(\varepsilon\) is not
-restricted to be small).
+\(\varepsilon \approx 0.4\)).
 
 \paragraph{Spell-length rate} (\(\lambda_g\)): closed form (Exponential MLE),
 \begin{equation}
@@ -458,7 +522,7 @@ observed value, except for the leading wave of a clean spell-pair where
 the relation \(g_t = g_a + (t-a)\Delta\) is enforced and only \(g_a\)
 contributes). This is an Exponential-MLE inverse-mean.
 
-\paragraph{Nonemployment rate} (\(\lambda_d\)): unchanged from the base
+\paragraph{Nonemployment rate} (\(\lambda_d\)): unchanged from the base EM tenure
 model. Brent solver on the interval-censored Exp likelihood. The full
 timegap emission machinery -- marginal interval probability
 \eqref{eq:timegap_interval}, conditional transition probability for
@@ -488,11 +552,11 @@ The complete-data log-likelihood decomposes into four independent blocks:
 \(\varepsilon\) is identified from the empirical fraction of E-spell-pairs
 that satisfy the exact clock-consistency relation in the data. For two
 consecutive observed waves with \(h_{t-1}=h_t=1\) and \(s_{t-1}=s_t=1\),
-the indicator \(\mathbb{1}\{g_t - g_{t-1} = \Delta\}\) is Bernoulli with
+the indicator \(\mathcal{I}\{g_t - g_{t-1} = \Delta\}\) is Bernoulli with
 mean \(1-\varepsilon\). Empirically, 63.2\% of such pairs satisfy this
 relation in the QLFS, giving a method-of-moments estimate \(\varepsilon \approx 0.37\).
 For 2-wave bridges (\(s=(1,0,1)\) with same-spell), the indicator
-\(\mathbb{1}\{g_3 - g_1 = 2\Delta\}\) has mean \((1-\varepsilon)^2\); the
+\(\mathcal{I}\{g_3 - g_1 = 2\Delta\}\) has mean \((1-\varepsilon)^2\); the
 empirical 24.8\% gives \(\varepsilon \approx 0.50\). The EM estimate
 combines both via the responsibility-weighted average and is consistent
 under standard regularity.
@@ -526,11 +590,11 @@ sharper and slightly higher than the simple-model estimate, because tenure
 flank evidence has reclassified a subset of \((s_{t-1}=0, s_t=1)\) state
 transitions from genuine to misclassified.
 
-\paragraph{Empirical prediction.} Spec I should yield \(\pi\) modestly
-above the simple-model estimate of 2.98\%. Numerical simulation (a single
+Specification should yield \(\pi\) modestly
+above the simple-model estimate of 2.5\%-3\%. Numerical simulation (a single
 M-step, holding all else equal, on the QLFS sample) suggests \(\hat\pi\)
-in the range 3--5\%, depending on \(\hat\varepsilon\). This is Story~A:
-tenure data corroborates and refines the simple-model misclassification
+in the range 3--5\%, depending on \(\hat\varepsilon\). 
+In this case, tenure data corroborates and refines the simple-model misclassification
 estimate.
 
 \subsection{Identification of \(\lambda_g\)}
@@ -620,7 +684,6 @@ correct point-mass + Exp contamination mixture and introduces a spell-pair
 joint emission that allows tenure flanks to identify misclassification.
 The net result is fewer parameters than the \(\rho\) extension, no
 \(\sigma_g^2\) collapse issue, and a direct identification channel for
-\(\pi\) via tenure flank consistency in same-spell wave pairs --- the
-empirical foundation of Story A in the paper.
+\(\pi\) via tenure flank consistency in same-spell wave pairs.
 
 \end{document}
