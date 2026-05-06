@@ -1,0 +1,19 @@
+"timestamp","family","model_type","stationary","label","converged","iterations","loglik"
+"2026-05-06 16:25:17","covariate","symmetric",TRUE,"cov_s1_sym_stat",TRUE,45,-313562906.293588
+"2026-05-06 16:25:17","covariate","symmetric",FALSE,"cov_s1_sym_free",TRUE,48,-313562906.485525
+"2026-05-06 16:25:17","covariate","none",TRUE,"cov_s1_non_stat",TRUE,8,-318424235.643011
+"2026-05-06 16:25:17","covariate","none",FALSE,"cov_s1_non_free",TRUE,8,-318424235.637827
+"2026-05-06 16:25:17","covariate","symmetric",TRUE,"cov_s2_sym_stat",TRUE,32,-308145504.414921
+"2026-05-06 16:25:17","covariate","symmetric",FALSE,"cov_s2_sym_free",TRUE,38,-308145503.7237
+"2026-05-06 16:25:17","covariate","none",TRUE,"cov_s2_non_stat",TRUE,9,-312563227.214956
+"2026-05-06 16:25:17","covariate","none",FALSE,"cov_s2_non_free",TRUE,8,-312563227.232931
+"2026-05-06 16:25:17","covariate","symmetric",TRUE,"cov_s3_sym_stat",TRUE,150,-264881966.425204
+"2026-05-06 16:25:17","covariate","symmetric",FALSE,"cov_s3_sym_free",TRUE,160,-264881965.986402
+"2026-05-06 16:25:17","covariate","none",TRUE,"cov_s3_non_stat",TRUE,9,-257946249.477297
+"2026-05-06 16:25:17","covariate","none",FALSE,"cov_s3_non_free",TRUE,8,-257946249.458777
+"2026-05-06 16:25:17","fmm","symmetric",TRUE,"fmm_sym_stat",TRUE,31,-341004396.187914
+"2026-05-06 16:25:17","fmm","symmetric",FALSE,"fmm_sym_free",FALSE,1000,-340937267.907966
+"2026-05-06 16:25:17","fmm","none",TRUE,"fmm_non_stat",TRUE,190,-340994714.535597
+"2026-05-06 16:25:17","fmm","none",FALSE,"fmm_non_free",TRUE,91,-340935525.203822
+"2026-05-06 16:25:17","inconsistency","symmetric",TRUE,"incons_sym_stat",TRUE,26,-334089909.512436
+"2026-05-06 16:25:17","inconsistency","symmetric",FALSE,"incons_sym_free",TRUE,42,-333601363.139004

@@ -24,7 +24,7 @@
 #'   \code{ingest_data_3waves_SA.R}):
 #'   \code{age1}, \code{educ1} (required for all sets);
 #'   \code{race1}, \code{female1} (required for sets 2 and 3);
-#'   \code{contracttype} (required for set 3).
+#'   \code{contracttype1} (required for set 3).
 #' @param covariate_set Integer scalar: \code{1L} (parsimonious),
 #'   \code{2L} (demographics), or \code{3L} (full). Default \code{1L}.
 #' @return A named list with:
@@ -47,7 +47,7 @@
 #'   \item \code{educ1}: standardised to mean 0 / sd 1.
 #'   \item \code{race1}: one-hot encoded (first category dropped as reference).
 #'   \item \code{female1}: included as-is (already binary 0/1).
-#'   \item \code{contracttype}: one-hot encoded (first category dropped).
+#'   \item \code{contracttype1}: one-hot encoded (first category dropped; wave-1 value).
 #' }
 #' @examples
 #' \dontrun{
@@ -66,7 +66,7 @@ prepare_covariate_matrix <- function(df, covariate_set = 1L) {
   # Required columns per set
   required <- c("age1", "educ1")
   if (covariate_set >= 2L) required <- c(required, "race1", "female1")
-  if (covariate_set >= 3L) required <- c(required, "contracttype")
+  if (covariate_set >= 3L) required <- c(required, "contracttype1")
   missing_cols <- setdiff(required, names(df))
   if (length(missing_cols) > 0L)
     stop(sprintf(
@@ -188,7 +188,7 @@ prepare_covariate_matrix <- function(df, covariate_set = 1L) {
 
   if (covariate_set >= 3L) {
     # contract type dummies (one-hot, reference = first category)
-    ct_res <- .onehot(df$contracttype, "contracttype")
+    ct_res <- .onehot(df$contracttype1, "contracttype")
     if (ncol(ct_res$mat) > 0L) {
       col_parts[["contracttype"]] <- ct_res$mat
       center_vals                  <- c(center_vals, ct_res$centers)

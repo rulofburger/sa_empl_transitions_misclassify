@@ -23,6 +23,7 @@
 library(here)
 # Note: library(dplyr) is required by scripts/ingest_data_3waves_SA.R (uses |> with dplyr verbs).
 library(dplyr)
+library(tidyverse)
 
 # Source baseline first (provides em_fit_baseline + shared utils)
 source(here::here("EM-baseline", "R", "source_all.R"))
@@ -177,6 +178,9 @@ df_ext$y1     <- as.integer(df_ext$y1)
 df_ext$y2     <- as.integer(df_ext$y2)
 df_ext$y3     <- as.integer(df_ext$y3)
 df_ext$weight <- as.numeric(df_ext$weight)
+# contracttype1 is NA for non-employed — recode to 0 (no contract)
+df_ext$contracttype1 <- ifelse(is.na(df_ext$contracttype1), 0L,
+                               as.integer(df_ext$contracttype1))
 df_ext        <- as.data.frame(df_ext)
 
 cat(sprintf("Analysis sample (complete age/educ): N = %d\n", nrow(df_ext)))

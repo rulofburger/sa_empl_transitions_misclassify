@@ -11,7 +11,7 @@
     educ1        = sample(1:5,   n, replace = TRUE),
     race1        = sample(1:4,   n, replace = TRUE),
     female1      = sample(0:1,   n, replace = TRUE),
-    contracttype = sample(1:3,   n, replace = TRUE)
+    contracttype1 = sample(1:3,  n, replace = TRUE)
   )
 }
 
@@ -67,8 +67,8 @@ test_that("continuous columns (age, age_sq, educ) are standardised (mean ~0, sd 
 test_that("intercept column has center=0 and scale=1", {
   df  <- .make_cov_df()
   out <- prepare_covariate_matrix(df, covariate_set = 1L)
-  expect_equal(out$center["intercept"], 0)
-  expect_equal(out$scale["intercept"],  1)
+  expect_equal(out$center[["intercept"]], 0)
+  expect_equal(out$scale[["intercept"]],  1)
 })
 
 test_that("center and scale vectors have same names as X columns", {
