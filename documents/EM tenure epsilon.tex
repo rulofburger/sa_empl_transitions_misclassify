@@ -620,6 +620,83 @@ in the range 3--5\%, depending on \(\hat\varepsilon\).
 In this case, tenure data corroborates and refines the simple-model misclassification
 estimate.
 
+\subsection{How \(\varepsilon\) affects the responsibilities}
+\label{sec:eps_affects_gamma}
+
+The contamination parameter \(\varepsilon\) does not enter the Markov
+prior \(p(h \mid \alpha,\theta_0,\theta_1)\); it enters the
+responsibilities \(\gamma_{ih}\) exclusively through the spell-pair
+tenure emission \(\ell_g^{\mathrm{spell}}\), which is part of the
+per-history likelihood \(p(y_i \mid h; \Theta)\). Its effect is
+therefore entirely through changing how well each history \(h\) explains
+the observed tenure data.
+
+\paragraph{Mechanism.}
+Consider the state pattern \(s = (1,0,1)\). Two competing histories
+dominate the posterior:
+\begin{itemize}
+\item \(h = (1,1,1)\): one continuous E-spell, \(K = 2\), spell-pair
+  emission \(\ell_g^{\mathrm{spell}}\) from \eqref{eq:spell_emission_k2}
+  --- depends on \(\varepsilon\).
+\item \(h = (1,0,1)\): two singleton E-spells, each with \(K = 1\) and
+  \(t_1 = a\). Both contamination patterns yield the same
+  \(\mathrm{Exp}(\lambda_g)\) density, so \(\varepsilon\) drops out
+  entirely.
+\end{itemize}
+Because \(\varepsilon\) appears in the numerator (via the \((1,1,1)\)
+spell-pair emission) but not in the relevant terms of competing
+hypotheses like \((1,0,1)\), the level of \(\varepsilon\) directly
+controls how much the spell-pair evidence shifts the posterior toward or
+away from continuous employment.
+
+\paragraph{Clock-consistent observations (\(g_3 = g_1 + 2\Delta\)).}
+When the tenure flanks satisfy the exact clock relation, the all-clean
+term \((1-\varepsilon)^2 \lambda_g e^{-\lambda_g g_1}\, \delta(g_3 - g_1 - 2\Delta)\)
+fires its point mass and dominates the emission. A higher \(\varepsilon\)
+reduces the weight \((1-\varepsilon)^2\) on this point mass, marginally
+weakening the evidence for \(h = (1,1,1)\). However, even at
+\(\varepsilon = 0.25\), the factor \((1-\varepsilon)^2 = 0.56\) times a
+point mass still dominates the continuous density from the competing
+\((1,0,1)\) hypothesis, so \(\gamma_{i,(1,1,1)}\) remains large. The
+net effect: higher \(\varepsilon\) slightly dilutes, but does not
+eliminate, the point-mass evidence for continuous employment.
+
+\paragraph{Clock-inconsistent observations (\(g_3 \neq g_1 + 2\Delta\)).}
+When the flanks violate the clock relation, the all-clean point-mass
+term is exactly zero. The three remaining contamination terms
+(lines~2--4 of \eqref{eq:spell_emission_k2}) are continuous and remain
+active. A higher \(\varepsilon\) increases the weight on these
+contamination patterns, making the \((1,1,1)\) hypothesis
+\emph{more competitive} with \((1,0,1)\), because higher \(\varepsilon\)
+makes it more plausible that the individual was continuously employed
+but one or both tenure reports were simply contaminated. The posterior
+\(\gamma_{i,(1,1,1)}\) therefore \emph{increases} with \(\varepsilon\)
+for clock-inconsistent observations, shifting more weight toward
+continuous employment and increasing the implied contribution to
+misclassification.
+
+\paragraph{Discrimination power.}
+Combining both regimes, \(\varepsilon\) controls the \emph{discrimination
+power} of the spell-pair emission:
+\begin{itemize}
+\item \textbf{Low \(\varepsilon\)}: spell-pairs are highly
+  discriminating. Clock-consistent data produce very high
+  \(\gamma_{i,(1,1,1)}\); clock-inconsistent data produce very low
+  \(\gamma_{i,(1,1,1)}\). Tenure evidence strongly informs \(\pi\).
+\item \textbf{High \(\varepsilon\)}: spell-pairs are less
+  discriminating. Even clock-inconsistent tenure is plausible under
+  \(h = (1,1,1)\) (it is merely contaminated). The Markov prior
+  plays a larger role in resolving \(\gamma\), and tenure's
+  corroborative power for \(\pi\) is diluted.
+\end{itemize}
+This is why \(\varepsilon\) and \(\pi\) are jointly identified but play
+distinct roles in the posterior: \(\varepsilon\) governs how
+\emph{informative} tenure is about latent employment continuity, while
+\(\pi\) governs how much misclassification there actually is. The EM
+finds the \((\varepsilon, \pi)\) pair that best explains both the
+fraction of clock-consistent observations and the state-pattern
+frequencies simultaneously.
+
 \subsection{Identification of \(\lambda_g\)}
 
 \(\lambda_g\) is identified from the empirical mean of (a) wave-1 employed
