@@ -1,7 +1,7 @@
 
 # Import
 df_qlfs <- readRDS(
-  "data/raw/df_qlfs_A.rds"
+  here::here("data", "raw", "df_qlfs_A.rds")
   ) %>%
   filter(age1 > 17 & age1 < 56) %>%  
   filter(!is.na(employed1)) %>%

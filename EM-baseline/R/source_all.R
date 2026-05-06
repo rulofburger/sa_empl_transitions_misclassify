@@ -41,3 +41,6 @@ source(file.path(.em_baseline_r, "mstep.R"),              local = FALSE)
 source(file.path(.em_baseline_r, "em_driver.R"),          local = FALSE)
 
 rm(.em_baseline_root, .em_baseline_r)
+
+# Signal to extension source_all.R that shared utilities are loaded.
+.em_baseline_utils_loaded <- TRUE
