@@ -1,0 +1,34 @@
+# Normalize line endings: LF on commit, checkout as-is on non-Windows
+* text=auto
+
+# R source files: always LF
+*.R    text eol=lf
+*.r    text eol=lf
+*.Rmd  text eol=lf
+*.Rproj text eol=lf
+
+# Other text files: always LF
+*.md   text eol=lf
+*.tex  text eol=lf
+*.qmd  text eol=lf
+*.do   text eol=lf
+*.py   text eol=lf
+*.sh   text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.csv  text eol=lf
+
+# Binary files: never touch line endings
+*.rds  binary
+*.Rds  binary
+*.rda  binary
+*.RData binary
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.xlsx binary
+*.docx binary
+*.dta  binary

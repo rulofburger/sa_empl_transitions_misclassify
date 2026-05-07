@@ -53,6 +53,9 @@ EM-baseline/
 │   ├── mstep.R              # m_step()                       [TeX Eqs 18-19, 23]
 │   ├── em_driver.R          # em_fit_baseline(), init_params(),
 │   │                        #   compute_observed_loglik()    [TeX Sec 2.4]
+│   ├── implied_quantities.R # implied_baseline() — post-estimation transforms
+│   ├── bootstrap_utils.R    # bootstrap_resample(), bootstrap_one_baseline(),
+│   │                        #   summarise_bootstrap()
 │   └── source_all.R         # Sources files in dependency order
 ├── output/
 │   ├── results/             # fit_{label}.rds, run_summary.csv
@@ -116,6 +119,58 @@ fit$converged  # TRUE if converged
 fit$iterations # number of EM iterations
 fit$gamma      # N x 8 responsibility matrix
 ```
+
+### Compute implied probabilities
+
+```r
+# After fitting, compute implied quantities
+source("EM-baseline/R/source_all.R")
+fit <- readRDS("EM-baseline/output/results/fit_sym_stat.rds")
+q   <- implied_baseline(fit$params, model_type = "symmetric")
+# q$entry_rate, q$exit_rate, q$employment_rate, q$pi
+```
+
+---
+
+## Bootstrap Standard Errors
+
+Bootstrap SEs for all 6 baseline models are computed by `bootstrap_pipeline.R`
+(project root). Each model's B=200 results are saved to:
+
+```
+EM-baseline/output/results/bootstrap/boot_{label}_B200.rds
+```
+
+Each file contains:
+- `$boot_results` — B-element list of replicate parameter estimates and implied quantities
+- `$summary` — tidy data frame of SEs and 95% CIs for all scalar quantities
+- `$n_ok` / `$B` — number of successful reps / total attempted
+
+### Run the bootstrap pipeline
+
+```bash
+# From project root (requires point estimates to exist first)
+Rscript bootstrap_pipeline.R
+```
+
+**To increase B** (e.g., for journal submission): edit `B <- 200L` at the top of
+`bootstrap_pipeline.R`, delete the existing per-model `.rds` files, and re-run.
+
+**To re-run a single model**: delete
+`EM-baseline/output/results/bootstrap/boot_{label}_B200.rds` and re-run the
+pipeline — it skips models whose output file already exists.
+
+### Build LaTeX tables
+
+```bash
+Rscript build_tables.R
+```
+
+Outputs:
+- `EM-baseline/output/tables/table_baseline_params.tex` — parameter estimates with SEs
+- `EM-baseline/output/tables/table_baseline_implied.tex` — implied probabilities with SEs
+
+---
 
 ### Run the tests
 

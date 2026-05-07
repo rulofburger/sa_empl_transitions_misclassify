@@ -33,12 +33,14 @@ if (exists("e_step", envir = .GlobalEnv, inherits = FALSE)) {
 .em_baseline_r    <- file.path(.em_baseline_root, "R")
 
 # Source in dependency order
-source(file.path(.em_baseline_r, "utils.R"),             local = FALSE)
-source(file.path(.em_baseline_r, "transforms.R"),         local = FALSE)
-source(file.path(.em_baseline_r, "latent_histories.R"),   local = FALSE)
-source(file.path(.em_baseline_r, "estep.R"),              local = FALSE)
-source(file.path(.em_baseline_r, "mstep.R"),              local = FALSE)
-source(file.path(.em_baseline_r, "em_driver.R"),          local = FALSE)
+source(file.path(.em_baseline_r, "utils.R"))
+source(file.path(.em_baseline_r, "transforms.R"))
+source(file.path(.em_baseline_r, "latent_histories.R"))
+source(file.path(.em_baseline_r, "estep.R"))
+source(file.path(.em_baseline_r, "mstep.R"))
+source(file.path(.em_baseline_r, "em_driver.R"))
+source(file.path(.em_baseline_r, "implied_quantities.R"))
+source(file.path(.em_baseline_r, "bootstrap_utils.R"))
 
 rm(.em_baseline_root, .em_baseline_r)
 

@@ -65,6 +65,7 @@ EM-baseline-ext/
 ├── README.md                        # This file
 ├── R/
 │   ├── source_all.R                 # Sources all extension modules
+│   ├── helpers_ext.R                # Shared extension helpers
 │   ├── compute_inconsistencies.R    # Wave-specific age/edu inconsistency indicators
 │   ├── prepare_covariates.R         # Build covariate design matrices (3 sets)
 │   ├── estep_covariates.R           # E-step: covariate extension
@@ -75,7 +76,11 @@ EM-baseline-ext/
 │   ├── em_driver_fmm.R              # Driver + init + loglik: FMM
 │   ├── estep_inconsistency.R        # E-step: inconsistency model
 │   ├── mstep_inconsistency.R        # M-step: NR GEM for δ
-│   └── em_driver_inconsistency.R    # Driver + init + loglik: inconsistency
+│   ├── em_driver_inconsistency.R    # Driver + init + loglik: inconsistency
+│   ├── implied_quantities_ext.R     # implied_covariates(), implied_fmm(),
+│   │                                #   implied_inconsistency()
+│   └── bootstrap_utils_ext.R        # bootstrap_one_covariates/fmm/inconsistency(),
+│                                    #   summarise_bootstrap_ame()
 ├── tests/
 │   └── testthat/
 │       ├── helper-source.R          # Sources modules before tests
@@ -136,6 +141,49 @@ Rscript -e "testthat::test_file('EM-baseline-ext/tests/testthat/test-fmm.R')"
 | `fmm_non_free` | III | — | none | |
 | `incons_sym_stat` | IV | — | symmetric | ✓ |
 | `incons_sym_free` | IV | — | symmetric | |
+
+## Bootstrap Standard Errors
+
+Bootstrap SEs for all 18 extension models are computed by `bootstrap_pipeline.R`
+(project root). Each model's B=200 results are saved to:
+
+```
+EM-baseline-ext/output/results/bootstrap/boot_{label}_B200.rds
+```
+
+Each file contains:
+- `$boot_results` — B-element list of replicate parameter + implied quantity estimates
+- `$summary` — tidy SE table for all scalar quantities
+- `$ame_summary` — AME SE table (covariate models only)
+- `$n_ok` / `$B` — successful reps / total
+
+### Run the bootstrap pipeline
+
+```bash
+# From project root (requires point estimates to exist first)
+Rscript bootstrap_pipeline.R
+```
+
+**To increase B**: edit `B <- 200L` in `bootstrap_pipeline.R`, delete per-model
+`.rds` files, and re-run.
+
+**To re-run a single model**: delete its bootstrap file and re-run — the pipeline
+skips models whose output file already exists.
+
+### Build LaTeX tables
+
+```bash
+Rscript build_tables.R
+```
+
+Outputs (in `EM-baseline-ext/output/tables/`):
+- `table_cov_params.tex` — covariate model parameter estimates
+- `table_cov_implied.tex` — population-average implied probabilities
+- `table_cov_ame.tex` — Average Marginal Effects (all 3 sets side-by-side)
+- `table_fmm.tex` — FMM implied probabilities
+- `table_inconsistency.tex` — inconsistency model results
+
+---
 
 ## Dependencies
 

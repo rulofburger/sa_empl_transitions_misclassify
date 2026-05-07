@@ -67,26 +67,27 @@ source(file.path(.ext_r, "helpers_ext.R"))
 source(file.path(.ext_r, "compute_inconsistencies.R"))
 source(file.path(.ext_r, "prepare_covariates.R"))
 
-# ---- 3. Extension I: Observable heterogeneity (covariates + probit GEM)
+# ---- 4. Extension I: Observable heterogeneity (covariates + probit GEM)
 source(file.path(.ext_r, "estep_covariates.R"))
 source(file.path(.ext_r, "mstep_covariates.R"))
 source(file.path(.ext_r, "em_driver_covariates.R"))
 
-# ---- 4. Extension III: Unobserved heterogeneity (2-type FMM)
+# ---- 5. Extension III: Unobserved heterogeneity (2-type FMM)
 source(file.path(.ext_r, "estep_fmm.R"))
 source(file.path(.ext_r, "mstep_fmm.R"))
 source(file.path(.ext_r, "em_driver_fmm.R"))
 
-# ---- 5. Extension IV: Inconsistency-augmented misclassification (GEM)
+# ---- 6. Extension IV: Inconsistency-augmented misclassification (GEM)
 source(file.path(.ext_r, "estep_inconsistency.R"))
 source(file.path(.ext_r, "mstep_inconsistency.R"))
 source(file.path(.ext_r, "em_driver_inconsistency.R"))
 
-# ---- 6. Implied quantities and bootstrap utilities for extensions
+# ---- 7. Implied quantities and bootstrap utilities for extensions
 source(file.path(.ext_r, "implied_quantities_ext.R"))
 source(file.path(.ext_r, "bootstrap_utils_ext.R"))
 
-rm(.baseline_r, .ext_r)
-
-# Signal that extension symbols are loaded (mirrors EM-baseline convention).
+# Signal that extension symbols are loaded.
+# IMPORTANT: must be set BEFORE rm() so the guard at the top fires on re-source.
 .em_baseline_ext_loaded <- TRUE
+
+rm(.baseline_r, .ext_r)
