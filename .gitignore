@@ -20,3 +20,31 @@
 
 # specific data files
 data/
+data-use/
+
+# Compound GPID managed items (junctions + copied file + knowledge base - do not commit)
+.github/prompts/
+.github/skills/
+.github/agents/
+.github/instructions/
+.github/copilot-instructions.md
+.cg-docs/
+
+# Large binary outputs (fitted models, results) — untrack with: git rm --cached
+output/results/*.rds
+output/results/*.csv
+# R data objects — both conventional cases (.rds lowercase and .Rds mixed-case
+# both appear in data-use/ from older serialization code)
+*.rds
+*.Rds
+
+# Generated output tables/figures — do not commit; regenerate from pipeline
+**/output/tables/
+**/output/figures/
+
+# Compound GPID local config (user-specific, never commit)
+compound-gpid.local.md
+
+# OS files
+.DS_Store
+Thumbs.db

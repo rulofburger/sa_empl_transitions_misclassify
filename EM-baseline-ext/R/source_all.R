@@ -35,6 +35,16 @@ if (!dir.exists(.ext_r))
     "Run from the project root directory."
   ))
 
+# Guard: abort if extension symbols are already loaded.
+# Re-sourcing silently overwrites patched functions with no warning.
+# To force reload: rm(.em_baseline_ext_loaded, envir = .GlobalEnv) then re-source.
+if (exists(".em_baseline_ext_loaded", envir = .GlobalEnv, inherits = FALSE)) {
+  stop(paste0(
+    "EM-baseline-ext/source_all.R: extension functions already loaded ",
+    "(.em_baseline_ext_loaded is set). Restart R or remove the flag to force reload."
+  ))
+}
+
 # ---- 1. Shared utilities from EM-baseline (utils, transforms, latent histories)
 # NOTE: We deliberately do NOT source estep.R, mstep.R, or em_driver.R from
 # EM-baseline. Extension functions have their own distinct names.
@@ -45,31 +55,38 @@ if (!dir.exists(.ext_r))
 # the flagged version.
 if (!exists(".em_baseline_utils_loaded", envir = .GlobalEnv, inherits = FALSE) &&
     !exists("latent_histories", envir = .GlobalEnv, inherits = FALSE)) {
-  source(file.path(.baseline_r, "utils.R"),            local = FALSE)
-  source(file.path(.baseline_r, "transforms.R"),       local = FALSE)
-  source(file.path(.baseline_r, "latent_histories.R"), local = FALSE)
+  source(file.path(.baseline_r, "utils.R"))
+  source(file.path(.baseline_r, "transforms.R"))
+  source(file.path(.baseline_r, "latent_histories.R"))
 }
 
 # ---- 2. Shared extension helpers (must precede all extension E-steps)
-source(file.path(.ext_r, "helpers_ext.R"),             local = FALSE)
+source(file.path(.ext_r, "helpers_ext.R"))
 
 # ---- 3. Extension preprocessing helpers
-source(file.path(.ext_r, "compute_inconsistencies.R"), local = FALSE)
-source(file.path(.ext_r, "prepare_covariates.R"),      local = FALSE)
+source(file.path(.ext_r, "compute_inconsistencies.R"))
+source(file.path(.ext_r, "prepare_covariates.R"))
 
 # ---- 3. Extension I: Observable heterogeneity (covariates + probit GEM)
-source(file.path(.ext_r, "estep_covariates.R"),    local = FALSE)
-source(file.path(.ext_r, "mstep_covariates.R"),    local = FALSE)
-source(file.path(.ext_r, "em_driver_covariates.R"), local = FALSE)
+source(file.path(.ext_r, "estep_covariates.R"))
+source(file.path(.ext_r, "mstep_covariates.R"))
+source(file.path(.ext_r, "em_driver_covariates.R"))
 
 # ---- 4. Extension III: Unobserved heterogeneity (2-type FMM)
-source(file.path(.ext_r, "estep_fmm.R"),    local = FALSE)
-source(file.path(.ext_r, "mstep_fmm.R"),    local = FALSE)
-source(file.path(.ext_r, "em_driver_fmm.R"), local = FALSE)
+source(file.path(.ext_r, "estep_fmm.R"))
+source(file.path(.ext_r, "mstep_fmm.R"))
+source(file.path(.ext_r, "em_driver_fmm.R"))
 
 # ---- 5. Extension IV: Inconsistency-augmented misclassification (GEM)
-source(file.path(.ext_r, "estep_inconsistency.R"),    local = FALSE)
-source(file.path(.ext_r, "mstep_inconsistency.R"),    local = FALSE)
-source(file.path(.ext_r, "em_driver_inconsistency.R"), local = FALSE)
+source(file.path(.ext_r, "estep_inconsistency.R"))
+source(file.path(.ext_r, "mstep_inconsistency.R"))
+source(file.path(.ext_r, "em_driver_inconsistency.R"))
+
+# ---- 6. Implied quantities and bootstrap utilities for extensions
+source(file.path(.ext_r, "implied_quantities_ext.R"))
+source(file.path(.ext_r, "bootstrap_utils_ext.R"))
 
 rm(.baseline_r, .ext_r)
+
+# Signal that extension symbols are loaded (mirrors EM-baseline convention).
+.em_baseline_ext_loaded <- TRUE
