@@ -88,3 +88,6 @@ The same `source(helpers_ext.R)` call must appear in every entry point:
 
 - [2026-05-05-validate-false-pattern-em-hot-path.md](../performance-issues/2026-05-05-validate-false-pattern-em-hot-path.md) — related
   pattern for safe fast paths in source-based modules
+- [2026-05-06-cross-layer-function-placement.md](./2026-05-06-cross-layer-function-placement.md) —
+  related: functions placed in the wrong *layer* (upward dependency), not just
+  the wrong file

@@ -546,7 +546,12 @@ one degree of freedom.
 The baseline model imposes constant transition probabilities
 \((\theta_0, \theta_1)\) across all individuals. In practice, employment
 dynamics vary systematically with observable worker characteristics such as
-age, education, contract type, and demographics. Ignoring this heterogeneity
+age, education, contract type,\footnote{Contract type is only observed for
+individuals who are employed at the time of the survey. For individuals who
+are nonemployed (or have missing contract information) at wave~1, the
+contract-type variable is set to zero (``no written contract''), so that
+the corresponding one-hot dummy equals zero for all nonemployed
+observations.} and demographics. Ignoring this heterogeneity
 confounds true state persistence with compositional effects, potentially
 inflating the misclassification estimate. We therefore allow each
 individual's transition probabilities to depend on a vector of observed
