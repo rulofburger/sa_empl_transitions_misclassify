@@ -30,5 +30,8 @@ source(file.path(.em_tenure_r, "em_driver_eps.R"),     local = FALSE)
 source(file.path(.em_tenure_r, "simulate.R"),               local = FALSE)
 source(file.path(.em_tenure_r, "diagnostics.R"),            local = FALSE)
 source(file.path(.em_tenure_r, "compare_distributions.R"),  local = FALSE)
+# Contamination model: implied quantities and bootstrap utilities
+source(file.path(.em_tenure_r, "implied_quantities_tenure_contamination.R"),  local = FALSE)
+source(file.path(.em_tenure_r, "bootstrap_utils_tenure_contamination.R"),     local = FALSE)
 
 rm(.em_tenure_root, .em_tenure_r)
