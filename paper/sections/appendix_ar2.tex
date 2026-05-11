@@ -1,0 +1,327 @@
+% ==============================================================================
+% sections/appendix_ar2.tex
+% Created: 2026-05-08
+% Body extracted from paper/EM AR2.tex
+% ==============================================================================
+
+
+\subsection{Motivation}
+
+The baseline specification models true employment as a first-order
+Markov chain: the transition probability at wave~$t$ depends only on
+$h_{t-1}$. This rules out duration dependence---the empirically
+important phenomenon whereby the probability of exiting a state depends
+on how long the individual has been in that state. In discrete time with
+quarterly observations, the minimal extension that captures
+one-period duration dependence is a second-order Markov chain, where
+$\Pr(h_t \mid h_{t-1}, h_{t-2})$ depends on the two most recent states.
+Testing for second-order dependence is equivalent to testing whether the
+additional parameters are zero, providing a natural specification test
+for the baseline model.
+
+This section extends the baseline EM algorithm to the AR(2) case. The
+observation model (symmetric misclassification with probability~$\pi$,
+equation~\eqref{eq:misclass} of the baseline) is unchanged. The panel
+is extended from three to four waves to provide sufficient transitions
+for identification.
+
+\subsection{Model}
+
+\subsubsection{States and notation}
+
+Consider a population observed at four equally spaced waves
+$t \in \{1, 2, 3, 4\}$, separated by quarterly intervals of
+$\Delta = 0.25$ years. As in the baseline, $h_t \in \{0,1\}$ denotes
+the true (latent) employment state and $s_t \in \{0,1\}$ the observed
+state.
+
+The latent four-period history is
+\[
+H = (h_1, h_2, h_3, h_4) \in \{0,1\}^4,
+\]
+and the set of all $2^4 = 16$ possible histories is denoted
+$\mathcal{H}$. The observed sequence is
+$s = (s_1, s_2, s_3, s_4)$.
+
+\subsubsection{True dynamics: second-order Markov chain}
+\label{sec:ar2_dynamics}
+
+The true employment process $\{h_t\}$ is a second-order Markov chain.
+The transition probabilities are parameterised as
+\begin{equation}
+\Pr(h_t = 1 \mid h_{t-1}, h_{t-2}) =
+\begin{cases}
+\theta_0                          & \text{if } h_{t-2} = 0,\; h_{t-1} = 0, \\
+\theta_0 + \theta_{01}            & \text{if } h_{t-2} = 1,\; h_{t-1} = 0, \\
+1 - \theta_1 - \theta_{10}        & \text{if } h_{t-2} = 0,\; h_{t-1} = 1, \\
+1 - \theta_1                      & \text{if } h_{t-2} = 1,\; h_{t-1} = 1,
+\end{cases}
+\label{eq:ar2_transitions}
+\end{equation}
+where $\theta_0 \in (0,1)$ is the baseline job-finding rate (from
+two consecutive periods of nonemployment), $\theta_1 \in (0,1)$ is the
+baseline separation rate (from two consecutive periods of employment),
+and the \emph{duration-dependence increments} $\theta_{01}$ and
+$\theta_{10}$ capture the effect of the state two periods ago. When
+$\theta_{01} = \theta_{10} = 0$, the model reduces to the AR(1)
+baseline. All four transition probabilities are constrained to lie in
+$(0,1)$, which imposes $\theta_0 + \theta_{01} \in (0,1)$ and
+$\theta_1 + \theta_{10} \in (0,1)$.
+
+For notational convenience, define the four unrestricted transition
+probabilities:
+\begin{equation}
+p_{00} \equiv \theta_0, \qquad
+p_{10} \equiv \theta_0 + \theta_{01}, \qquad
+p_{01} \equiv 1 - \theta_1 - \theta_{10}, \qquad
+p_{11} \equiv 1 - \theta_1,
+\label{eq:p_from_theta}
+\end{equation}
+where $p_{jk} = \Pr(h_t = 1 \mid h_{t-2} = j,\, h_{t-1} = k)$. The
+inverse mapping recovers the structural parameters:
+\begin{equation}
+\theta_0 = p_{00}, \qquad
+\theta_{01} = p_{10} - p_{00}, \qquad
+\theta_1 = 1 - p_{11}, \qquad
+\theta_{10} = p_{11} - p_{01}.
+\label{eq:theta_from_p}
+\end{equation}
+
+\subsubsection{Stationary distribution}
+\label{sec:stationary}
+
+Under stationarity, the chain is in its ergodic steady state at waves~1
+and~2. The second-order chain on $\{h_t\}$ is equivalent to a
+first-order chain on the state pair $(h_{t-1}, h_t) \in \{0,1\}^2$,
+with $4 \times 4$ transition matrix. The stationary distribution
+$\alpha(h_1, h_2) \equiv \Pr(h_1, h_2)$ satisfies the balance equations.
+
+Define the normalising constant
+\begin{equation}
+\Phi \equiv \theta_0(\theta_{10} - 1) + \theta_1(\theta_{01} - 1).
+\label{eq:Phi}
+\end{equation}
+Then the joint stationary probabilities are
+\begin{align}
+\alpha(0, 0) &= \frac{\theta_1\,(\theta_0 + \theta_{01} - 1)}{\Phi},
+\label{eq:mu00} \\[4pt]
+\alpha(1, 0) &= \frac{-\theta_0\,\theta_1}{\Phi},
+\label{eq:mu10} \\[4pt]
+\alpha(0, 1) &= \frac{-\theta_0\,\theta_1}{\Phi},
+\label{eq:mu01} \\[4pt]
+\alpha(1, 1) &= \frac{\theta_0\,(\theta_1 + \theta_{10} - 1)}{\Phi}.
+\label{eq:mu11}
+\end{align}
+Note that $\alpha(1,0) = \alpha(0,1)$, which follows from the detailed
+balance of the embedded pair chain. The marginal employment rate at
+any single wave is $\alpha(0,1) + \alpha(1,1)$.
+
+\subsubsection{Prior probability of a latent history}
+
+The prior probability of a history $h = (h_1, h_2, h_3, h_4)$ is
+\begin{equation}
+p(H = h \mid \Theta) =
+\alpha(h_1, h_2)
+\prod_{t=3}^{4}
+p_{h_{t-2},\, h_{t-1}}^{\,\mathbf{1}\{h_t = 1\}}\,
+(1 - p_{h_{t-2},\, h_{t-1}})^{\mathbf{1}\{h_t = 0\}},
+\label{eq:ar2_prior}
+\end{equation}
+where $\alpha(h_1, h_2)$ is given by
+\eqref{eq:mu00}--\eqref{eq:mu11} and $p_{jk}$ by
+\eqref{eq:p_from_theta}. The product runs over waves~3 and~4, each
+contributing one second-order transition factor.
+
+\subsubsection{Observed-data likelihood}
+
+The observation model is identical to the baseline: symmetric
+misclassification with probability $\pi$ (equation~\eqref{eq:misclass}
+of the baseline), independent across waves conditional on the latent
+history. The marginal probability of the observed sequence
+$y_i = (s_{i1}, s_{i2}, s_{i3}, s_{i4})$ is
+\begin{equation}
+p(y_i \mid \Theta) = \sum_{h \in \mathcal{H}}
+  p(H = h \mid \Theta)\,
+  \prod_{t=1}^{4} q_{s_{it},\, h_t}(\pi),
+\label{eq:ar2_marginal}
+\end{equation}
+and the observed-data log-likelihood is
+\begin{equation}
+\ell(\Theta) = \sum_{i=1}^{N} w_i \log p(y_i \mid \Theta),
+\label{eq:ar2_obs_ll}
+\end{equation}
+with parameter vector
+$\Theta = (\theta_0, \theta_{01}, \theta_{10}, \theta_1, \pi)$.
+This is a finite mixture over the 16 latent histories.
+
+\subsection{EM algorithm}
+\label{sec:ar2_em}
+
+The EM algorithm follows the same structure as the baseline. The
+complete-data log-likelihood decomposes additively into a
+\emph{dynamics block} (depending on the transition parameters through
+the AR(2) prior) and a \emph{misclassification block} (depending only
+on~$\pi$), enabling separate maximisation in the M-step.
+
+\subsubsection{E-step: responsibilities}
+
+Starting from current estimates $\Theta^{(\mathrm{old})}$, the E-step
+computes posterior responsibilities
+\begin{equation}
+\gamma_{ih} = \frac{
+  p(H = h \mid \Theta^{(\mathrm{old})})\,
+  \prod_{t=1}^{4} q_{s_{it},\, h_t}(\pi^{(\mathrm{old})})
+}{
+  \sum_{h' \in \mathcal{H}}
+  p(H = h' \mid \Theta^{(\mathrm{old})})\,
+  \prod_{t=1}^{4} q_{s_{it},\, h'_t}(\pi^{(\mathrm{old})})
+},
+\label{eq:ar2_responsibility}
+\end{equation}
+for each individual $i$ and history $h \in \mathcal{H}$.
+Each numerator is a product of at most nine terms: four from the AR(2)
+prior (one joint initial probability and two transition factors) and
+four from misclassification. With $N$ individuals and 16 histories, the
+E-step requires $O(N)$ operations.
+
+\paragraph{Sufficient statistics.}
+From the responsibilities, accumulate the following weighted counts.
+For the transition parameters, define four origin-type counters and
+four transition counters, indexed by the state pair
+$(h_{t-2}, h_{t-1})$:
+\begin{align}
+D_{jk} &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=3}^{4} \mathbf{1}\{h_{t-2} = j,\, h_{t-1} = k\},
+  \label{eq:ar2_suff_D} \\[4pt]
+T_{jk} &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=3}^{4} \mathbf{1}\{h_{t-2} = j,\, h_{t-1} = k,\, h_t = 1\},
+  \label{eq:ar2_suff_T}
+\end{align}
+for $j, k \in \{0, 1\}$. Here $D_{jk}$ counts
+(responsibility-weighted) person-periods where the two preceding states
+were $(j, k)$, and $T_{jk}$ counts the subset of those that transition
+to employment.
+
+For the misclassification parameter:
+\begin{equation}
+M = \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=1}^{4} \mathbf{1}\{s_{it} \neq h_t\}.
+  \label{eq:ar2_suff_M}
+\end{equation}
+
+\subsubsection{M-step: parameter updates}
+\label{sec:ar2_mstep}
+
+The M-step maximises $Q(\Theta \mid \Theta^{(\mathrm{old})})$ by
+updating each block independently.
+
+\paragraph{Transition probabilities (closed form).}
+As in the baseline, we adopt the standard approximation for short
+panels: update the transition parameters from the transition counts
+alone, then set the initial distribution by stationarity. The
+unrestricted transition probabilities have closed-form updates:
+\begin{equation}
+\hat{p}_{jk} = \frac{T_{jk}}{D_{jk}}, \qquad j, k \in \{0, 1\}.
+\label{eq:ar2_mstep_p}
+\end{equation}
+Each $\hat{p}_{jk}$ is the responsibility-weighted fraction of
+person-periods with origin pair $(j, k)$ that result in employment.
+The structural parameters are then recovered via
+\eqref{eq:theta_from_p}:
+\begin{equation}
+\hat{\theta}_0 = \hat{p}_{00}, \qquad
+\hat{\theta}_{01} = \hat{p}_{10} - \hat{p}_{00}, \qquad
+\hat{\theta}_1 = 1 - \hat{p}_{11}, \qquad
+\hat{\theta}_{10} = \hat{p}_{11} - \hat{p}_{01}.
+\label{eq:ar2_mstep_theta}
+\end{equation}
+The stationary distribution $\alpha(h_1, h_2)$ is updated from the new
+$\hat{\theta}$ values via
+\eqref{eq:Phi}--\eqref{eq:mu11}.
+
+\paragraph{Misclassification probability (closed form).}
+\begin{equation}
+\hat{\pi} = \frac{M}{4\,W},
+\label{eq:ar2_mstep_pi}
+\end{equation}
+where $W = \sum_{i=1}^{N} w_i$. The denominator is $4W$ (rather than
+$3W$ in the baseline) because each individual now contributes four
+wave-observations.
+
+\paragraph{Summary.} The complete M-step consists of five closed-form
+updates: four transition probabilities
+\eqref{eq:ar2_mstep_p} and one misclassification probability
+\eqref{eq:ar2_mstep_pi}. No numerical optimisation is required.
+
+\subsubsection{Iteration and convergence}
+
+The iteration scheme and convergence properties are identical to the
+baseline (Section~\ref{sec:convergence} of the baseline). The EM
+guarantees monotone ascent of $\ell(\Theta)$; all M-step updates are in
+closed form; the observed-data likelihood is bounded above; and every
+limit point of the parameter sequence is a stationary point. The same
+practical recommendations apply: multiple starts to guard against local
+maxima, boundary constraints
+$p_{jk} \in [\varepsilon, 1 - \varepsilon]$ and
+$\pi \in [\varepsilon, \tfrac{1}{2} - \varepsilon]$, and survey weights
+throughout.
+
+\subsubsection{Testing for second-order dependence}
+
+The AR(1) model is nested within the AR(2) model under the restriction
+$\theta_{01} = \theta_{10} = 0$, or equivalently
+$p_{10} = p_{00}$ and $p_{01} = p_{11}$. This can be tested via a
+likelihood ratio test:
+\begin{equation}
+\mathrm{LR} = 2\big[\ell(\hat\Theta_{\mathrm{AR(2)}})
+  - \ell(\hat\Theta_{\mathrm{AR(1)}})\big]
+\;\sim\; \chi^2_2 \quad \text{under } H_0: \theta_{01} = \theta_{10} = 0.
+\label{eq:ar2_lr_test}
+\end{equation}
+
+\subsection{Identification}
+\label{sec:ar2_identification}
+
+The model has five free parameters,
+$\Theta = (\theta_0, \theta_{01}, \theta_{10}, \theta_1, \pi)$.
+The data provide $2^4 - 1 = 15$ free moments (the probabilities of the
+16 observed patterns $(s_1, s_2, s_3, s_4)$, summing to one). The model
+is therefore overidentified with ten overidentifying restrictions.
+
+\paragraph{Identification without misclassification.}
+When $\pi = 0$, observed states equal true states, and the four
+transition probabilities $p_{jk}$ are directly identified from the
+observed second-order transition frequencies:
+\[
+p_{jk} = \Pr(s_t = 1 \mid s_{t-2} = j,\, s_{t-1} = k),
+\]
+which can be estimated from the eight second-order transition counts
+across waves~2--3 and~3--4. With 15 free moments and four parameters,
+the model without misclassification has 11 overidentifying restrictions.
+
+\paragraph{Identification with misclassification.}
+When $\pi > 0$, the key identifying argument parallels the baseline.
+In a true second-order Markov chain, $h_4$ is conditionally independent
+of $h_1$ given $(h_2, h_3)$. Misclassification breaks this conditional
+independence in the observed data: conditioning on $(s_2, s_3)$ does not
+fully screen off $s_1$ from $s_4$ because each $s_t$ is a noisy signal
+of~$h_t$. The residual dependence between $s_1$ and $s_4$ given
+$(s_2, s_3)$ provides identifying information for~$\pi$.
+
+More formally, the model maps five parameters to 15 free moments.
+The Jacobian of the map
+$\Theta \mapsto \{p_{abcd}(\Theta)\}$ has full column rank~5
+throughout the interior of the parameter space (verified analytically
+via symbolic computation), confirming generic identification. The ten
+overidentifying restrictions can be tested via a likelihood ratio test
+against the saturated model:
+\begin{equation}
+\mathrm{LR} = 2\big[\ell_{\mathrm{saturated}} - \ell(\hat\Theta)\big]
+\;\sim\; \chi^2_{10} \quad \text{under } H_0.
+\label{eq:ar2_overid_test}
+\end{equation}
+Rejection indicates that the second-order Markov assumption with
+symmetric misclassification does not adequately describe the data,
+motivating further extensions such as the tenure-augmented
+contamination model.
+

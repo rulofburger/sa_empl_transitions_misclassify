@@ -1,0 +1,151 @@
+% ==============================================================================
+% sections/introduction.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+Distinguishing chronic from transitory unemployment is central to diagnosing the
+nature of joblessness and designing effective labour market policy. The answer
+determines which policy lever to pull. In economies with high labour market
+churn---where workers frequently move into and out of employment---the policy
+challenge is to protect workers against frequent spells of unemployment, and
+policies favouring stronger worker protections and enforcement are appropriate
+\citep{aghion2006}. By contrast, if employment is highly persistent, unemployment
+reflects a failure of job creation rather than a failure of retention; the
+policy prescription shifts toward lowering hiring costs and removing barriers to
+mobility \citep{nattrass2000}. Because transition matrices are the primary tool
+for assessing the degree of labour market churn, credible measurement of
+entry and exit rates is not merely an academic exercise---it is a prerequisite
+for coherent policy design.
+
+Labour force surveys are the workhorse for measuring employment transitions.
+Yet survey errors are ubiquitous, and classification error in employment status
+is especially damaging for transition estimates. The effect of misclassification
+on flows is multiplicative: a single transient error at wave $t$ makes a
+chronically non-employed worker appear to have found a job and then lost it,
+fabricating two transitions that did not occur. Even low misclassification rates
+therefore produce severe upward bias in estimated flows
+\citep{porteba1986,singh1995,meyer1988}. The same worker also appears to
+exhibit negative duration-dependence---a recent ``entrant'' who immediately
+``exits''---when in reality the worker never moved. Classification error thus
+simultaneously overstates churn and attenuates persistence.
+
+This paper develops a structural estimator that jointly identifies true
+employment transition rates and misclassification probabilities using only three
+consecutive waves of panel data and no reinterview or administrative validation.
+The estimator is based on an Expectation--Maximisation (EM) algorithm that
+exploits a simple and powerful identification insight: if the latent true
+employment process follows a first-order Markov chain but observed employment is
+measured with error, then the observed three-wave distribution will systematically
+violate the Markov property in a way that separately pins down the transition
+rates and the misclassification probability. The EM algorithm converts this
+insight into a sequence of closed-form updates, making estimation fast,
+numerically reliable, and easily extended.
+
+A large literature has documented the importance of classification error in
+employment surveys. The pioneering work of \citet{porteba1986}, using reinterview
+data for the United States Current Population Survey (CPS), found that correcting
+for classification error reduced the monthly probability of job loss from 5\%
+to 1.9\% and job entry from 7.2\% to 2.6\%. \citet{chua1987} found, using the
+same data, a 6\% chance of misclassifying a truly unemployed individual as
+employed. \citet{singh1995} estimated misclassification probabilities of less
+than 1\% in Canada, yet showed that even such small error rates produce
+substantial upward bias in transition estimates. \citet{abowd1985} introduced the
+error-correction matrix approach that underlies much of this work. Reinterviews,
+however, are costly, rare in the lower income countries where survey data are 
+more prone to error \citep{ashenfelter1986}. Moreover, these auxiliary data are
+themselves imperfect---respondents may change status between the original and
+re-interview survey, or modality differences between telephone and in-person
+interviews may introduce systematic bias (CITE LSMS NIGERIA PAPER?).
+
+Motivated by these limitations, several estimators have been proposed that
+identify misclassification from panel data alone.
+\citet{biemer2000} introduced Markov latent class analysis (MLCA) to the
+three-wave CPS data and showed that the resulting estimates closely match
+reinterview-based corrections. Their approach imposes a first-order Markov
+assumption on the true process and a local independence assumption on the
+errors. \citet{feng2013} use an eigenvalue decomposition of the response
+classification matrix to estimate misclassification rates and correct unemployment
+stock estimates for the United States, finding that official unemployment is
+understated by approximately 2.1 percentage points. \citet{shibata2019} develops
+a hidden Markov model (HMM) formulation that accommodates individual-level
+heterogeneity in the latent process, returning to maximum likelihood estimation
+rather than the eigenvalue approach. Our estimator builds on this tradition but
+contributes to it in four ways.
+
+First, we derive and implement a modular EM algorithm that yields closed-form
+M-step updates for the baseline model, making estimation scalable to large
+samples while allowing straightforward extension. Second, we develop a
+generalized EM (GEM) extension that allows observable worker heterogeneity via
+probit transition probabilities and a finite mixture model (FMM) for unobservable
+heterogeneity. Both of these can mimic Markov violations---a worker who always
+has high exit probability looks like a Markov violation if heterogeneity is
+ignored---and the GEM extension ensures these alternatives cannot masquerade as
+misclassification. Third, we extend the model to a second-order Markov
+specification using four waves of data, directly testing and controlling for
+duration dependence in the latent process. Fourth, we develop a novel
+tenure-contamination model in which reported job tenure provides a structural
+identification channel: if employment status is misclassified at an intermediate
+wave, the tenure reported at flanking waves must be inconsistent with the conditionally 
+deterministic tenure accumulation. The model separates tenure contamination (random recall
+error in tenure reporting) from state misclassification, providing an
+independent corroboration of the baseline result.
+
+We apply the estimator to the South African Quarterly Labour Force Survey (QLFS),
+a rotating panel survey collected quarterly since 2008. South Africa provides
+an ideal empirical setting for two reasons. First, it has persistently high
+unemployment rates---around 30\%---alongside a vigorous academic debate about
+the nature of joblessness, with important policy implications for the design of
+labour market interventions \citep{banerjee2008,nattrass2000,burgervonfintel2014}.
+Second, there is well-documented evidence of measurement problems in the QLFS
+\citep{burger2016,lechtenfeld2014}, and reinterview data are unavailable,
+making a structural approach attractive.
+
+Using the QLFS data, we document a striking empirical puzzle: three-month
+employment entry and exit rates, estimated from raw transition matrices, are
+approximately 8\%, implying six-month rates of roughly 15\% under the Markov
+assumption. But the observed six-month transition rates---computed directly from
+four-wave panels---are only about 10\%, roughly one-third lower than the implied
+value. This divergence is inconsistent with a first-order Markov process on
+the observed employment status, but is exactly what one would expect if the
+latent true process satisfies the Markov assumption and observed employment is
+measured with transient error.
+
+Our baseline EM estimator recovers a misclassification probability of
+approximately 3\%, which implies true quarterly entry and exit rates of
+approximately 3\%---a threefold correction relative to the naive transition
+matrix. The symmetric and asymmetric misclassification specifications produce
+virtually identical results, as do the stationarity-restricted and
+free-initial-employment-probability versions. The estimated misclassification
+probability remains stable---between 2\% and 3\%---across extensions that 
+controll for observed heterogeneity (age, education, gender, race, contract
+type), unobserved heterogeneity (two-type finite mixture), and second-order
+Markov dynamics. When we allow the misclassification probability to vary with
+survey response reliability---proxied by inconsistencies in reported age
+progressions or education levels---we find that the baseline misclassification
+rate is approximately 2.2\% for reliable respondents but rises to over 17\%
+for those whose age changes by an implausible amount between waves. This
+mechanism evidence reinforces the interpretation that the estimated
+misclassification reflects genuine survey error, not a modelling artefact.
+ADD HERE ABOUT THE TENURE CONTAMINATION MODEL. Stricter wave-to-wave matching criteria, which reduce the likelihood of
+including mismatched observations, consistently lower both the measured
+transition rates and the estimated misclassification probability, providing
+a further design-based robustness check.
+
+The findings have substantive implications for the characterisation of South
+African unemployment. If true quarterly entry and exit rates are roughly 3\%,
+the average employment spell is on the order of several years, not several
+quarters. Employment in South Africa is considerably more persistent than
+previously characterised by studies using raw transition matrices
+\citep{banerjee2008,cichello2014,kerr2018}. This is more consistent with a
+labour market in which unemployment reflects scarce job creation rather than
+high churn, pointing toward supply-side and job-creation policies rather than
+policies targeted at worker protection or flexible hiring.
+
+The remainder of the paper is organised as follows. Section~\ref{sec:data}
+describes the QLFS data and documents the empirical puzzle motivating the
+approach. Section~\ref{sec:methodology} presents the EM estimator and its
+extensions. Section~\ref{sec:results} reports the main results.
+Section~\ref{sec:alternatives} reports the alternative specifications.
+Section~\ref{sec:conclusion} concludes. Full technical derivations for the
+baseline, AR(2), and tenure contamination models are provided in
+Appendices~\ref{app:baseline}, \ref{app:ar2}, and~\ref{app:tenure}.

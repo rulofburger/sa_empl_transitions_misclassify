@@ -1,0 +1,120 @@
+% ==============================================================================
+% sections/alternatives.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+\subsection{AR(2): second-order Markov dynamics}\label{subsec:alt:ar2}
+
+The baseline model assumes that the latent employment process is first-order
+Markov. If employment exhibits genuine duration dependence---if the probability
+of finding a job declines with the length of a non-employment spell, or if
+the probability of losing a job declines with seniority---then the first-order
+Markov restriction could be misspecified, and the EM estimator might attribute
+duration-dependent dynamics to misclassification.
+
+Tables~\ref{tab:ar2_implied} and~\ref{tab:ar2_params} report the results of
+the AR(2) extension, which uses four consecutive waves and allows the transition
+probabilities to depend on both the current and lagged true employment state.
+The four-wave linked sample contains approximately 317,000 observations,
+somewhat smaller than the three-wave sample because a fourth valid wave is
+required.
+
+The AR(2) estimates reveal substantial and statistically significant duration
+dependence. Among non-employed workers, those who were also non-employed in the
+prior quarter have a true entry probability of only 4.33\%, compared with
+30.61\% for those who were employed in the prior quarter. This large difference
+($\hat{\theta}_{01} - \hat{\theta}_{00} = 26.28$ percentage points) indicates
+strong negative duration dependence in non-employment: workers who have been
+non-employed for at least two consecutive quarters are much less likely to find
+a job in the current quarter than those who recently entered non-employment.
+Among employed workers, those who were also employed in the prior quarter have
+a separation probability of only 4.19\%, compared with 24.57\% for those who
+were non-employed in the prior quarter, indicating that recent entrants into
+employment are much more likely to exit in the subsequent quarter.
+
+Despite this rich duration dependence, the estimated misclassification probability
+in the AR(2) model is $\hat{\pi} = 1.14\%$---positive, statistically significant,
+and large enough to imply meaningful correction to the observed transition
+matrix. Although this estimate is lower than the baseline 2.98\%, the
+persistence of a positive misclassification probability confirms that duration
+dependence alone cannot explain the Markov violations in the data. The two
+mechanisms---duration dependence and misclassification---are jointly identified
+and coexist in the AR(2) specification.
+
+The AR(2) results also imply that the strong negative duration dependence in
+the baseline model may be partly an artefact of the first-order Markov
+restriction: once longer-order dynamics are accommodated, the apparent
+duration-dependence-from-misclassification confound is resolved, and both
+mechanisms have distinct empirical signatures.
+
+\subsection{Tenure contamination model}\label{subsec:alt:tenure}
+
+Tables~\ref{tab:eps_implied}, \ref{tab:eps_params}, and~\ref{tab:eps_tenure}
+report the results of the tenure contamination model. This specification
+exploits the joint distribution of employment status and job tenure to provide
+an independent structural identification channel for misclassification.
+
+The estimated contamination probability is $\hat{\varepsilon} = 24.23\%$: nearly
+one in four tenure observations in the sample is estimated to be
+``contaminated,'' in the sense that it is drawn from the wrong employment state's
+tenure distribution. This high contamination rate reflects both genuine tenure
+recall error and the structural implications of employment state misclassification
+for flanking tenure observations. Given this contamination rate, the estimated
+misclassification probability is $\hat{\pi} = 8.64\%$ under the static
+specification and somewhat higher under the CTMC-linked specification.
+
+The tenure contamination model recovers mean employment spell lengths from the
+estimated transition rates. Table~\ref{tab:eps_tenure} reports that the implied
+mean employment spell length is approximately 5.85 years (70.2 months), with
+$P(\text{clock-consistent}) = 75.77\%$---the share of employment-tenure
+sequences in the sample that are consistent with normal tenure clock accumulation
+(i.e., where tenure increases by approximately one quarter per wave). This
+proportion substantially exceeds what would be expected if every employment
+observation were drawn independently; the high clock-consistency rate validates
+the exponential duration model as a reasonable approximation.
+
+We note that the misclassification estimate from the tenure contamination model
+is higher than the baseline. This is partly a consequence of the longer
+observation window (tenure flanks span multiple waves) and partly because the
+exponential duration assumption introduces additional functional form restrictions.
+We interpret the tenure contamination results as corroborating the direction and
+approximate magnitude of the baseline finding---misclassification is present,
+economically substantial, and structurally identified---rather than as a precise
+alternative estimate of $\pi$.
+
+\subsection{Matching algorithm sensitivity}\label{subsec:alt:matching}
+
+Table~\ref{table_matching_implied} reports sensitivity of the results to the
+strictness of the wave-to-wave matching algorithm. The baseline matching
+algorithm links individuals using household and person identifiers only.
+The ``stricter'' matching algorithm additionally requires agreement on gender,
+race, and a time-invariant household characteristic; the ``strictest'' algorithm
+imposes further agreement on an additional set of stable characteristics.
+Stricter matching reduces the sample size by discarding potential false matches
+(i.e., observations that look like the same individual across waves but may be
+different individuals who were incorrectly linked by the identifier algorithm).
+
+As matching becomes stricter, both the raw (no misclassification) transition
+rates and the EM-corrected transition rates decline, and the estimated
+misclassification probability falls from $\hat{\pi} = 2.82\%$ under the
+baseline matching to $\hat{\pi} = 2.25\%$ under the strictest matching. This
+pattern is consistent with the interpretation that some of the Markov violations
+attributed to misclassification under the baseline matching reflect genuine
+mismatches: when a non-employed person is incorrectly linked to an employed
+observation from another household member, the resulting spurious transition
+inflates measured entry and exit rates and creates apparent Markov violations
+that the EM algorithm would otherwise attribute to misclassification.
+
+Crucially, however, even the strictest matching algorithm retains a substantial
+misclassification probability of 2.25\%. Matching errors are neither the
+primary nor the sole source of the Markov violations in the data; genuine survey
+measurement error in employment status contributes independently. This design-based
+robustness check, which varies identification assumptions (how the panel is
+constructed) rather than the structural model, strongly supports the main finding.
+
+The implied entry and exit rates under the strictest matching and symmetric
+misclassification correction (2.36\% and 2.25\% respectively) are slightly lower
+than the baseline 2.93\% and 3.00\%, but the overall conclusion is unchanged:
+true employment transition rates in South Africa are approximately three times
+lower than the raw transition matrix would suggest, and employment is considerably
+more persistent than previously characterised.

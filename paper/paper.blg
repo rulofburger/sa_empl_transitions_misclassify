@@ -1,0 +1,48 @@
+This is BibTeX, Version 0.99e (TeX Live 2026)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: paper.aux
+The style file: chicago.bst
+Database file #1: ref.bib
+Warning--page numbers missing in kerr2018
+You've used 23 entries,
+            2861 wiz_defined-function locations,
+            762 strings with 8322 characters,
+and the built_in function-call counts, 15512 in all, are:
+= -- 1354
+> -- 1093
+< -- 5
++ -- 330
+- -- 392
+* -- 1370
+:= -- 2850
+add.period$ -- 69
+call.type$ -- 23
+change.case$ -- 160
+chr.to.int$ -- 23
+cite$ -- 24
+duplicate$ -- 404
+empty$ -- 923
+format.name$ -- 456
+if$ -- 2833
+int.to.chr$ -- 1
+int.to.str$ -- 0
+missing$ -- 17
+newline$ -- 118
+num.names$ -- 230
+pop$ -- 97
+preamble$ -- 1
+purify$ -- 299
+quote$ -- 0
+skip$ -- 448
+stack$ -- 0
+substring$ -- 848
+swap$ -- 129
+text.length$ -- 5
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 460
+warning$ -- 1
+while$ -- 241
+width$ -- 0
+write$ -- 308
+(There was 1 warning)

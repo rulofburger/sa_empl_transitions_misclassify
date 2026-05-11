@@ -1,0 +1,101 @@
+% ==============================================================================
+% sections/data.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+\subsection{The Quarterly Labour Force Survey}
+
+The Quarterly Labour Force Survey (QLFS) is a household-based sample survey
+conducted by Statistics South Africa, introduced in 2008 to replace the
+biannual Labour Force Survey. The survey is representative of the civilian
+non-institutionalised population of South Africa and collects information on
+employment status, earnings, industry, occupation, and individual and household
+characteristics. Its rotating panel structure---each sampled dwelling is visited
+for four consecutive quarterly waves before being replaced---allows a subset of
+individuals to be followed longitudinally.
+
+We use the QLFS panel for the period 2010Q1 to 2019Q4. Individuals are matched
+across consecutive waves using their household and person identifiers.
+Statistics South Africa undertakes some consistency cleaning of the data prior
+to release \citep{statssa2013}, but there is well-documented evidence of
+remaining measurement problems in the matched panel
+\citep{burger2016,lechtenfeld2014}. Our sample is restricted to individuals
+aged 18 to 55 who have non-missing employment status in all available waves.
+We impose no restriction on gender, race, or other demographics, to ensure
+the results are representative of the working-age population as a whole.
+
+For the three-wave baseline analysis, we retain all individuals observed in
+three consecutive quarterly waves, yielding a sample of approximately 405,000
+person-wave triads. For the four-wave AR(2) analysis in
+Section~\ref{sec:alternatives}, we additionally require a valid fourth wave,
+yielding approximately 317,000 observations. Survey weights are taken as the
+geometric mean of the three (or four) wave-specific weights to produce a
+balanced cross-wave weight \citep{kalbfleisch1985}.
+
+\subsection{The empirical puzzle}\label{sec:data:puzzle}
+
+Table~\ref{tab:descriptive} presents summary statistics for the three-wave
+sample. Panel A shows that the sample spans the full working-age range, with
+a mean age of approximately 34 years and a mean education level of roughly
+10 years. The employment rate is stable across waves at approximately 48\%,
+consistent with South Africa's persistently high non-employment rate.
+
+Panel B documents the transition rate puzzle that motivates our approach.
+The observed three-month entry and exit rates---the probability of moving from
+non-employment to employment, and vice versa, between two consecutive quarterly
+waves---are approximately 8\% in both directions. Under the first-order Markov
+assumption, these three-month rates imply six-month rates of approximately
+$1 - (1-0.08)^2 \approx 15\%$. But the six-month rates observed directly in
+the four-wave data---the probability of transitioning over a six-month window,
+using only the first and third waves---are only around 10\%. The implied
+six-month rate exceeds the observed six-month rate by a factor of approximately
+1.5. This pattern---where transition rates estimated from high-frequency panels
+imply far more churn than lower-frequency estimates---is exactly the signature of
+transient misclassification error \citep{meyer1988,porteba1986}. Under the
+first-order Markov assumption on the \emph{true} process, a transient error at
+wave $t$ creates a spurious entry and a spurious exit, causing the high-frequency
+(3-month) estimate to be inflated while the low-frequency (6-month) estimate is
+less affected because the error has reversed by the time the second wave is
+observed.
+
+This divergence is also consistent with the broader pattern in the South African
+labour market literature, where high-frequency panels consistently yield higher
+estimated transition rates than lower-frequency panels
+\citep{banerjee2008,cichello2014}. \citet{burger2016} shows that the Markov
+assumption applied directly to observed employment in South Africa is rejected
+by the data, with classical transition estimates failing to fit the observed
+three-wave moments. Our structural estimator attributes this violation to
+misclassification error, while simultaneously testing the alternative explanations
+of worker heterogeneity and duration dependence.
+
+\subsection{Evidence of measurement error}
+
+Panel C of Table~\ref{tab:descriptive} provides direct evidence that the QLFS
+panel contains substantial measurement error, using two variables---age and
+education---for which errors are more easily detected than in employment status.
+An age inconsistency is defined as a wave-to-wave change in reported age that
+is not in $\{0, 1\}$ years; since quarterly surveys are conducted one year apart,
+age should remain constant or increase by exactly one year. An education
+inconsistency is a wave-to-wave change that is negative or exceeds one year,
+since education should be non-decreasing and cannot advance by more than one
+level per quarter. These inconsistencies represent clear measurement error:
+biological age cannot decrease, and education cannot be ``forgotten.''
+
+We find that approximately 11.6\% of individuals in our sample have at least one
+age inconsistency across any pair of consecutive waves, and 26.8\% have at least
+one education inconsistency. Overall, nearly one in three panel observations
+(31.2\%) contains an inconsistent response in at least one of these two verifiable
+variables. These figures, which are if anything an underestimate of overall
+measurement error since they exclude undetectable errors in age (e.g., a plausible
+but false age of 35 reported as 34), suggest that measurement error is widespread
+in the QLFS panel. Crucially, we exploit the link between response unreliability
+and employment misclassification in Section~\ref{sec:results}, where we show that
+survey respondents who produce age or education inconsistencies also exhibit
+employment dynamics that are consistent with significantly higher misclassification
+rates.
+
+In addition to employment status, the QLFS collects information on job tenure
+(how long the employed person has been with their current employer) and
+non-employment duration (how long since the non-employed person last worked).
+These duration variables are used in the tenure contamination model described
+in Section~\ref{subsec:tenure}.

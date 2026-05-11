@@ -1,0 +1,531 @@
+\documentclass[letterpaper,12pt,final,dvipsnames]{article}
+\usepackage{booktabs,dcolumn,longtable,lscape, pdflscape,setspace,hyperref,epstopdf,graphicx, float, xcolor}
+\usepackage[margin=1.4in]{geometry}
+\usepackage[round]{natbib}
+\usepackage{amsmath, amsthm, amssymb, appendix, epsfig, rotating, multirow, ctable, url, fullpage, natbib}
+\usepackage[format=hang, textfont={md}, labelfont={bf}, justification=raggedright]{caption}[2008/04/01]
+\usepackage{threeparttable}
+\usepackage{etoolbox}
+\usepackage{pdfpages}
+\appto\TPTnoteSettings{\footnotesize}
+\usepackage{textgreek}
+\usepackage{comment}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{ulem}
+\usepackage{subcaption}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+\urlstyle{same}
+
+\hypersetup{
+  linkcolor  = black,
+  citecolor  = blue,
+  urlcolor   = blue,
+  colorlinks = true,
+}
+
+\newcommand{\mynoteRB}[1]{\textcolor{red}{[RB: #1]}}
+\newcommand{\mynoteZP}[1]{\textcolor{orange}{[ZP: #1]}}
+\newcommand\fnote[1]{\captionsetup{font=footnotesize}\caption*{#1}}
+
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1em}
+
+\title{Estimating employment transitions while accounting for classification error: evidence from South Africa\thanks{We gratefully acknowledge financial support from the UK government through the Data and Evidence for Tackling Extreme Poverty (DEEP) Research Programme. All errors and omissions are our own. Declarations of interest: none.}}
+
+
+\author{Zander Prinsloo\thanks{Department of Economics, Stellenbosch University and The World Bank. Email: zprinsloo@worldbank.org } \and Cobus Burger\thanks{Department of Economics, Stellenbosch University. Email: cobusburger@sun.ac.za}  \and Rulof Burger\thanks{Department of Economics, Stellenbosch University and JPAL. Email: rulof@sun.ac.za} \and Dean Jolliffe\thanks{The World Bank and JPAL. Email: djolliffe@worldbank.org}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+Employment transitions in South Africa are surprisingly high between high-frequency panel waves, but comparatively low when using waves that are further apart. There are at least three possible explanations for this pattern: misclassification of employment, worker heterogeneity and duration-dependence. This paper introduces a new econometric technique to estimate transition rates in the presence of classification error, which allows for the inclusion of covariates and finite mixture modelling. Our estimates suggest that between 2 and 3 percent of employment outcomes are misclassified, and that this causes conventional methods to overstate the rate of employment transitions by a factor of three. Although there is also evidence that worker heterogeneity and duration-dependence contributes to employment dynamics, the result regarding misclassification remains robust to controlling for these factors, and is quantitatively more important in explaining the observed employment dynamics across three waves of South African panel data. We also present additional evidence in support of classification error in employment: the probability of misclassifying employment and employment churn are significantly higher for individuals who also provide inconsistent responses regarding age histories. 
+
+
+\end{abstract}
+
+\medskip
+\medskip
+
+\noindent \textbf{Keywords:} Misclassification error, Employment Transitions, Structural Estimation
+
+\noindent \textbf{JEL Codes:} J63, C23   
+
+\pagebreak
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Estimating employment transition rates is complicated by the presence of classification error in survey responses to employment questions \citep{meyer1988}. Even low misclassification rates can produce severe upward bias in transition rates \citep{porteba1986, singh1995}. Transient classification errors can also distort patterns of duration-dependence, making recent churns appear less persistent than is actually the case. This may cause a misleading characterisation of labor market dynamics, erroneous conclusions about the nature of unemployment, and counterproductive public policies. The same problem is encountered when estimating the rates at which individuals move from one state to another in other contexts, including poverty transitions \citep{Bigsten2008}, education \citep{fredriksson1997economic}, labor supply \citep{cairo2022cyclicality}, mental health \citep{van2017critique}, and changes in behavior \citep{khosravi2018transition}. 
+
+One way of dealing with classification error is to reinterview a subsample of individuals to validate responses, correct errors, and gauge the extent of measurement errors. This approach usually assumes that any discrepancies reflect errors in the original survey and uses an error correction matrix to refine employment statuses and flow rates \citep{abowd1985, porteba1986}. Several such studies have confirmed the significance of classification error in reported employment status and the resulting upward bias in transition rates \citep{magnac1999, singh1995, chua1987, porteba1986}. For example,  \citet{porteba1986} find that correcting for classification error reduces the probability of job loss and job entry for US workers from 5\% to 1.9\% and 7.2\% to 2.6\% respectively. \citet{chua1987} find, using the same data, a 6\% chance of misclassifying an unemployed individual as employed. \citet{singh1995} find that amongst Canadian labor force participants there was a 0.8\% probability of misclassification as employed if non-employed, and a 0.9\% probability of misclassification as non-employed if employed, illustrating that substantial upward bias in transition estimates can occur even when misclassification rates are fairly low. 
+
+While a seemingly convenient solution, the reinterview approach does present some challenges. Due to its costs, reinterviews are scarce in developing countries, where misclassification issues may be more severe \citep{ashenfelter1986}. Moreover, legitimate changes in employment status between the initial and reinterview surveys, and differences in survey modalities \textemdash reinterviews are often conducted telephonically, whereas original surveys are usually conducted in person \textemdash means that reinterviews may not perfectly capture classification errors. 
+
+Motivated partly by these limitations, several estimators have been developed that can estimate transition rates with noisy employment data, including \cite{biemer2000} and \cite{feng2013}.  These methods both make two crucial identifying assumptions: a Markov assumption about true employment dynamics, and an independence assumption about classification error. If true employment evolves according to the first-order Markov assumption but is possibly misclassified in the observed data, then this will produce a distinct three-wave pattern in observed employment that violates the Markov assumption and allows identification of both the true transition rates and the probability of misclassification. \cite{biemer2000} pioneered the use of Markov latent class analysis (MCLA) to model three-wave employment dynamics. They apply this approach to the US Current Population Survey (CPS) data to estimate the probability of classification errors for workers of various labor force statuses. Their results are consistent with significant classification errors. Their method also perform well on several validity test, including some that compare their results to those obtained using reinterview techniques. This study does not attempt to estimate true transition rates between employment statuses, nor do they control for any worker attributes that may cause a violation of the Markov property in true employment statuses. \cite{feng2013} develop a related estimator, but have a longer time-series component which allows dependence of labour force statuses over longer periods. They find that the official US unemployment rate understates the true level of unemployment by 2.1 percentage points. 
+
+Both papers identify the extent of classification error by assuming that deviations from the Markov property in observed employment dynamics must be due to classification errors. There are, however, other potential explanations for the violation of the Markov assumption. Duration-dependence, where, for example, the probability of job entry declines as the unemployment spell lengthens, is well documented internationally \citep{Kroft2016, Machin1999, Ljungqvist1998}. In addition, if some proportion of workers have higher rates of transition into and out of employment, this would cause more recent transitions to appears less persistent. Worker heterogeneity, either observed or unobserved, would therefore also cause the Markov assumption to fail. 
+
+In this paper, we introduce a new estimator that uses three waves of panel data to estimate simultaneously transition rates between true employment states and misclassification rates. This method is applied to South African employment data to gauge the extent of upward bias in conventional estimates of employment transitions. The method is closely related to that of \cite{biemer2000}, but derives the likelihood function directly instead of using Markov latent class estimators. We  extend the model to allow for observed and unobserved worker heterogeneity, including the effect of job tenure and duration of unemployment on exit and entry rates. Classification errors are therefore identified based only on violations of the Markov property that cannot be attributed to these other explanations. 
+
+This method is applied to South African data, where unemployment is much higher than in the US. This has potentially interesting technical implications for the effects of misclassification errors, and also brings to the fore the importance of formulating public policies that are based on an accurate understanding employment dynamics. Unlike \cite{biemer2000} and \cite{feng2013} our focus is mainly on the implications of classification errors on estimated transition rates.
+
+No reinterviews exists for South African labour market surveys, which have precluded researchers from directly addressing misclassification error even though such errors are recognized to be widespread in these surveys \citep{aguero2007,dinkelman2004,ashenfelter1986}. Studies on employment transitions in South Africa have found high churn rates between high frequency panel data waves but comparatively lower churn rates when waves are further apart. \cite{dinkelman2004} estimates that the unemployed in KwaZulu-Natal have a 44\% chance of finding employment in the next 5 years, compared to a 29\% entry rate for the not-economically-active. This is only slightly higher than the 35\% probability of transitioning into employment over two years \cite{cichello2014} finds for a nationally representative sample. In contrast, \cite{banerjee2008} finds that over a 6 month horizon black males who were actively searching had a 17\% probability of finding employment, compared to 14\%  for those who were not actively searching. These estimates suggest a much lower annualised churn rate for estimates that use panel waves that are further apart. This pattern of employment dynamics is one of the effects of classification error, and motivates estimating transition rates using methods that are robust to classification error. 
+
+
+
+
+
+%However, numerous studies have acknowledged measurement issues in South African household survey data pertaining to subjects other than employment transitions. For instance, using the original KIDS panel data across three waves, \cite{aguero2007} demonstrated that measurement error accounts for between 14\% and 60\% of household income mobility across two consecutive waves. In a related vein, \cite{lechtenfeld2014} identified that such errors in the KIDS data lead to a nearly 40\% overestimation of income convergence. Additionally, the National Income Dynamic Survey (NIDS) data, as per \cite{lechtenfeld2014}, was found to exaggerate income convergence by an impressive 77\% due to measurement inaccuracies. Consequently, while methods to address misclassification in employment transition estimates remain elusive, it is evident that measurement errors significantly impact empirical studies utilizing survey data.
+
+
+%The two central identifying assumption in each of these studies is the Markov assumption: given the present state, the probability of transitioning into future states are unaffected by past states. and \cite{shibata2019} assume that true monthly employment status evolves according to the first-order Markov assumption. \cite{feng2013} allow employment status over the preceding nine months to affect transition probabilities, but assume that historical statuses in the more distant past has no effect.
+
+
+
+
+ 
+
+
+
+
+
+
+%To state this more formally, let observed employment status in period $t$ be denoted $S_t$, then the Markov assumption on observed employment implies that
+
+%\begin{equation} \label{eq_Markov_assumption}
+%P(S_t \vert S_{t-1}, S_{t-2}, ..., S_0) = P(S_t \vert S_{t-1})
+%\end{equation}
+
+%The Markov assumption implies that duration of employment or unemployment does not directly impact the probability of churn. The Markov assumption, often implicitly made on the observed employment process, is relaxed in studies by \cite{shibata2019, feng2013, biemer2000}. The pattern of relatively high observed churn rates in high-frequency panels suggests that the first-order Markov assumption in equation \ref{eq_Markov_assumption} is too strong. 
+
+%\cite{feng2013} provide a further discussion on the drawbacks, emphasizing the implausibility of the claim that employment duration has no bearing on future employment chances, especially in longer panels. 
+
+
+
+%Methods allowing for misclassification typically weaken the Markov assumption, imposing it not on the observed employment process but on the true process. This identifying assumption attributes the violation of the Markov assumption to transient misclassification error; this depiction produces a similar observed employment pattern to that seen in the South African labour literature where annualised churn rates are estimated to be much higher on high-frequency than on low-frequency panel data. 
+
+
+%The Markov assumption is critical for identification. While made implicitly on the observed employment process by most studies on employment transitions it is important to consider the assumption carefully. The strict first-order Markov assumption is unlikely to hold on observed employment \textemdash the structural misclassification error estimator developed in this paper attributes the violation of the Markov assumption and the resulting pattern of decreasing estimated annualised churn rates as the time between panel data waves increases to misclassification error, before also investigating the alternative hypotheses of 
+
+
+
+
+
+%Reinterviews are scarce in developing countries because the process is costly and often infeasible. There has as yet been no attempts at conducting re-interviews for any of the South African labour market surveys. The absence of re-interview information has prevented South African researchers from investigating the presence of misclassification error as it was deemed that there is nothing that could be done about the phenomenon \citep{dinkelman2004}. 
+
+
+%Moreover, transient misclassification error would produce the pattern observed in the South African labour market churn literature where high-frequency panels produce estimates suggesting greater churn. 
+
+%In developed nations, there are some studies examining misclassification error using auxiliary methods like reinterviews. 
+
+
+
+
+
+
+
+
+\begin{comment}
+
+\subsection{Misclassification Methods}
+
+\subsubsection{Auxiliary Information}
+
+The studies mentioned above use a common method for correcting measurement error in survey data requires access to auxiliary information in the form of re-interview surveys. These allow researchers to get an indication of the level of measurement error in a particular survey by sending interviewers back (typically a week later) to a subsample of the overall sampling population to conduct the survey again, asking questions about employment status in the previous week. If there are discrepancies, interviewers ask more detailed questions until they are confident that they have attained the true answers.
+
+The process is often quite costly and as such remains infeasible in most developing countries. There has as yet been no attempts at conducting re-interviews for any of the South African labour market surveys. The absence of re-interview information has prevented South African researchers from investigating the presence of measurement error, as it was deemed that there is nothing that could be done about the phenomenon \cite{dinkelman2004}.
+
+\cite{abowd1985} and \cite{porteba1986} are prototypical examples of the traditional re-interview method for measurement error correction. This method assumes that the information in the re-interviews are the truth and that any discrepancies between the original interviews and the re-interviews are due to measurement error in the original interview, which only contains observed employment statuses. The true values are then compared to the observed values to find an error rate, calculating misclassification probabilities. The misclassification probabilities are used to find an error correction matrix to adjust employment statuses and flow rates.
+
+While the re-interview method is considered the ‘gold-standard’ for measurement error correction \cite{biemer2000}, there are a number of issues with the method that requires the development of a new method. The most obvious downside of the re-interview method is the necessity of auxiliary information. It proves costly and time consuming, and as such is unavailable in many countries. Access, however, is not the only caveat to this approach. The re-interview surveys may also contain errors and biases, as discussed in \cite{shibata2019}. First, re-interviews are conducted on a very small subsample, generally only 1\% of the overall sample. This introduces a large amount of sampling variance that affects the accuracy and efficiency of the estimates. Second, there is a time lag between the original survey and the re-interview that is considered negligible in measurement error correction studies. The time lag may lead to a change in the true employment status of respondents, creating legitimate discrepancies between the original survey and the re-interview survey; it would be incorrectly attributed to measurement error. Moreover, re-interviews are mostly conducted telephonically while the original interviews are done in person. These differences in method may lead to varying reactions from respondents. Therefore, the re-interview methods are far from exempt from errors and shortcomings. There is a great necessity for the development of alternative statistical models that do not require auxiliary information sources.
+
+\subsubsection{Biemer Bushery}
+
+Fortunately, while the use of auxiliary sources is popular in cases where they are available, the misconception that there is no alternative method of dealing with misclassification error is misguided. A number of statistical latent variable models have been developed to attain estimates for the true employment transition probabilities. The most influential of these is the methodology developed by \cite{biemer2000}.
+
+An important study in developing such methods is that by \cite{biemer2000}. They used the Current Population Survey (CPS) and compared re-interview and non-interview methods for estimating the probability of measurement error. They applied Markov Latent Class Analysis (MLCA) to the CPS data of the first three months of 1993, 1995, and 1996. MLCA presents a method for estimating measurement error in longitudinal data without requiring auxiliary information. They model true employment status as an unobserved, latent variable; observed data function as noisy indicators of the latent variables. It combines two different types of models to identify measurement error. First, they model the true labour market transition (the latent variable) as a Markov Chain, allowing the estimation of month-to-month true transition probabilities. The second model component is a classification error model that represents the noisy relationship between observed and true employment status.
+
+They employ a maximum likelihood-based approach, deriving the joint probability density function of the latent and observed variables as the product of the different conditional probabilities. However, the Method of Maximum Likelihood requires a complete dataset that includes all relevant variables (i.e., without any latent variables). To overcome this they utilize the Expectation-Maximization (EM) Algorithm, which provides an iterative method to maximum likelihood estimation in the presence of latent variables \cite{hastie2009}. The algorithm has two broad steps. First, the latent variables are estimated from the data. Second, the parameters are estimated using standard maximum likelihood estimation on the now complete dataset. These steps are repeated iteratively. The EM Algorithm allows \cite{biemer2000} to estimate the transition probabilities as well as the measurement error rate. They find that there is substantial heterogeneity in measurement error probabilities based on labour market status.
+
+The employed are least likely to have their status measured with error (a range of 0.4\%-1.3\%), followed by the not-economically active whose misclassification probabilities range between 1.1\% and 2.6\%. The unemployed are most likely to have their labour market status be measured with error:the probability of being misclassified as employed if unemployed is between 4.6\% and 11\%. They found that the results of the re-interview and maximum likelihood methods are very comparable, promising alternative and effective methods for estimating errors. 
+
+The \cite{biemer2000} methodology relies on a number of crucial identifying assumptions. The most important is the first-order Markov Assumption - based on month-to-month transitions - on the true employment process. This particular version of the assumption states that the probability of being employed in a particular month, $m$, given the status of the previous month, $m$-1, is independent of any other prior knowledge: 
+
+
+\begin{equation}
+    P(S_m \vert S_{m-1}, S_{m-2}, ..., S_0) = P(S_m \vert S_{m-1})
+\end{equation}
+
+The first-order Markov Assumption is common in the literature, but remains a strong assumption. It implies that duration of employment (or unemployment) has no impact on the probability of finding employment. This is unlikely to be strictly true (Feng \& Hu, 2013), although it may be a useful approximation in high frequency panel data where the probability of employment and unemployment does not change substantially with the accumulation of employment or unemployment duration.
+
+Their second vital assumption is the Local Independence Assumption, which is that classification error is independent across waves. It is an assumption generally deemed to be reasonable \citep{singh1995, meyer1988}. It appears that estimates are generally robust to this assumption even if it is conceivable that it may not apply strictly. It would be violated in the case where there is individual-level heterogeneity that makes certain respondents less reliable than others. 
+
+The \cite{biemer2000} MCLA approach to measurement error correction was vital in establishing credible alternatives to re-interview dependent methods. It avoids the additional costs and effort associated with gathering auxiliary information. It also places a lower burden on respondents, who are not required to participate in a follow up survey. Importantly, their methodology allows additional information to be extracted from the data, and one can estimate the classification errors, the  bias caused by measurement error, well as the simple response variance.
+
+
+\subsubsection{Other Estimators}
+
+The methodology of \cite{biemer2000} remains highly influential; it is the foundation of statistical methods for measurement error correction in estimation of labour market transitions. There have, however, been a number of improvements on the \cite{biemer2000} model. 
+
+\cite{feng2013} apply a similar approach to the measurement of stock variables (employment rate) rather than flows (employment transitions). They do not, however, use the maximum likelihood based estimation approach proposed by \cite{biemer2000}. The iterative EM maximum likelihood estimation guarantees only local identification. \cite{feng2013} rather utilize an eigenvalue-eigenvector decomposition of their response classification matrix, $M_{U_t |U_{t}^*,x}$, that contains the probabilities of  being observed as a particular labour market status conditional on the true status. A diagonalisation and eigenvalue-eigenvector decomposition based on this matrix allows the identification of unique eigenvalues and eigenvectors. These are used in attaining the joint probability of the observed statuses, which in turn allow a closed-form representation of the misclassification probabilities. Because this method allows global identification and does not depend on regular optimization methods, such as the EM Algorithm, \cite{feng2013} argue that their method allows more reliable estimation than that of \cite{biemer2000}.
+
+Identification of measurement error in the \cite{feng2013} model also depends on the Markov Assumption on true employment status. Their assumption is weaker than the first-order Markov property assumed by \cite{biemer2000}; they argue that state-dependency, serial correlation of individual-level shocks, and unobserved heterogeneity makes the \cite{biemer2000} assumption too strong. Rather than the first-order Markov property, they assume that employment status 9 months ago has no additional predictive power for future employment status when current status is given. This considerably weakens their Markov-type Assumption on the true employment process. Additionally, they also assume a type of conditional independence. Specifically, they assume that measurement error is dependent only on the true employment status, and test its validity. These two assumptions are the foundation of their identification strategy. 
+
+\cite{feng2013} find substantial underestimation of unemployment rates in the United States due to measurement error in employment status. Moreover, they find that misclassification probabilities are substantial, but never exceed 5\%. While their methodology is well suited to the estimation of stocks it may be problematic for estimating flows such as transition probabilities. \cite{shibata2019} shows that their methodology results in transition probabilities not included in the unit interval. This clouds its interpretation as a probability, and creates absorbing employment states such that an individual can remain employed \textit {ad infinitum} that becomes problematic. An additional concern with their method is that the eigenvalue-eigenvector decomposition approach to estimation uses only a subset of the entire sample in estimation, increasing sampling variance and decreasing the efficiency of their estimates \cite{shibata2019}. The maximum likelihood estimation methodology uses the entire sample even though it only guarantees local identification. Moreover, the latter is not restricted to the estimation of misclassification probabilities that subsequently have to be used in error correction of the transition estimates. Rather, it allows the direct joint estimation of true transition probabilities and the measurement error rates.
+
+\cite{shibata2019} also uses a method inspired by the latent Markov chain-based method of Biemer \& Bushery (2000), and returns to the maximum likelihood estimation. A shortcoming of the MLCA method of Biemer \& Bushery (2000) that \cite{shibata2019} improves on is that the former uses group-level data such that any individual falls within a particular class that behaves in the same way, and they estimate only marginal probabilities. This may suffer from potential biases, particularly if there is substantial within-group heterogeneity. The latter instead uses the HMM method where each individual has a hidden true employment status. 
+
+\cite{shibata2019} returns to the first-order Markov Assumption on true employment status of \cite{biemer2000}. The former verifies that this form of the assumption is sufficient and notes that the first-order Markov Assumption is fairly robust. Even in the case where the underlying data-generating process is not a first-order Markov Chain, such a process accurately captures the probability of short term labour market transitions.
+
+He also makes the conditional independence assumption that measurement error is only dependent on true employment status. This assumption is ubiquitous in the literature, and is also made in the re-interview models\cite{abowd1985, porteba1986}.
+
+An additional assumption that he makes to aid in identification is that individuals are most likely to report their true labour market status. The true status becomes the mode of the probability distribution of the observed status. It ensures that there is no ‘label-swapping’. 
+
+All of the models discussed make a Markov assumption. The first-order version of the assumption that is based on month-to-month transitions appears to be robust, but a longer time between the observations weakens the assumption \cite{feng2013}. The independent classification error assumption is also standard in the models above. All the models estimating employment transitions (flows) utilise a maximum likelihood estimator rather than the eigenvalue-eigenvector decomposition. The former allows simultaneous estimation of the true transitions and of the error rates. 
+\end{comment}
+
+
+
+\section{Data} \label{sec_data}
+
+
+The Quarterly Labour Force Survey (QLFS) is a household-based sample survey collected quarterly by Statistics South Africa, and was introduced in 2008 to replace the Labour Force Survey. The rotating panel dimension of the survey is utilised in this study to follow each individual for three consecutive waves and estimate the true employment transitions. The survey provides individuals’ responses concerning their employment status and other individual and household characteristics. 
+ 
+In this study the sample is restricted to black males between the ages of 18 and 55, and ranges from the first quarter of 2010 to the last quarter of 2019. Individuals are matched across waves by their unique household and person identifiers. According to \cite{statssa2013}, there is some data cleaning that occurs in an attempt to make individuals’ responses consistent between waves. While the data is mostly reliable, there is evidence of measurement error even after cleaning by Statistics South Africa \citep{burger2016, lechtenfeld2014}.
+
+\subsection{Transition rates} \label{sec_data_transition_rates} 
+
+The standard literature on employment transitions uses classic transition matrices to estimate employment transition rates. On the QLFS data, these estimates produce average 3-month job entry and exit rates of 8.63\% and 8.2\% respectively, implying respective 6-month job entry and exit rates of 15.80\% and 15.02\%. The latter are broadly consistent with the findings from studies by \cite{banerjee2008} and \cite{cichello2014}. However, the empirical 6-month churn rates diverge from these estimates, giving job entry and exit rates of 11.10\% and 10.20\% \textemdash considerably lower than the implied 6-month transition rates and those estimated in the literature, and illustrating the pattern where transition estimates on high-frequency panels suggest far greater employment churn than those estimated on lower-frequency panels. Below we use further descriptive statistics to demonstrate how each of the alternative hypotheses \textemdash worker heterogeneity and duration-dependence \textemdash correlate with churn rates before giving evidence of clear measurement error in reported age and education. The latter illustrates that substantial measurement error is present in the data even for survey questions where error is more easily identified and where respondents should be less prone to errors.
+
+\subsubsection{Transition rates by age and education level}
+
+Figure \ref{fig:data_churn_by_age} shows the empirical 3-month employment transition rates by age. Young black males have very low job entry rates, starting at 5\%, met with high job exit rates near 20\%. The job entry rate rises to about 10\% by age 30 before stabilising. The job exit rates show greater heterogeneity in age, declining more steeply until around 5\% for 40 year-olds. Both profiles are nonlinear in age, and employment is at its peak around 40 years of age before declining again slightly. 
+
+Figure \ref{fig:data_churn_by_educ} shows that entry and exit rates have similar age profiles for each of the three education groups: less than matric, matric, and more than matric. The positive effects of education are far more pronounced on job exit rates though, where more educated individuals are far less likely to lose their jobs than those without a matric. The differences between job entry rates at different education levels are negligible, suggesting that the effect of education on transition rates is different depending on whether an individual is currently employed or not. 
+
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/ne_blackmales.png}
+        \caption{Job Entry Rate}
+    \end{subfigure}
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/en_blackmales.png}
+        \caption{Job Exit Rate}
+    \end{subfigure}
+    \caption{3-Month Churn by Age}
+    \label{fig:data_churn_by_age}
+\end{figure}
+
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/ne_EDUC.png}
+        \caption{Job Entry Rate}
+    \end{subfigure}
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/en_EDUC.png}
+        \caption{Job Exit Rate}
+    \end{subfigure}
+    \caption{3-Month Churn by Age and Education level}
+    \label{fig:data_churn_by_educ}
+\end{figure}
+ 
+
+
+\subsubsection{Transition Rates by recent employment history} 
+
+The QLFS dataset also provides information on duration of employment. The employed were asked how long they have worked for their present employer while the non-employed were asked how long it has been since they were last employed. Throughout we will refer to the time spent with current employer as \textit{tenure} and the time since last employed as the \textit{time gap}. The employed and non-employed are decomposed into groups based their tenure and timegap durations respectively. The employed are split into those who have been employed in a specific position for less than a year, between 1 and 3 years, and more than 3 years. Analogously, the non-employed are split into those who have been non-employed for less than a year, between 1 and 3 years, more than 3 years, and those who have never worked.
+
+Figure \ref{fig:data_empl_histories} shows the distributions of employment history groups by age. The non-employed are overwhelmingly composed of those who have not worked in the recent past, contrasting the finding of very high churn rates. Conditional on having worked at some point but currently being non-employed, the proportion that recently lost their job decreases monotonically. Similarly, the proportion of employed who have only recently found their job decreases monotonically in age. These patterns are consistent with some duration-dependence whereby longer time gap (tenure) decreases job entry (exit) rates.
+
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/levels_TIMEGAP.png}
+        \caption{Non-employed}
+    \end{subfigure}
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=7cm]{Figures/levels_TENURE.png}
+        \caption{Employed}
+    \end{subfigure}
+    \caption{Distribution of Employment Histories}
+    \label{fig:data_empl_histories}
+\end{figure}
+
+
+ 
+
+
+
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=6cm]{Figures/ne_DURATION.png}
+        \caption{Unemployed}
+    \end{subfigure}
+    \begin{subfigure}{0.45\textwidth}
+        \centering
+        \includegraphics[width=6cm]{Figures/en_DURATION.png}
+        \caption{Employed}
+    \end{subfigure}
+    \caption{Duration of Un/Employment}
+    \label{fig:data_duration}
+\end{figure}
+
+Figure \ref{fig:data_duration} provides further evidence of negative duration-dependence. Employment transitions decreases by duration in the state, regardless of age or employment status. Crucially, the biggest difference is between the recently churned and those churned long ago. This suggests frequent transient transitions consistent with misclassification of employment status.
+
+While the above figures provide descriptive evidence that heterogeneity and duration-dependence are important in explaining employment transitions, the employment patterns they illustrate are also consistent with the classification error driving transient observed employment churn. There are clear cases of measurement errors in the QLFS data. Figure \ref{fig:data_inconsistencies} shows high incidence of clear inconsistent reporting of age and education level \textemdash two variables where error rates would presumably be lower because they are easier to recall and errors are easily identifiable. 24\% of individuals have some inconsistency in their reported education progression. This means that education level either decreased or increased by an implausible number of years in successive waves. Inconsistent reporting of age is included in the estimator derived below to provide further evidence for misclassification error driving some of the transient employment churn. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=10cm]{Figures/Inconsistencies.png}
+    \caption{Clear Inconsistent Reporting of Age and Education Level}
+    \label{fig:data_inconsistencies}
+\end{figure}
+
+ 
+
+\section{Method}\label{sec_method}
+
+Transient classification error exaggerates churn, particularly when measured using high-frequency panels. The descriptive evidence from the QLFS data on South African employment is consistent with the presence of classification error in employment status \textemdash however, the observed transient employment churn could also be explained by worker heterogeneity or negative duration-dependence. This section develops a structural misclassification error estimator (SME) that simultaneously estimates true employment transition and misclassification probabilities without relying on reinterviews. 
+
+We present the assumptions underlying the structural approach and illustrate how the core SME estimator is identified. It is extended to allow for worker heterogeneity \textemdash both observed, through covariates, and unobserved, through a finite mixture model specification 
+\textemdash and duration-dependence. This section is concluded by allowing for heterogeneity in classification error by incorporating inconsistent reporting of age. The latter also serves as a test, providing evidence that churn is correlated with unreliable responses and giving insight into the mechanism through which the bias occurs.
+
+
+
+%\subsubsection{Stationarity}
+
+%The data used in this study consists of three consecutive waves, which are the first three quarters of a 2013. The assumption, therefore, is that there are no substantial structural changes to the labour market over this period. The implication is that constant transitions, employment rate, and measurement error parameters are used. Burger (2016), also using the QLFS dataset, makes a similar assumption, and shows that there is very little change in the structure of the economy, even over a three year period. Stationarity in the labour market becomes a reasonable assumption when the time period is short (Singh \& Rao, 1995; Meyer, 1988), giving little time for structural change to occur.
+
+%\subsubsection{Limitations on Measurement Error}
+
+%In order to prevent label-swapping as in Shibata (2019), it is assumed that respondents are more likely to report their true employment status than any other status. This means that the mode of the observed employment status is the true status. It is also assumed that the age and education level of any respondent cannot be measured with error in more than one of the three periods. This is assumed to assist in the determination of age and education inconsistencies. 
+
+\subsection{The structural misclassification error estimator}
+
+Suppose binary but unobservable true employment status in period \textit{t}, $S_t^*$, that takes on a value of 1 if employed and 0 if non-employed, and is generated by the following process:
+
+%\begin{equation} \label{eq_true_process_1}
+%S_t^* \equiv \theta_1 S_{t-1}^* + \theta_2 (1-S_{t-1}^*)+e_t^*
+%\end{equation}
+
+
+\begin{equation} 
+s_t^* \equiv \theta_1 s_{t-1}^* + \theta_2 (1-s_{t-1}^*)+e_t^*
+\end{equation}
+
+
+\begin{equation} 
+s_t \equiv \pi s_t^* + (1-\pi)(1-s_t^*)+e_t
+\end{equation}
+
+
+\begin{equation} 
+ k^*_t \equiv s_t^*(k^*_{t-1} + 1) + (1 - s_t^*)(0) 
+\end{equation}
+
+
+
+\begin{equation} 
+ k_t \equiv \pi (k_t^* + \nu_t) + (1-\pi)*(s_t y_t + (1-s_t)0)
+\end{equation}
+
+
+
+\begin{equation} 
+ h^*_t \equiv (1-s_t^*)(h^*_{t-1} + 1) +  s_t^*(0) 
+\end{equation}
+
+\begin{equation} 
+ h_t \equiv \pi (h_t^* + \nu_t) + (1-\pi)*(s_t y_t + (1-s_t)0)
+\end{equation}
+
+
+
+
+
+
+
+
+
+
+where $\theta_1$ and $\theta_2$ are constant unobservable parameters that can be reframed as $\theta_i = \Phi(\beta_{i})$, to apply the probit transformation. Thus, $\theta_2$ is the job entry rate and $1-\theta_1$ is the job exit rate. Also, $e_t^*$ is an unobservable random error term such that $E(e_t^*|S_{t-1}^*)=0$. It follows a Bernoulli distribution when conditioned on $S_{t-1}^*$.
+
+Equation \ref{eq_true_process_1} makes the first-order Markov assumption on true employment status \textemdash future true employment status given present true employment is independent of the past status. The first-order Markov assumption is common in both misclassification error and employment transition literatures. \cite{biemer2000} assume a first-order Markov property for the true employment status measured monthly; \cite{feng2013} makes the same assumption on employment measured every 9 months; \cite{shibata2019} returns to the \cite{biemer2000} version, verifying the validity and robustness of the first-order Markov assumption on true monthly employment status. QLFS is a quarterly survey so the waves are further apart than the monthly data used by \cite{biemer2000} and \cite{shibata2019}; quarterly data mitigates some concerns regarding serial correlation of employment status \citep{shibata2019}. Equation \ref{eq_error_process_1} describes true employment as a time-homogeneous discrete time Markov chain. Even in cases where time-homogeneous Markov models are not strictly appropriate, they may often be necessary and useful simplifications \citep{kalbfleisch1985}.
+
+Furthermore, suppose $S_t$, observable employment status, is a noisy measure of the true employment, and is generated as:
+
+\begin{equation} \label{eq_error_process_1}
+S_t \equiv \Phi(\pi) S_t^* + (1-\Phi(\pi))(1-S_t^*)+e_t
+\end{equation}
+
+Where $\pi$ is a time-invariant unobservable misclassification parameter and $e_t$ is an unobservable random error term such that $E(e_t |S_t^* )=0$ that follows a Bernoulli distribution when conditioned on $S_t^*$. Also assume the unconditional probability of employment in period \textit{t-2} is $\mu$, such that $P(S_{t-2}^*=1)=\mu$.
+
+Note that assuming there is no misclassification error implies that $\Phi(\pi) = 1$ and that the first-order Markov assumption applies to the observed employment process. This is a far stronger assumption and is often implicitly made when using classic transition matrices. \cite{burger2016} illustrates that the Markov assumption on observed employment in South Africa does not hold, with classical transition estimates not fitting the moments in the data. This discrepancy is potentially explained by measurement error \citep{biemer2000, wolfe2003}. 
+
+The noise process in equation \ref{eq_error_process_1} also implies the independent classification error (ICE) assumptions. The first component is that observed employment statuses in two consecutive periods are independent given the true employment statuses \citep{abowd1985, chua1987, porteba1986, singh1995, magnac1999}. The second is that the probability of misclassification is independent of true employment status, covariates, and time \citep{wolfe2003, burger2016, shibata2019}. This second component is relaxed throughout, where the probability of misclassification is first allowed to be asymmetric \textemdash i.e. vary by true employment \textemdash and then by inconsistent responses to age.
+
+Simultaneous estimation of the parameters requires deriving estimable population moments and attaining the joint likelihood function. Therefore, it is required to express the observed employment status, $S_t$, in terms of the parameters $\theta_1, \theta_2, \pi$, and $\mu$ as well as the observed employment statuses in the previous two periods, $S_{t-1}$ and $S_{t-2}$, and the random error terms for both processes. 
+
+Subbing equation \ref{eq_true_process_1} into itself produces the true equation over 3 waves. The three period observed employment equation can be attained by then substituting equation \ref{eq_error_process_1} in for each $S_i^*$. Taking the conditional expectation yields the following observed transition probability
+
+\begin{flalign} \label{eq_trans_prob_sme}
+P(S_t=1 \vert S_{t-1},S_{t-2})=E(S_t & \vert S_{t-1}, S_{t-2})  \\
+=(1-& \pi)+(2\pi-1)(1+\theta_1-\theta_2 )\theta_2 -(\theta_1-\theta_2)^2 (1-\pi) \notag \\
+&+(\theta_1-\theta_2 )^2 S_{t-2} \notag \\
+&+E(e_t \vert S_{t-1},S_{t-2}) - (\theta_1-\theta_2)^2  E(e_{t-2} \vert S_{t-1},S_{t-2}) \notag \\
+&+(2\pi-1) E(e_t^* \vert S_{t-1},S_{t-2}) +(2\pi-1)(\theta_1-\theta_2 )E(e_{t-1}^* \vert S_{t-1},S_{t-2}) \notag &&
+\end{flalign}
+
+The observed transition probability in equation \ref{eq_error_process_1} is the first component of the likelihood function. The derivations of the conditional expectations of the error terms, $e_t^*$, $e_{t-1}^*$,$e_t$ and $e_{t-2}$, as well as the full derivation of the estimator, is left for appendix \ref{appendix_derivation}. The second component of the likelihood function is the joint distribution of $S_{t-1}$ and $S_{t-2}$ \textemdash the full derivation can also be found in appendix \ref{appendix_derivation}. The population likelihood is the product of the conditional and joint probabilities, as below in equation \ref{eq_sme_population_likelihood}
+
+\begin{equation} \label{eq_sme_population_likelihood}
+    L(\underline{\Theta}) = P(S_t \vert S_{t-1}, S_{t-2} ; \underline{\Theta}) P(S_{t-1}, S_{t-2} ; \underline{\Theta})
+\end{equation}
+
+These derivations means that the likelihood in equation \ref{eq_sme_population_likelihood} is in terms of only observed employment, not true employment. Therefore, we do not need to predict true employment status or rely on the EM algorithm but can estimate both the true and the misclassification error processes in equations \ref{eq_true_process_1} and \ref{eq_error_process_1} simultaneously and directly by maximizing equation \ref{eq_sme_population_likelihood}. 
+
+\subsection{Alternative hypotheses} \label{sec_method_alternatives}
+
+There are two alternative hypotheses for the transience in observed churn rates that lead to relatively high estimated transitions over high-frequency panel data. These are worker heterogeneity and duration-dependence. If either of these two phenomena cause a violation of the Markov assumption and are left uncontrolled for, it will lead to an exaggeration of the effect of misclassification error. An important motivation for this novel structural misclassification error estimator is that it can allow for all three \textemdash msiclassification error, heterogeneity, and duration-dependence. 
+
+Equation \ref{eq_true_process_1} is expanded to include observable worker heterogeneity and duration-dependence. For the former we include age, age squared, and education level. Similarly, to control for duration-dependence we include the tenure and time gap variables from QLFS. The relevance of all these variables are illustrated and discussed in section \ref{sec_data_transition_rates}. The $\theta$ parameter is expanded so that, for example, the job entry rate becomes
+
+\begin{equation} \label{eq_add_covariates}
+\theta_{2} = \Phi(\underling{\beta}) = \Phi(\beta_{02} + \beta_{1} Age + \beta_{2} Age^2 + \beta_3 Educ + \beta_{4B} TimeGap)
+\end{equation}
+
+Equation \ref{eq_add_covariates} accounts for observed worker heterogeneity and duration-dependence. However, there could be unobserved worker traits (such as motivation, family background, or ability) driving the violation of the first-order Markov assumption. Leaving this uncontrolled for would bias misclassification estimates. Borrowing from the finite mixture model (FMM) literature, we allow for two distinct types of workers, $A$ and $B$, with different underlying true employment transition processes. This allows the job entry and job exit rates to vary between individuals depending on their unobserved latent worker type, capturing persistent unobserved heterogeneity. 
+
+The likelihood function in equation \ref{eq_sme_population_likelihood} is modified in two ways: First, the transition probabilities are allowed to differ by type, which we can distinguish by $\theta_{i}^A$ and $\theta_{i}^B$ for process A and B respectively. Second, the overall likelihood becomes the weighted sum of the likelihoods of the two types of individuals. For the heterogeneous model the likelihood function becomes:
+
+\begin{equation} \label{eq_fmm_likelihood}
+L = \phi L_A + (1-\phi)L_B
+\end{equation}
+
+Where $\phi$, the mixing parameter, is the posterior probability that an individual is in process $A$, and $L_A$ and $L_B$ are the likelihoods for this individual if they had been generated by process $A$ and $B$ respectively. Allowing for unobservable heterogeneity controls for any unobserved factors that could be driving the breaking of the Markov process. It provides additional robustness to the identification of misclassification error.
+
+Again, this approach allows the model to be estimated based on the derived population moments. Full derivations of the sample likelihood can be found in the appendix. Unlike \cite{shibata2019} and \cite{biemer2000}, $l(\underline{\Theta}) = log(L(\underline{\Theta}))$ is directly maximised numerically, rather than using the EM algorithm \citep{dempster1977} to maximise the log-likelihood iteratively by first estimating the values of the latent variables, $S_t^*$, $S_{t-1}^*$, and $S_{t-2}^*$. The direct maximization of the log-likelihood can occur here where the relationship of the unobserved variables can be clearly expressed and included in the model while retaining the ability to solve the optimisation problem numerically, as in \cite{satten1996}.
+
+\subsection{Mechanism}  \label{subsec_mechanism}
+
+The identification of misclassification error under the extensions to the structural misclassification error in section \ref{sec_method_alternatives} is driven by the violation of the Markov assumption in the true employment process when controlling for the transient churn due to worker heterogeneity \textemdash both observed and unobserved \textemdash and duration-dependence.
+One way to find support for the hypothesis that misclassification of employment status at least partly drives the violation of the Markov property and subsequent bias in the classic transition estimates is to investigate whether measurement error in other variables have a relationship with the employment transitions. Inconsistencies in other survey responses impact employment transitions only through the reliability of the respondent, which increases the probability that their employment status is misclassified. 
+
+We extend the structural misclassification estimator developed above into a multiple equation nonlinear systems estimator to incorporate these innovations. The independence assumption is relaxed by allowing the probability of misclassification of employment status to depend on inconsistent age responses. The misclassification parameter in equation \ref{eq_error_process_1} is expanded as in equation \ref{eq_pi_inconsistent_age} below
+
+\begin{equation} \label{eq_pi_inconsistent_age}
+    \pi_t = \pi_0 + \pi_1 AgeInc_t
+\end{equation}
+
+Where $\pi_t$ is a function of unknown estimable time-invariant parameters $\pi_0$ and $\pi_1$. $AgeInc_t$ is a dummy variable indicating whether or not there is inconsistent reporting of age in period $t$. An inconsistency requires a nonsensical evolution of that particular variable. For instance, age can only remain constant or increase by 1 in successive quarters. Any violation of this deterministic evolution qualifies as an inconsistency and is assumed to be due to measurement error. If we assume that age can only be measured with error in one of the three successive waves, then there are four possible combinations of age inconsistencies that will be considered. First, period 1 and period 2 are inconsistent while 2 and 3 are consistent, implying that the inconsistency is due to an error in period 1. Second, period 1 and period 2 are consistent while 2 and 3 are inconsistent, implying that the inconsistency is due to an error in period 3. Third, both period 1 and 2 and periods 2 and 3 are inconsistent, implying that the inconsistency is due to an error in period 2. Fourth, all periods are consistent, implying that there is no error. 
+
+Inconsistencies in age give information about the reliability of a respondent in a particular quarter, thus helping to identify potential errors in employment status. A significant and positive estimate $\hat{\pi_1}$ means that observations with inconsistent age progressions exhibit employment patterns consistent with misclassification error, providing further evidence in favour of the misclassification error estimator.
+
+
+\section{Results} \label{sec_results}
+
+
+We now apply the method introduced in section \ref{sec_method} to the data discussed in section \ref{sec_data}. Firstly, we estimate the simplest version of the model without any control variables or finite mixture of unobserved types. Secondly, we extend the model by including two sets of control variables: important sources of observed heterogeneity in worker transition rates, like age, education level, and duration dependence. Thirdly, we estimate the model by including a finite mixture of worker types, which allows for unobserved heterogeneity in worker transition rates. Finally, we estimate the extension presented in section \ref{subsec_mechanism} that includes inconsistent age responses. 
+
+%We find that the estimated misclassification error rate is consistently between 2.5\% and 3.1\% and is significant at the 0.1\% significance level regardless of the controls introduced. We also show that the inclusion of misclassification error results in a substantial decrease in estimated churn. ven when including heterogeneity and duration-dependence, transient misclassification error places an upward bias on transition estimates and underestimates the persistence in employment. While worker heterogeneity, particularly observed heterogeneity, and duration-dependence are important factors in explaining employment patterns, misclassification is quantitatively the most important factor for explaining the observed transitions. Moreover, observations with inconsistent age responses are far more likely to have a misclassified employment status, providing strong evidence in favour of the structural misclassification error approach. 
+
+\subsection{Misclassification error}
+
+Table \ref{table_simple_implied} reports the results from three versions of the structural misclassfication estimator\footnote{The untransformed parameter estimates are included in Appendix table \ref{table_simple_appendix}.}.  The results in the first column imposes the restriction of no misclassification. This produces estimates of job entry and exit rates of 8.24\% and 8.63\% respectively, which matches the estimates from section \ref{sec_data}. Column 2 allow misclassification error, but imposes the restriction of symmetric misclassification rates, i.e., the probability of misclassifying the truly employed as non-employed is the same as the probability of misclassifying the non-employed as employed. This produces a dramatic reduction in the estimated transition rates: the job entry rate is reduced by a factor of 2.9 and the job exit rate by a factor of 3.5. The substantial reduction occurs despite a relatively small estimated probability of misclassification of only 3.14\%. This model also achieves a substantial improvement in the goodness-of-fit, so is more congruent with the observed employment dynamics over three waves of data. Column 3 allows for asymmetrical misclassification error. This model produces only a slight improvement in fit, and misclassification rates for the employed and non-employed that are similar. Therefore the models below are all restricted to symmetric misclassification error.
+
+\input{Tables/table_simple_implied.tex}
+
+
+\subsection{Alternative hypotheses}
+
+Table \ref{table_covariates_implied} reports the estimate of the model that allows for heterogeneity and duration-dependence\footnote{The untransformed parameter estimates can be found in Appendix table \ref{table_covariates_appendix}}. Column 1 reveals the estimates of the model that only includes observed worker heterogeneity, but no classification error or duration-dependence. Column 3 estimates the same model but allowing for misclassification. Allowing for misclassification substantially improves the model fit, and reduces the implies entry and exit rates by a factor of two. The estimated misclassification rate is only slightly lower than in Table 1. 
+
+Column 3 estimates the no misclassification model that also allows for duration-dependence by including job tenure and unemployment duration as worker attributes that affect transition rates. Column 4 relaxes the assumption of no misclassification. Allowing duration-dependence improves model fit, and increases the implied rate of transitions, but does not reduce the estimated classification error rate. 
+
+The results suggests that the simpler misclassification models that do not allow for covariates may suffer from a small amount of omitted variable bias that is removed when controlling for worker heterogeneity and duration-dependence. However, the changes in the estimated misclassification rate are very slight and the misclassification parameter remains significant at the 0.1\% significance level. Secondly, allowing for misclassification produces a larger improvement in model fit than either worker heterogeneity or duration dependence. In fact, the simple misclassification estimator in column 2 of table \ref{table_simple_implied} utilising only a single additional parameter has a better goodness-of-fit than the estimator in column 2 of table \ref{table_covariates_implied} that requires six additional parameters to include both observed heterogeneity and duration-dependence. 
+
+Including observed heterogeneity and duration-dependence also affects job entry and exit rates. When allowing for observed heterogeneity and/or duration-dependence, as in columns 1 and 2, the average predicted job entry and exit rates are still lower than the transition matrix estimates, although now be only a factor of approximately 1.5. For each specification, the inclusion of the misclassification error parameter brings a decrease in churn rates and a substantial improvement in fit. Including the misclassification parameter has a smaller effect on churn rates when both observed heterogeneity and duration-dependence are included. That said, the misclassification parameter remains highly significant and greatly improves fit. For the estimators not including duration-dependence but including observed heterogeneity \textemdash columns 1 and 3 in table \ref{table_covariates_implied} \textemdash the average predicted job exit rates have very high standard deviations and are not significantly different from 0. Statistical significance returns when duration-dependence is included. 
+
+
+\input{Tables/table_covariates_implied}
+
+Table \ref{table_fmm_implied} reports the implied probabilities of the FMM specification that includes unobserved heterogeneity\footnote{Table \ref{table_fmm_appendix} in the appendix gives the untransformed parameter estimates.}. Each estimator produces an job entry and exit rate for each of the two unobserved worker types, $A$ and $B$. The mixing probability is the estimated prior probability that a randomly selected worker is of type $A$. 
+
+The results in column 1, restricted to having no misclassification, shows that approximately 88\% of workers have very low churn rates comparable to the models allowing for misclassification in tables \ref{table_simple_implied} and \ref{table_covariates_implied}. For the remaining 12\% of workers, employment has no persistence and is a near coin toss each quarter, with transition rates near 50\%. When allowing for misclassification error in column 2, the picture changes dramatically. Workers of type $A$ have even lower transition rates but they now make up 99\% of the population. A very small minority of workers of type $B$ have very large job exit rates. The transient employment changes due to misclassification that were represented by type $B$ in the column 1 estimator are now picked up by the unrestricted misclassification error parameter.
+
+As expected, the model that best fits the data is the one in column 4 of table \ref{table_covariates_implied} that includes misclassification error, observed heterogeneity, and duration-dependence. Regardless, across all specifications the inclusion of misclassification decreases churn estimates and results in the largest improvement in fit. Even small misclassification rates of around 3\% result in overestimating churn rates by between two-and-threefold. 
+
+\input{Tables/table_fmm_implied}
+
+\subsection{Mechanism} \label{sec_mechanism}
+
+Table \ref{table_inc_implied} reports the implied probabilities for the estimated multiple equations nonlinear systems estimator that allows the misclassification rate to depend on inconsistent age responses. The $\pi_1$ parameter is significant, as seen in the untransformed regression results in table \ref{table_inc_appendix} in the appendix, showing that observations with inconsistent age responses have higher estimated misclassification rates. A misclassification rate of 2.77\% rises to near 14\% when there is an inconsistency in reported age. These results \textemdash that inconsistent age responses explain the South African employment pattern \textemdash suggest that unreliable respondents are more likely to misreport employment status and thus have highly transient employment churn patterns. 
+
+
+
+
+\input{Tables/table_simple_inc_implied}
+
+
+\section{Conclusion} \label{sec_conclusion}
+
+This paper estimates the rate of transitions into and out of employment for South African workers using a method that is robust to classification error. The approach can be used in any context where three waves of panel data exists, and does not require reinterview or validation data. Our approach also allows violations of the Markov property due to worker heterogeneity and duration-dependence in employment states due to the effect of job tenure on exit rates and unemployment duration on entry rates. The results reveal that despite the relatively low probability of misclassification, conventional estimates overstate transition rates by up to a factor of three. This suggests that employment states in South Africa are much less transient than claimed in previous studies. We also find that misclassification has only a small effect on the estimated employment and non-employment shares, unlike the more severe biases observed in the US. The relevance of data reliability concerns is supported by our finding that workers who provide inconsistent age responses across panel waves also reveal higher estimated transition rates. 
+
+The results are relevant for studies of employment dynamics in developing countries, where a higher share of workers are marginally employed and classification errors are more likely to occur. It is also relevant for estimates of poverty transitions, where classification errors will create the appearance that poverty is more transient than is actually the case, and perhaps leading to suboptimal public policies. 
+
+Although this paper demonstrates the relevance of using estimators that are robust to classification errors, our proposed method relies on a contentious first-order Markov property to identify the extent of classification errors. It would be difficult to relax this assumption in any substantive way with only three waves of panel data, but more waves would allow replacing this assumption with a less restrictive higher-order Markov assumption. This is left for future research. 
+
+
+
+
+\bibliographystyle{chicago} % or another style like unsrt, alpha, abbrv, etc.
+
+\begingroup
+\setstretch{1.0}
+
+\clearpage
+	\bibliography{ref.bib}
+	\bibliographystyle{agsm}
+%	\bibliographystyle{chicago}
+\endgroup
+
+
+\appendix
+
+\section{Untransformed parameter estimates}
+
+\input{Tables/table_simple_appendix.tex}
+%\input{Tables/table_covariates_appendix}
+\input{Tables/table_fmm_appendix}
+%\input{Tables/table_covariates_appendix}
+\input{Tables/table_simple_inc_appendix}
+
+\input{Sections/7. Appendix}
+\end{document}
+

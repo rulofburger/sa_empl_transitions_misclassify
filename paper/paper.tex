@@ -1,0 +1,239 @@
+% ==============================================================================
+% paper.tex — Main paper file
+% "Estimating employment transitions while accounting for classification error:
+%  evidence from South Africa"
+% Created: 2026-05-08
+%
+% Compile with:
+%   pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
+%
+% All results tables are \input{} from their source output directories.
+% Section text is \input{} from paper/sections/.
+% Appendix content is \input{} from paper/sections/appendix_*.tex.
+% ==============================================================================
+
+\documentclass[letterpaper,12pt,final]{article}
+
+% --- Layout and typography ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.4in]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% --- Math ---
+\usepackage{amsmath,amsthm,amssymb}
+
+% --- Tables ---
+\usepackage{booktabs,dcolumn,multirow,longtable,lscape,pdflscape}
+\usepackage{float}
+
+% --- Graphics ---
+\usepackage{graphicx,epstopdf}
+\usepackage{subcaption}
+
+% --- Bibliography ---
+\usepackage[round]{natbib}
+
+% --- Hyperlinks ---
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = black,
+  citecolor  = blue,
+  urlcolor   = blue,
+}
+\urlstyle{same}
+
+% --- Other ---
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage[format=hang,textfont={md},labelfont={bf},
+            justification=raggedright]{caption}[2008/04/01]
+\usepackage{threeparttable}
+\usepackage{etoolbox}
+\appto\TPTnoteSettings{\footnotesize}
+\usepackage{appendix}
+\usepackage{rotating}
+
+% --- Custom commands ---
+\newcommand{\mynoteRB}[1]{\textcolor{red}{[RB: #1]}}
+\newcommand{\mynoteZP}[1]{\textcolor{orange}{[ZP: #1]}}
+\newcommand\fnote[1]{\captionsetup{font=footnotesize}\caption*{#1}}
+
+% --- Paragraph spacing ---
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0.6em}
+
+% ==============================================================================
+% Title, authors, date
+% ==============================================================================
+\title{Estimating employment transitions while accounting for
+  classification error: evidence from South Africa%
+  \thanks{We gratefully acknowledge financial support from the UK government
+    through the Data and Evidence for Tackling Extreme Poverty (DEEP) Research
+    Programme. All errors and omissions are our own.
+    Declarations of interest: none.}}
+
+\author{
+  Zander Prinsloo\thanks{The World Bank. Email: \href{mailto:zprinsloo@worldbank.org}{zprinsloo@worldbank.org}}
+  \and
+  Cobus Burger\thanks{Department of Economics, Stellenbosch University.
+    Email: \href{mailto:cobusburger@sun.ac.za}{cobusburger@sun.ac.za}}
+  \and
+  Rulof Burger\thanks{Department of Economics, Stellenbosch University and J-PAL.
+    Email: \href{mailto:rulof@sun.ac.za}{rulof@sun.ac.za}}
+  \and
+  Dean Jolliffe\thanks{The World Bank and J-PAL.
+    Email: \href{mailto:djolliffe@worldbank.org}{djolliffe@worldbank.org}}
+}
+
+\date{\today}
+
+% ==============================================================================
+\begin{document}
+% ==============================================================================
+
+\maketitle
+
+% --- Abstract ---
+\begin{abstract}
+Reliable estimates of employment transition rates are central to diagnosing the
+nature of unemployment and designing effective labour market policy. Yet
+classification error in survey responses to employment questions is pervasive
+and, even when small, can inflate measured transition rates by an order of
+magnitude. We develop a structural EM-algorithm estimator that uses three
+consecutive waves of panel data to jointly identify true transition rates and
+misclassification probabilities, requiring no reinterview or administrative
+data. The estimator accommodates observed and unobserved worker heterogeneity,
+second-order Markov dynamics, and tenure-based identification of classification
+error. Applied to the South African Quarterly Labour Force Survey, we find a
+misclassification probability of approximately 3\%, which causes conventional
+methods to overstate quarterly employment entry and exit rates by a factor of
+nearly three---from roughly 8\% to roughly 3\%. This finding is robust to
+controlling for observable and unobservable worker heterogeneity, duration
+dependence, and alternative matching algorithms. Survey respondents with
+inconsistent age or education progressions exhibit substantially higher estimated
+misclassification, providing direct mechanism evidence. Our results imply that
+South African employment is considerably more persistent than previously
+characterised, with important implications for the design of labour market
+policy.
+
+\medskip
+\noindent\textbf{Keywords:} Misclassification error, employment transitions,
+EM algorithm, panel data, South Africa
+
+\noindent\textbf{JEL Codes:} J63, C23, C41
+\end{abstract}
+
+\pagebreak
+\tableofcontents
+\pagebreak
+
+% ==============================================================================
+% 1. Introduction
+% ==============================================================================
+\section{Introduction}\label{sec:introduction}
+
+\input{sections/introduction}
+
+% ==============================================================================
+% 2. Data
+% ==============================================================================
+\section{Data}\label{sec:data}
+
+\input{sections/data}
+
+% --- Table 1: Descriptive statistics ---
+\input{output/table_descriptive}
+
+% ==============================================================================
+% 3. Methodology
+% ==============================================================================
+\section{Methodology}\label{sec:methodology}
+
+\input{sections/methodology}
+
+% ==============================================================================
+% 4. Main Results
+% ==============================================================================
+\section{Main Results}\label{sec:results}
+
+\input{sections/results}
+
+% --- Table 2: Baseline implied probabilities ---
+\input{../EM-baseline/output/tables/table_baseline_implied}
+
+% --- Table 3: Baseline parameter estimates ---
+\input{../EM-baseline/output/tables/table_baseline_params}
+
+% --- Table 4: Covariate model implied probabilities ---
+\input{../EM-baseline-ext/output/tables/table_cov_implied_stat}
+
+% --- Table 5: FMM implied probabilities ---
+\input{../EM-baseline-ext/output/tables/table_fmm}
+
+% --- Table 6: Inconsistency model implied probabilities ---
+\input{../EM-baseline-ext/output/tables/table_inconsistency}
+
+% ==============================================================================
+% 5. Alternative Specifications
+% ==============================================================================
+\section{Alternative Specifications}\label{sec:alternatives}
+
+\input{sections/alternatives}
+
+% --- Table 7: AR(2) implied probabilities ---
+\input{../EM-AR2/output/tables/table_AR2_implied}
+
+% --- Table 8: AR(2) parameter estimates ---
+\input{../EM-AR2/output/tables/table_AR2_params}
+
+% --- Table 9: Tenure contamination implied probabilities ---
+\input{../EM-tenure/output/tables/table_eps_implied}
+
+% --- Table 10: Tenure contamination parameter estimates ---
+\input{../EM-tenure/output/tables/table_eps_params}
+
+% --- Table 11: Tenure contamination spell-length interpretation ---
+\input{../EM-tenure/output/tables/table_eps_tenure}
+
+% --- Table 12: Matching algorithm sensitivity ---
+\input{../EM-baseline/output/tables/table_matching_implied}
+
+% ==============================================================================
+% 6. Conclusion
+% ==============================================================================
+\section{Conclusion}\label{sec:conclusion}
+
+\input{sections/conclusion}
+
+% ==============================================================================
+% References
+% ==============================================================================
+\bibliographystyle{chicago}
+\begingroup
+\setstretch{1.0}
+\clearpage
+\bibliography{ref}
+\endgroup
+
+% ==============================================================================
+% Appendices
+% ==============================================================================
+\clearpage
+\appendix
+
+\section{Baseline EM algorithm: full derivation}\label{app:baseline}
+
+\input{sections/appendix_baseline}
+
+\section{AR(2) extension: full derivation}\label{app:ar2}
+
+\input{sections/appendix_ar2}
+
+\section{Tenure contamination model: full derivation}\label{app:tenure}
+
+\input{sections/appendix_tenure}
+
+\end{document}

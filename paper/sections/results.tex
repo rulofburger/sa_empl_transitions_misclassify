@@ -1,0 +1,134 @@
+% ==============================================================================
+% sections/results.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+\subsection{Baseline estimates}\label{subsec:results:baseline}
+
+Table~\ref{tab:baseline_implied} reports implied entry and exit probabilities
+from the baseline model, and Table~\ref{tab:baseline_params} reports the
+underlying structural parameter estimates. The columns cover the six
+specification variants: stationarity-restricted and free initial probability,
+crossed with no misclassification, symmetric misclassification, and asymmetric
+misclassification.
+
+Without misclassification correction---the standard Markov transition matrix
+applied to observed employment status---the estimated quarterly entry rate is
+8.28\% and the exit rate is 8.54\%. These estimates are close to the raw
+transition rates in Table~\ref{tab:descriptive}, confirming that the
+no-misclassification specification simply recovers the moments of the observed
+transition matrix.
+
+The symmetric misclassification specification yields a dramatically different
+picture. The estimated misclassification probability is $\hat{\pi} = 2.98\%$,
+and the implied entry and exit rates fall to 2.93\% and 3.00\% respectively.
+The correction factor is approximately three: a single additional parameter
+reduces the estimated transition rates by two-thirds. This is the main finding
+of the paper. The factor-of-three correction is driven by the severity of the
+Markov violation documented in Section~\ref{sec:data:puzzle}: even a small
+misclassification probability inflates high-frequency transition rates
+substantially because each transient error fabricates two transitions.
+
+The asymmetric misclassification specification, which allows the probabilities
+of falsely reporting employment and non-employment to differ, produces estimates
+that are virtually indistinguishable from the symmetric specification. The
+estimated misclassification probabilities for both directions are approximately
+3\%, and the implied transition rates are within a rounding error of the
+symmetric case. The symmetric restriction is not rejected and we adopt it in
+all subsequent specifications for parsimony.
+
+Comparing the stationarity-restricted and free initial-probability specifications
+yields similarly negligible differences. The data are consistent with the
+estimated Markov chain having been in the stationary distribution at the start
+of the observation window, and the stationarity assumption is maintained in
+subsequent models.
+
+The standard errors, obtained from 200 parametric bootstrap replications,
+indicate that the misclassification probability is estimated with considerable
+precision. The 95\% bootstrap confidence interval for $\hat{\pi}$ in the
+symmetric stationarity-restricted specification is approximately
+[2.5\%, 3.4\%], comfortably above zero and well below magnitudes that would
+be necessary to explain the raw transition matrix moments without correction.
+
+\subsection{Observable worker heterogeneity}\label{subsec:results:covariates}
+
+A natural concern is that the estimated misclassification probability is
+capturing heterogeneity in workers' true transition rates rather than
+measurement error. Workers who are persistently close to the employment margin
+may exhibit frequent transitions in the data even if the Markov assumption holds;
+if these workers are a small share of the sample, their high transition rates
+could generate Markov violations when the average transition rate is treated as
+homogeneous.
+
+Table~\ref{tab:cov_implied_stat} reports the implied transition rates from the
+observable heterogeneity extension. We consider three covariate sets of
+increasing richness: (1) age and education only; (2) additionally controlling
+for gender, race, and urban/rural status; (3) additionally controlling for
+contract type and sector. Allowing transition probabilities to vary with these
+characteristics substantially affects the composition of the entry and exit
+hazards---the average implied entry and exit rates shift as the model accounts
+for the composition of the sample across covariate cells. Nonetheless, the
+estimated misclassification probability remains economically and statistically
+significant in all three specifications, at 2.36\%, 2.23\%, and 1.17\%
+respectively. Even the most flexible covariate specification, which allows
+transition rates to differ by gender, race, age, education, urban status,
+contract type, and sector, cannot account for the Markov violations in the
+data without retaining a meaningful misclassification probability. The
+conclusion that conventional transition matrices overstate true transition rates
+by a factor of approximately two to three is robust to controlling for
+observable worker heterogeneity.
+
+\subsection{Unobserved worker heterogeneity}\label{subsec:results:fmm}
+
+The finite mixture model (FMM) extension relaxes the assumption that workers
+form a homogeneous population with respect to their underlying transition
+probabilities. Table~\ref{tab:fmm} reports the FMM results.
+
+Without accounting for misclassification, the two-type FMM assigns approximately
+equal weight to each type ($\hat{\phi} \approx 0.50$). Type B has very high
+estimated entry and exit rates ($\hat{\theta}_0^B \approx 0.37$,
+$\hat{\theta}_1^B \approx 0.57$), while type A has much lower rates. This
+``coin-flip'' type B is an implausible description of any group of actual workers;
+it is more naturally interpreted as a misclassification artefact, where a subset
+of observations with particularly noisy employment signals is assigned to a
+spurious type.
+
+Adding misclassification to the FMM substantially alters this picture. The mixing
+proportion shifts to $\hat{\phi} = 43.26\%$, the type A entry and exit rates
+fall to 6.05\% and 1.95\%, and the type B rates become 2.13\% and 5.44\%.
+These are plausible transition rates for two distinct worker groups---perhaps
+corresponding to workers with stable versus unstable employment relationships.
+The estimated misclassification probability in the FMM with $\pi$ is
+$\hat{\pi} = 2.92\%$, virtually identical to the baseline. This is the key
+result: allowing the model to explain Markov violations through either
+unobserved heterogeneity or misclassification, it attributes approximately the
+same fraction to misclassification as the simpler homogeneous model. Unobserved
+heterogeneity does not absorb the misclassification signal; instead, adding
+misclassification resolves the implausible coin-flip type.
+
+\subsection{Inconsistency-augmented misclassification}\label{subsec:results:inconsistency}
+
+Table~\ref{tab:inconsistency} reports the results of the inconsistency-augmented
+model. If misclassification in employment status is driven by the same underlying
+propensity for survey response error that generates age and education
+inconsistencies, then conditioning misclassification on inconsistency indicators
+should significantly improve the model fit, and the coefficient on the
+inconsistency indicators should be positive and significant.
+
+The results confirm this prediction strongly. The baseline misclassification
+probability---for respondents with no age or education inconsistency---is
+estimated at $\hat{\pi}_0 = 2.22\%$, slightly lower than the homogeneous
+baseline estimate. An age inconsistency in any wave pair raises the estimated
+misclassification probability by 15.72 percentage points, and an education
+inconsistency raises it by 4.22 percentage points, both statistically
+significant at conventional levels. The implied mean misclassification
+probability across the full sample, integrating over the distribution of
+inconsistency indicators, is 3.40\%.
+
+These results support the interpretation that misclassification is driven by
+genuine survey measurement error rather than by model misspecification.
+Respondents who produce objectively incorrect responses to verifiable questions
+(age and education) are substantially more likely to produce
+misclassification-consistent employment dynamics. This mechanism evidence
+is independent of the employment status data itself and cannot be explained
+by heterogeneity in true transition rates.

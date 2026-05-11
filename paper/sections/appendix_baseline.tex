@@ -1,0 +1,1027 @@
+% ==============================================================================
+% sections/appendix_baseline.tex
+% Created: 2026-05-08
+% Body extracted from paper/EM baseline.tex
+% ==============================================================================
+
+
+\subsection{Model}
+
+\subsubsection{States and notation}
+
+Consider a population observed at three equally spaced waves
+\(t \in \{1, 2, 3\}\), separated by quarterly intervals of
+\(\Delta = 0.25\) years. Let \(h_t \in \{0, 1\}\) denote the
+\emph{true} (latent) employment state at wave \(t\), where 1 denotes
+employment and 0 denotes nonemployment, and let
+\(s_t \in \{0, 1\}\) denote the \emph{observed} (reported) state.
+
+The latent three-period history is
+\[
+H = (h_1, h_2, h_3) \in \{0, 1\}^3,
+\]
+and the set of all \(2^3 = 8\) possible histories is denoted
+\(\mathcal{H}\). The observed sequence is
+\(s = (s_1, s_2, s_3)\).
+
+\subsubsection{True dynamics: first-order Markov chain}
+
+The true employment process \(\{h_t\}\) is a first-order Markov chain
+with three parameters:
+\begin{align}
+\alpha      &\equiv \Pr(h_1 = 1),                          \label{eq:alpha} \\
+\theta_0    &\equiv \Pr(h_t = 1 \mid h_{t-1} = 0),      \label{eq:theta0} \\
+\theta_1    &\equiv \Pr(h_t = 1 \mid h_{t-1} = 1),      \label{eq:theta1}
+\end{align}
+where \(\theta_0\) is the job-finding rate and \(1 - \theta_1\) is the
+separation rate. The initial employment probability \(\alpha\) is in
+general a free parameter; under the \textbf{stationarity restriction}
+(which we impose throughout), the chain is in its ergodic steady state
+at wave~1, so
+\begin{equation}
+\alpha = \frac{\theta_0}{\theta_0 + 1 - \theta_1}.
+\label{eq:stationarity}
+\end{equation}
+The free parameter vector for the Markov dynamics is therefore
+\((\theta_0, \theta_1)\), with \(\alpha\) derived from
+\eqref{eq:stationarity}.
+
+The prior probability of a latent history \(h \in \mathcal{H}\) is
+\begin{equation}
+p(H = h \mid \theta_0, \theta_1) =
+\alpha^{h_1}(1 - \alpha)^{1-h_1}
+\prod_{t=2}^{3}
+\Big[
+  \theta_1^{\mathbf{1}\{h_{t-1}=1,\, h_t=1\}}\,
+  (1 - \theta_1)^{\mathbf{1}\{h_{t-1}=1,\, h_t=0\}}\,
+  \theta_0^{\mathbf{1}\{h_{t-1}=0,\, h_t=1\}}\,
+  (1 - \theta_0)^{\mathbf{1}\{h_{t-1}=0,\, h_t=0\}}
+\Big],
+\label{eq:prior}
+\end{equation}
+with \(\alpha\) given by \eqref{eq:stationarity}.
+
+\subsubsection{Observation model: state misclassification}
+\label{sec:misclass}
+
+Employment status is observed with error. We model misclassification as
+symmetric, with a single probability \(\pi \in [0, \tfrac{1}{2})\):
+\begin{equation}
+q_{ab}(\pi) \equiv \Pr(s_t = a \mid h_t = b) =
+(1 - \pi)\,\mathbf{1}\{a = b\} + \pi\,\mathbf{1}\{a \neq b\},
+\qquad a, b \in \{0, 1\}.
+\label{eq:misclass}
+\end{equation}
+Misclassification is independent across waves and across individuals,
+conditional on the latent history. The constraint \(\pi < \tfrac{1}{2}\)
+is a normalisation ensuring that observed states are more often correct
+than incorrect.
+
+\subsubsection{Observed-data likelihood}
+\label{sec:obs_ll}
+
+We observe a sample of \(N\) individuals, \(i = 1, \dots, N\), each with
+survey weight \(w_i > 0\) and observed data
+\(y_i = (s_{i1}, s_{i2}, s_{i3})\). Conditional on a history \(h\),
+the probability of the observed sequence \(y_i\) is
+\[
+p(y_i \mid h; \pi) = \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi).
+\]
+Since the true history is unobserved, the marginal probability of
+\(y_i\) is obtained by summing over all \(h \in \mathcal{H}\):
+\begin{equation}
+p(y_i \mid \Theta) = \sum_{h \in \mathcal{H}}
+  p(H = h \mid \theta_0, \theta_1)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi).
+\label{eq:marginal}
+\end{equation}
+The observed-data log-likelihood, incorporating survey weights, is
+\begin{equation}
+\ell(\Theta) = \sum_{i=1}^{N} w_i \log p(y_i \mid \Theta)
+= \sum_{i=1}^{N} w_i \log\bigg[
+  \sum_{h \in \mathcal{H}}
+    p(H = h \mid \theta_0, \theta_1)\,
+    \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi)
+\bigg],
+\label{eq:obs_ll}
+\end{equation}
+with parameter vector \(\Theta = (\theta_0, \theta_1, \pi)\). This is a
+finite mixture log-likelihood: each observed sequence is a
+probability-weighted average over the eight latent histories that could
+have generated it.
+
+\subsection{EM algorithm}
+\label{sec:em}
+
+Direct numerical maximisation of \eqref{eq:obs_ll} is complicated by the
+\(\log\)-of-sums structure. We develop an EM (Expectation--Maximisation)
+algorithm that replaces this with a sequence of complete-data
+maximisations, each of which admits closed-form solutions.
+
+\subsubsection{Complete-data formulation}
+
+Introduce indicator variables \(z_{ih} = \mathbf{1}\{H_i = h\}\) with
+\(\sum_{h \in \mathcal{H}} z_{ih} = 1\). If the latent histories were
+known, the complete-data likelihood would be
+\[
+L_c(\Theta) = \prod_{i=1}^{N} \prod_{h \in \mathcal{H}}
+\Big[
+  p(H = h \mid \theta_0, \theta_1)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi)
+\Big]^{w_i z_{ih}}.
+\]
+Taking logarithms:
+\begin{equation}
+\ell_c(\Theta) = \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i z_{ih}
+\bigg\{
+  \underbrace{\log p(H = h \mid \theta_0, \theta_1)}_{\text{Markov prior}}
+  + \underbrace{\sum_{t=1}^{3} \log q_{s_{it},\, h_t}(\pi)}_{\text{misclassification}}
+\bigg\}.
+\label{eq:complete_ll}
+\end{equation}
+The complete-data log-likelihood \eqref{eq:complete_ll} decomposes
+additively into two blocks: one depending only on
+\((\theta_0, \theta_1)\) through the Markov prior, and one depending
+only on \(\pi\) through the misclassification probabilities. This
+additive separability is the key structural property that yields
+closed-form M-step updates.
+
+\subsubsection{E-step: responsibilities}
+\label{sec:estep}
+
+Starting from current parameter estimates
+\(\Theta^{(\text{old})} = (\theta_0^{(\text{old})}, \theta_1^{(\text{old})}, \pi^{(\text{old})})\),
+the E-step computes the posterior probability that individual \(i\) has
+latent history \(h\), conditional on the observed data:
+\begin{equation}
+\gamma_{ih} \equiv \mathbb{E}[z_{ih} \mid y_i;\, \Theta^{(\text{old})}]
+= \frac{
+  p(H = h \mid \theta_0^{(\text{old})}, \theta_1^{(\text{old})})\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi^{(\text{old})})
+}{
+  \sum_{h' \in \mathcal{H}}
+  p(H = h' \mid \theta_0^{(\text{old})}, \theta_1^{(\text{old})})\,
+  \prod_{t=1}^{3} q_{s_{it},\, h'_t}(\pi^{(\text{old})})
+}.
+\label{eq:responsibility}
+\end{equation}
+Each \(\gamma_{ih} \in [0, 1]\) and
+\(\sum_{h \in \mathcal{H}} \gamma_{ih} = 1\). Intuitively,
+\(\gamma_{ih}\) is the ``responsibility'' that history \(h\) takes for
+explaining observation \(y_i\): it combines the prior plausibility of
+\(h\) (from the Markov chain) with how well \(h\) accounts for the
+observed sequence (from the misclassification model).
+
+Substituting \eqref{eq:prior} and \eqref{eq:misclass} into
+\eqref{eq:responsibility}, the numerator for each \((i, h)\) pair is a
+product of at most six terms (three from the Markov chain, three from
+misclassification), which can be computed in \(O(1)\) time per pair.
+With \(N\) individuals and 8 histories, the full E-step requires
+\(O(N)\) operations.
+
+\paragraph{Sufficient statistics.}
+From the responsibilities, accumulate the following weighted statistics:
+\begin{align}
+C_1 &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}\, h_1,
+  &C_0 &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}\,(1 - h_1),
+  \label{eq:suff_C} \\[4pt]
+D_1 &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 1\},
+  &D_0 &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 0\},
+  \label{eq:suff_D} \\[4pt]
+T_{11} &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 1,\, h_t = 1\},
+  &T_{01} &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 0,\, h_t = 1\},
+  \label{eq:suff_T} \\[4pt]
+M &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=1}^{3} \mathbf{1}\{s_{it} \neq h_t\}.
+  \label{eq:suff_M}
+\end{align}
+These statistics have natural interpretations: \(C_1\) is the
+(responsibility-weighted) total mass of individuals truly employed at
+wave~1; \(D_1\) counts person-periods where the previous state was
+employment; \(T_{11}\) counts employment-to-employment continuations;
+\(T_{01}\) counts nonemployment-to-employment transitions; and \(M\)
+counts misclassified wave-observations.
+
+\subsubsection{M-step: parameter updates}
+\label{sec:mstep}
+
+The M-step maximises the expected complete-data log-likelihood
+\(Q(\Theta \mid \Theta^{(\text{old})}) \equiv
+\mathbb{E}[\ell_c(\Theta) \mid \{y_i\};\, \Theta^{(\text{old})}]\),
+obtained by replacing \(z_{ih}\) with \(\gamma_{ih}\) in
+\eqref{eq:complete_ll}. Because the Markov prior block depends only on
+\((\theta_0, \theta_1)\) and the misclassification block depends only on
+\(\pi\), the two can be maximised independently.
+
+\paragraph{Transition probabilities (closed form).}
+The Markov prior block of \(Q\) is
+\begin{multline}
+Q_{\text{prior}}(\theta_0, \theta_1) =
+\sum_{i, h} w_i \gamma_{ih} \bigg\{
+  h_1 \log\alpha + (1 - h_1)\log(1 - \alpha) \\
+  + \sum_{t=2}^{3} \Big[
+    \mathbf{1}\{h_{t-1}{=}1, h_t{=}1\}\log\theta_1
+    + \mathbf{1}\{h_{t-1}{=}1, h_t{=}0\}\log(1 - \theta_1) \\
+    + \mathbf{1}\{h_{t-1}{=}0, h_t{=}1\}\log\theta_0
+    + \mathbf{1}\{h_{t-1}{=}0, h_t{=}0\}\log(1 - \theta_0)
+  \Big]
+\bigg\}.
+\label{eq:Q_prior}
+\end{multline}
+Under the stationarity restriction \eqref{eq:stationarity}, the
+\(\alpha\)-dependent terms couple \(\theta_0\) and \(\theta_1\) through
+\(\alpha(\theta_0, \theta_1)\), so the first-order conditions do not
+yield fully closed-form expressions. In practice, however, because the
+contribution of the initial-state term (one observation per individual)
+is small relative to the transition terms (two transitions per
+individual), the stationarity coupling has negligible effect on the
+estimates. We adopt the standard approximation used in the EM literature
+for short panels: update \(\theta_0\) and \(\theta_1\) from the
+transition counts alone, then set \(\alpha\) by
+\eqref{eq:stationarity}:
+\begin{equation}
+\hat{\theta}_1 = \frac{T_{11}}{D_1}, \qquad
+\hat{\theta}_0 = \frac{T_{01}}{D_0}, \qquad
+\hat{\alpha} = \frac{\hat{\theta}_0}{\hat{\theta}_0 + 1 - \hat{\theta}_1}.
+\label{eq:mstep_theta}
+\end{equation}
+In words: \(\hat{\theta}_1\) is the fraction of
+(responsibility-weighted) person-periods starting in employment that
+result in continued employment, and \(\hat{\theta}_0\) is the fraction
+starting in nonemployment that result in employment. These are the
+standard Markov chain MLEs, the only difference being that the counts
+are soft (weighted by responsibilities \(\gamma_{ih}\)) rather than hard.
+
+\paragraph{Misclassification probability (closed form).}
+The misclassification block of \(Q\) is
+\[
+Q_{\text{miscl}}(\pi) = \sum_{i, h} w_i \gamma_{ih}
+\sum_{t=1}^{3} \Big[
+  \mathbf{1}\{s_{it} = h_t\}\log(1 - \pi)
+  + \mathbf{1}\{s_{it} \neq h_t\}\log\pi
+\Big].
+\]
+Differentiating and setting to zero:
+\begin{equation}
+\hat{\pi} = \frac{M}{3\,W},
+\label{eq:mstep_pi}
+\end{equation}
+where \(W = \sum_{i=1}^{N} w_i\) is the total weight. In words:
+\(\hat{\pi}\) is the average (responsibility-weighted) fraction of
+wave-observations where the observed state disagrees with the latent
+state. The denominator \(3W\) reflects that each of the \(N\) individuals
+contributes three wave-observations.
+
+\paragraph{Summary.} The complete M-step consists of three closed-form
+updates \eqref{eq:mstep_theta}--\eqref{eq:mstep_pi}. No numerical
+optimisation is required.
+
+\subsubsection{Iteration and convergence}
+\label{sec:convergence}
+
+Starting from an initial guess \(\Theta^{(0)} = (\theta_0^{(0)},
+\theta_1^{(0)}, \pi^{(0)})\), iterate:
+\begin{enumerate}
+\item \textbf{E-step}: compute responsibilities \(\gamma_{ih}\) via
+  \eqref{eq:responsibility} and sufficient statistics
+  \eqref{eq:suff_C}--\eqref{eq:suff_M}.
+\item \textbf{M-step}: update parameters via
+  \eqref{eq:mstep_theta}--\eqref{eq:mstep_pi}.
+\item \textbf{Convergence check}: evaluate the observed-data
+  log-likelihood \(\ell(\Theta)\) from \eqref{eq:obs_ll}. Stop when the
+  increase \(\ell(\Theta^{(\text{new})}) - \ell(\Theta^{(\text{old})})\)
+  is below a tolerance \(\delta > 0\).
+\end{enumerate}
+The EM algorithm guarantees monotone ascent:
+\(\ell(\Theta^{(\text{new})}) \geq \ell(\Theta^{(\text{old})})\) at
+every iteration. This follows from the standard EM convergence theorem
+(Dempster, Laird, and Rubin, 1977; Wu, 1983), since each M-step block
+independently maximises its portion of \(Q\). In this model, all M-step
+updates are in closed form, so each iteration is computationally cheap
+and the ascent property holds exactly (no inner-loop approximation
+errors).
+
+Because the observed-data likelihood \eqref{eq:obs_ll} is a finite
+mixture of products of Bernoulli-type terms, it is bounded above
+(by zero, since all probabilities are at most one). Combined with
+monotone ascent, the sequence \(\{\ell(\Theta^{(k)})\}\) converges.
+Under mild regularity conditions (the parameter space is compact and the
+likelihood is continuous), every limit point of
+\(\{\Theta^{(k)}\}\) is a stationary point of \(\ell\).
+
+\paragraph{Practical considerations.}
+\begin{itemize}
+\item \emph{Multiple starts.} Because the likelihood may have local
+  maxima, we recommend running the algorithm from multiple initial
+  values and retaining the solution with the highest log-likelihood.
+\item \emph{Boundary constraints.} Enforce
+  \(\theta_0, \theta_1 \in [\varepsilon, 1 - \varepsilon]\) and
+  \(\pi \in [\varepsilon, \tfrac{1}{2} - \varepsilon]\) for a small
+  \(\varepsilon > 0\) to avoid degenerate solutions.
+\item \emph{Weights.} All sufficient statistics and the log-likelihood
+  use survey weights \(w_i\). The M-step formulas
+  \eqref{eq:mstep_theta}--\eqref{eq:mstep_pi} naturally incorporate
+  weights through the responsibility-weighted counts.
+\end{itemize}
+
+\subsubsection{Equivalence to direct numerical maximisation}
+\label{sec:direct_mle}
+
+Because the set of latent histories \(\mathcal{H}\) is finite and small
+(\(|\mathcal{H}| = 8\)), the observed-data likelihood
+\eqref{eq:obs_ll} can be evaluated in closed form: for each observed
+pattern \((s_1, s_2, s_3)\), the marginal probability
+\eqref{eq:marginal} is an explicit polynomial in
+\((\theta_0, \theta_1, \pi)\). The gradient of \(\ell(\Theta)\) can
+likewise be computed analytically. This permits direct maximisation of
+\eqref{eq:obs_ll} via standard gradient-based methods (e.g., BFGS with
+analytic gradients on a logit-transformed parameter space). The EM
+algorithm and direct numerical maximisation converge to the same
+stationary points; the choice between them is one of convenience. We
+adopt the EM formulation because it generalises naturally when the model
+is extended to incorporate duration data: the Markov prior and
+misclassification blocks remain unchanged, and only the emission terms
+in the E-step and corresponding M-step blocks are added.
+
+\subsection{Identification}
+\label{sec:identification}
+
+The model has three free parameters,
+\(\Theta = (\theta_0, \theta_1, \pi)\), and the data provide seven
+free moments (there are \(2^3 = 8\) possible observed sequences
+\((s_1, s_2, s_3)\), whose probabilities sum to one). The model is
+therefore overidentified, with four overidentifying restrictions.
+We now characterise what features of the data identify each parameter.
+
+\paragraph{Observed cell probabilities.}
+Let \(n_{abc} = \sum_{i} w_i\, \mathbf{1}\{s_{i1} = a,\, s_{i2} = b,\,
+s_{i3} = c\}\) denote the weighted count of observed pattern
+\((a, b, c) \in \{0,1\}^3\), and let
+\(\hat{p}_{abc} = n_{abc} / W\) be the corresponding sample proportion,
+where \(W = \sum_i w_i\). The model-implied probability of each pattern
+is, from \eqref{eq:marginal},
+\begin{equation}
+p_{abc}(\Theta) = \sum_{h \in \mathcal{H}}
+  p(H = h \mid \theta_0, \theta_1)\,
+  \prod_{t=1}^{3} q_{s_t,\, h_t}(\pi),
+\label{eq:cell_prob}
+\end{equation}
+where \((s_1, s_2, s_3) = (a, b, c)\). Each \(p_{abc}\) is a polynomial
+in \((\theta_0, \theta_1, \pi)\) of degree at most~5 (degree~1 in
+\(\alpha(\theta_0, \theta_1)\), degree~2 from the two transitions, and
+degree~3 from the three misclassification factors, but with
+cross-cancellations from the sum over histories).
+
+\paragraph{Identification without misclassification.}
+When \(\pi = 0\), observed states equal true states, and the model
+reduces to a standard first-order Markov chain with two parameters
+\((\theta_0, \theta_1)\). These are identified by the observed
+transition frequencies:
+\[
+\theta_1 = \Pr(s_t = 1 \mid s_{t-1} = 1), \qquad
+\theta_0 = \Pr(s_t = 1 \mid s_{t-1} = 0),
+\]
+which can be estimated from the four two-wave transition counts. With
+three waves, there are two independent transition tables (waves 1--2 and
+2--3), providing four free moments for two parameters: the model is
+overidentified and testable (e.g., one can test the time-homogeneity
+assumption by comparing the two transition tables).
+
+\paragraph{Identification with misclassification.}
+When \(\pi > 0\), the observed transition frequencies no longer directly
+reveal the true transition probabilities. However, the three-wave panel
+structure provides enough information to disentangle
+\((\theta_0, \theta_1)\) from \(\pi\).
+
+The key insight is that misclassification introduces specific patterns
+into the observed cell probabilities that cannot be generated by any
+choice of \((\theta_0, \theta_1)\) alone. In a true Markov chain
+(without misclassification), the sequence \((s_1, s_3)\) is
+conditionally independent of \(s_1\) given \(s_2\) (the Markov
+property). Misclassification breaks this conditional independence:
+because \(s_2\) is a noisy signal of \(h_2\), conditioning on \(s_2\)
+does not fully screen off \(s_1\) from \(s_3\). The degree of residual
+dependence between \(s_1\) and \(s_3\) given \(s_2\) is a function of
+\(\pi\) alone (for given transition rates), providing identifying
+information for the misclassification probability.
+
+More formally, under the model \eqref{eq:cell_prob}, the observed
+transition matrix from wave~1 to wave~3 (skipping wave~2) satisfies
+\begin{equation}
+\mathbf{P}^{(1,3)}_{\text{obs}} =
+\mathbf{Q}(\pi)\,\mathbf{P}^*\,\mathbf{P}^*\,\mathbf{Q}(\pi)^\top,
+\label{eq:two_step}
+\end{equation}
+where \(\mathbf{P}^*\) is the \(2 \times 2\) true transition matrix and
+\(\mathbf{Q}(\pi)\) is the \(2 \times 2\) misclassification matrix with
+off-diagonal entries \(\pi\). Meanwhile, the one-step observed
+transition matrix is
+\(\mathbf{P}^{(1,2)}_{\text{obs}} = \mathbf{Q}(\pi)\, \mathbf{P}^*\,
+\mathbf{Q}(\pi)^\top\). The relationship between
+\(\mathbf{P}^{(1,3)}_{\text{obs}}\) and
+\(\mathbf{P}^{(1,2)}_{\text{obs}}\) constrains \(\pi\): for any
+candidate \((\theta_0, \theta_1)\), there is at most one value of
+\(\pi\) that reconciles the one-step and two-step observed transitions.
+
+\paragraph{Counting argument.}
+The model maps three parameters to seven free moments. Generic
+identification requires the Jacobian of the map
+\(\Theta \mapsto \{p_{abc}(\Theta)\}_{(a,b,c) \neq (0,0,0)}\) to have
+full column rank~3 at the true parameter value. Analytical computation
+of this \(7 \times 3\) Jacobian confirms that it has rank~3 throughout
+the interior of the parameter space
+\(\{(\theta_0, \theta_1, \pi) : 0 < \theta_0, \theta_1 < 1,\;
+0 \leq \pi < \tfrac{1}{2}\}\), except at isolated degenerate points
+(e.g., \(\theta_0 = 1 - \theta_1\), which makes the chain i.i.d.\ and
+collapses the model to two parameters). The model is therefore
+generically identified.
+
+\paragraph{Overidentification and specification testing.}
+With seven free moments and three parameters, there are four
+overidentifying restrictions. These can be tested via a likelihood ratio
+test comparing the saturated model (which fits all seven moments
+exactly) to the restricted model \eqref{eq:cell_prob}:
+\begin{equation}
+\mathrm{LR} = 2\big[\ell_{\text{saturated}} - \ell(\hat\Theta)\big]
+\;\sim\; \chi^2_4 \quad \text{under } H_0,
+\label{eq:overid_test}
+\end{equation}
+where the saturated log-likelihood is
+\(\ell_{\text{saturated}} = \sum_{a,b,c} n_{abc} \log \hat{p}_{abc}\)
+with \(\hat{p}_{abc} = n_{abc}/W\). Rejection indicates that the
+first-order Markov assumption with symmetric misclassification does not
+adequately describe the observed data, motivating extensions such as
+higher-order dynamics, asymmetric misclassification, or duration-augmented
+models.
+
+\subsection{Asymmetric misclassification}
+\label{sec:asymmetric}
+
+The symmetric specification \eqref{eq:misclass} assumes that the
+probability of misclassifying a truly employed individual as nonemployed
+equals the probability of the reverse error. This assumption can be
+relaxed by introducing two misclassification parameters:
+\begin{equation}
+\pi_0 \equiv \Pr(s_t = 1 \mid h_t = 0), \qquad
+\pi_1 \equiv \Pr(s_t = 0 \mid h_t = 1),
+\label{eq:asymmetric_pi}
+\end{equation}
+where \(\pi_0\) is the false-positive (spurious employment) rate and
+\(\pi_1\) is the false-negative (missed employment) rate. The
+misclassification probability becomes
+\[
+q_{ab}(\pi_0, \pi_1) =
+\begin{cases}
+1 - \pi_0 & \text{if } a = 0,\, b = 0, \\
+\pi_0     & \text{if } a = 1,\, b = 0, \\
+\pi_1     & \text{if } a = 0,\, b = 1, \\
+1 - \pi_1 & \text{if } a = 1,\, b = 1.
+\end{cases}
+\]
+
+The EM algorithm extends with minimal modification. The E-step
+\eqref{eq:responsibility} uses the asymmetric \(q_{ab}\) in place of
+the symmetric version. The M-step for the transition probabilities
+\eqref{eq:mstep_theta} is unchanged. The misclassification M-step
+separates into two updates:
+\begin{equation}
+\hat{\pi}_0 = \frac{M_0}{\sum_{i,h} w_i \gamma_{ih}
+  \sum_{t=1}^{3} \mathbf{1}\{h_t = 0\}}, \qquad
+\hat{\pi}_1 = \frac{M_1}{\sum_{i,h} w_i \gamma_{ih}
+  \sum_{t=1}^{3} \mathbf{1}\{h_t = 1\}},
+\label{eq:mstep_asymmetric}
+\end{equation}
+where
+\(M_0 = \sum_{i,h} w_i \gamma_{ih}
+\sum_{t} \mathbf{1}\{h_t = 0,\, s_{it} = 1\}\)
+counts false positives (observed employed when truly nonemployed) and
+\(M_1 = \sum_{i,h} w_i \gamma_{ih}
+\sum_{t} \mathbf{1}\{h_t = 1,\, s_{it} = 0\}\)
+counts false negatives (observed nonemployed when truly employed).
+
+The asymmetric model has four parameters
+\((\theta_0, \theta_1, \pi_0, \pi_1)\) and the same seven free moments,
+leaving three overidentifying restrictions. The symmetric restriction
+\(H_0: \pi_0 = \pi_1\) can be tested via a likelihood ratio test with
+one degree of freedom.
+
+% ==============================================================================
+\subsection{Extension I: Observable heterogeneity}
+\label{sec:covariates}
+% ==============================================================================
+
+\subsubsection{Motivation}
+
+The baseline model imposes constant transition probabilities
+\((\theta_0, \theta_1)\) across all individuals. In practice, employment
+dynamics vary systematically with observable worker characteristics such as
+age, education, contract type,\footnote{Contract type is only observed for
+individuals who are employed at the time of the survey. For individuals who
+are nonemployed (or have missing contract information) at wave~1, the
+contract-type variable is set to zero (``no written contract''), so that
+the corresponding one-hot dummy equals zero for all nonemployed
+observations.} and demographics. Ignoring this heterogeneity
+confounds true state persistence with compositional effects, potentially
+inflating the misclassification estimate. We therefore allow each
+individual's transition probabilities to depend on a vector of observed
+covariates.
+
+\subsubsection{Covariate specification}
+
+Let \(x_i \in \mathbb{R}^p\) denote a vector of time-invariant (or
+wave-one) individual covariates, including an intercept. We replace the
+scalar transition probabilities with individual-specific probit functions:
+\begin{equation}
+\theta_1(x_i) \equiv \Pr(h_t = 1 \mid h_{t-1} = 1,\, x_i)
+  = \Phi(\beta_1^\top x_i), \qquad
+\theta_0(x_i) \equiv \Pr(h_t = 1 \mid h_{t-1} = 0,\, x_i)
+  = \Phi(\beta_0^\top x_i),
+\label{eq:probit}
+\end{equation}
+where \(\Phi\) is the standard normal CDF and
+\(\beta_0, \beta_1 \in \mathbb{R}^p\) are unknown coefficient vectors.
+The probit link ensures \(\theta_j(x_i) \in (0, 1)\) for all \(x_i\) and
+finite \(\beta_j\).
+
+Under the stationarity restriction, the individual-specific initial
+employment probability is
+\begin{equation}
+\alpha(x_i) = \frac{\theta_0(x_i)}{\theta_0(x_i) + 1 - \theta_1(x_i)}.
+\label{eq:alpha_cov}
+\end{equation}
+The prior mass on a history \(h \in \mathcal{H}\) is therefore
+individual-specific:
+\[
+p(H = h \mid \beta_0, \beta_1, x_i) =
+  \alpha(x_i)^{h_1}(1 - \alpha(x_i))^{1-h_1}
+  \prod_{t=2}^{3}
+  \Big[
+    \theta_1(x_i)^{\mathbf{1}\{h_{t-1}=1,\, h_t=1\}}\,
+    (1-\theta_1(x_i))^{\mathbf{1}\{h_{t-1}=1,\, h_t=0\}}\,
+    \theta_0(x_i)^{\mathbf{1}\{h_{t-1}=0,\, h_t=1\}}\,
+    (1-\theta_0(x_i))^{\mathbf{1}\{h_{t-1}=0,\, h_t=0\}}
+  \Big].
+\]
+The misclassification probability \(\pi\) and the observation model
+\eqref{eq:misclass} are unchanged.
+
+\subsubsection{EM algorithm with covariates}
+
+\paragraph{E-step.}
+The responsibility formula \eqref{eq:responsibility} carries over with
+\(p(H = h \mid \theta_0, \theta_1)\) replaced by
+\(p(H = h \mid \beta_0, \beta_1, x_i)\):
+\begin{equation}
+\gamma_{ih} =
+\frac{
+  p(H = h \mid \beta_0^{(\text{old})}, \beta_1^{(\text{old})}, x_i)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi^{(\text{old})})
+}{
+  \sum_{h' \in \mathcal{H}}
+  p(H = h' \mid \beta_0^{(\text{old})}, \beta_1^{(\text{old})}, x_i)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h'_t}(\pi^{(\text{old})})
+}.
+\label{eq:responsibility_cov}
+\end{equation}
+
+\paragraph{M-step: transition coefficients (GEM).}
+With the probit parameterisation \eqref{eq:probit}, the prior block of
+\(Q(\Theta \mid \Theta^{(\text{old})})\) with respect to \(\beta_1\) is
+proportional to a \emph{weighted probit log-likelihood}. Adopting the
+standard short-panel approximation (updating from transition counts,
+ignoring the initial-state coupling through \(\alpha(x_i)\)), the
+objective for \(\beta_1\) decomposes over person-periods:
+\begin{equation}
+Q_{\beta_1} = \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 1\}
+  \Big[
+    h_t \log \Phi(\beta_1^\top x_i)
+    + (1 - h_t) \log \Phi(-\beta_1^\top x_i)
+  \Big].
+\label{eq:Q_beta1}
+\end{equation}
+This is a probit log-likelihood with pseudo-observations
+\(\{(h_t,\, x_i)\}\) at person-period pairs where \(h_{t-1} = 1\),
+carrying fractional weight \(w_i \gamma_{ih}\). Maximising
+\eqref{eq:Q_beta1} has no closed form.
+
+We therefore apply a \textbf{Generalized EM (GEM)} step: rather than
+finding the exact maximiser of \eqref{eq:Q_beta1}, we perform a single
+iteration of the iteratively reweighted least squares (IRLS) algorithm
+for weighted probit, which strictly increases \(Q_{\beta_1}\) and
+hence guarantees monotone ascent of the observed-data log-likelihood.
+The update for \(\beta_0\) follows symmetrically from
+\begin{equation}
+Q_{\beta_0} = \sum_{i,h} w_i \gamma_{ih}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 0\}
+  \Big[
+    h_t \log \Phi(\beta_0^\top x_i)
+    + (1 - h_t) \log \Phi(-\beta_0^\top x_i)
+  \Big].
+\label{eq:Q_beta0}
+\end{equation}
+Under the short-panel approximation \(Q_{\beta_0}\) and \(Q_{\beta_1}\)
+are separable, so the two probit regressions can be run independently.
+
+\paragraph{M-step: misclassification (closed form).}
+The misclassification block is unchanged from the baseline. Since
+\(\pi\) does not enter \eqref{eq:Q_beta1}--\eqref{eq:Q_beta0}, the
+update \eqref{eq:mstep_pi} continues to hold exactly:
+\[
+\hat{\pi} = \frac{M}{3W}.
+\]
+
+\paragraph{Parameter count and identification.}
+The extended parameter vector is \(\Theta = (\beta_0, \beta_1, \pi)\),
+with \(2p + 1\) free parameters. For each distinct covariate profile
+\(x_i\), the seven free cell probabilities \(p_{abc}(x_i)\) provide
+identifying information. Identification requires sufficient variation in
+\(x_i\) across the sample. The baseline model is the special case
+\(p = 1\), \(\beta_j = (\text{const})\).
+
+% ==============================================================================
+\subsection{Extension II: Duration dependence}
+\label{sec:duration_cov}
+% ==============================================================================
+
+\subsubsection{Motivation}
+
+The first-order Markov assumption is known to be violated in labour
+market data due to \emph{duration dependence}: the probability that a
+spell ends depends on how long it has already lasted. Longer employment
+spells tend to be more stable (positive duration dependence in retention),
+and longer unemployment spells may exhibit negative duration dependence
+(scarring). Ignoring duration dependence can inflate estimated transition
+rates and, consequently, misclassification estimates. A natural approach
+is to incorporate reported tenure and time-gap (nonemployment duration)
+as covariates in the transition probabilities.
+
+\subsubsection{Specification}
+
+Let \(g_{it} \ge 0\) denote reported tenure (employment duration) and
+\(d_{it} \ge 0\) reported time-gap (nonemployment duration) for individual
+\(i\) at wave \(t\), following the notation of \texttt{EM tenure epsilon.tex}.
+We augment the covariate vector from
+Section~\ref{sec:covariates} to include lagged duration:
+\begin{align}
+\theta_1(x_{i,t-1}) &= \Phi(\beta_1^\top x_{i,t-1}),
+  & x_{i,t-1} &\ni g_{i,t-1},
+  \label{eq:theta1_dur} \\
+\theta_0(x_{i,t-1}) &= \Phi(\beta_0^\top x_{i,t-1}),
+  & x_{i,t-1} &\ni d_{i,t-1}.
+  \label{eq:theta0_dur}
+\end{align}
+The transition probability at time \(t\) depends on the \emph{lagged}
+observed duration at \(t-1\). The timing is natural: the duration of
+an employment or nonemployment spell up to wave \(t-1\) predicts
+whether that spell continues or ends by wave \(t\).
+
+\subsubsection{The missing-covariate challenge}
+\label{sec:missing_cov}
+
+A fundamental difficulty arises from the interaction between
+misclassification and the duration variables. Tenure \(g_{it}\) is
+only observed when the \emph{reported} state is employment
+(\(s_{it} = 1\)); time-gap \(d_{it}\) is only observed when
+\(s_{it} = 0\). In the EM algorithm, however, we must evaluate
+\(p(H = h \mid \beta_0, \beta_1, x_{i,t-1})\) for \emph{every} history
+\(h \in \mathcal{H}\), including histories where the latent state
+\(h_{t-1}\) disagrees with the reported state \(s_{it-1}\).
+
+Concretely, consider the transition term at \(t=2\) for a history with
+\(h_1 = 1\) (truly employed at wave~1). The corresponding transition
+probability is \(\theta_1(x_{i1})\), which requires tenure \(g_{i1}\)
+as a covariate. But if \(s_{i1} = 0\) (the individual is misclassified
+as nonemployed at wave~1), we observe time-gap \(d_{i1}\) instead,
+and tenure \(g_{i1}\) is missing for that individual-wave. By
+symmetry, for a history with \(h_1 = 0\) but \(s_{i1} = 1\), the
+required time-gap \(d_{i1}\) is not observed.
+
+This creates a \emph{missing-covariate-under-misclassification} problem:
+the covariates required to evaluate the prior for a given history depend
+on that history, but some covariates are only available for histories
+consistent with the observed states. The problem is not a simple missing-
+data problem because the missingness mechanism itself depends on the
+latent variable being integrated over. Standard imputation approaches
+would require modelling the joint distribution of duration and employment
+status — that is, effectively re-introducing the full duration-emission
+model of the kind developed in \texttt{EM tenure.tex}.
+
+This challenge is left for further development. Any practical
+implementation of duration dependence as a transition-rate covariate must
+resolve the treatment of duration values when the observation and the
+latent history disagree.
+
+% ==============================================================================
+\subsection{Extension III: Unobserved heterogeneity}
+\label{sec:fmm}
+% ==============================================================================
+
+\subsubsection{Motivation}
+
+Observable covariates (Section~\ref{sec:covariates}) capture systematic
+variation in employment dynamics. However, persistent unobserved traits
+--- such as motivation, ability, or family background --- may also drive
+heterogeneity in transition rates. If workers who are inherently more
+employment-stable are observationally identical to less-stable workers,
+the pooled first-order Markov model mis-specifies the data-generating
+process, and estimated transition rates conflate genuine state-switching
+with compositional turnover. This could again inflate misclassification
+estimates. We address this using a \textbf{finite mixture model (FMM)}
+with two latent worker types.
+
+\subsubsection{Two-type FMM specification}
+
+Suppose the population consists of two latent types,
+\(k \in \{A, B\}\), with mixing weight \(\phi \in (0, 1)\):
+\[
+\Pr(K_i = A) = \phi, \qquad \Pr(K_i = B) = 1 - \phi.
+\]
+Each type has its own true employment transition probabilities,
+\((\theta_0^A, \theta_1^A)\) and \((\theta_0^B, \theta_1^B)\), and its
+own ergodic employment rate:
+\begin{equation}
+\alpha^k = \frac{\theta_0^k}{\theta_0^k + 1 - \theta_1^k}, \qquad
+k \in \{A, B\}.
+\label{eq:alpha_fmm}
+\end{equation}
+The misclassification probability \(\pi\) is \emph{shared} across types:
+it reflects the reliability of the survey instrument rather than any
+individual trait. The complete parameter vector is
+\(\Theta = (\theta_0^A, \theta_1^A, \theta_0^B, \theta_1^B, \phi, \pi)\).
+
+\paragraph{Observed-data likelihood.}
+The marginal probability of observation \(y_i\) integrates over both
+the latent history \(h \in \mathcal{H}\) and the latent type \(k\):
+\begin{equation}
+p(y_i \mid \Theta) = \sum_{k \in \{A,B\}}
+  \Pr(K_i = k)\,
+  \sum_{h \in \mathcal{H}}
+  p(H = h \mid \theta_0^k, \theta_1^k)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi).
+\label{eq:marginal_fmm}
+\end{equation}
+The latent space has expanded from \(|\mathcal{H}| = 8\) histories to
+\(|\mathcal{H}| \times 2 = 16\) history--type pairs.
+
+\subsubsection{EM algorithm for the FMM}
+
+\paragraph{Complete-data formulation.}
+Introduce indicators \(z_{ihk} = \mathbf{1}\{H_i = h,\, K_i = k\}\)
+with \(\sum_{h,k} z_{ihk} = 1\). The complete-data log-likelihood is
+\begin{align}
+\ell_c(\Theta) &= \sum_{i=1}^{N} \sum_{k} \sum_{h \in \mathcal{H}}
+  w_i z_{ihk} \bigg\{
+    \log \Pr(K_i = k) +
+    \underbrace{\log p(H = h \mid \theta_0^k, \theta_1^k)}_{\text{type-}k\text{ Markov prior}}
+    + \underbrace{\sum_{t=1}^{3} \log q_{s_{it},\, h_t}(\pi)}_{\text{misclassification}}
+  \bigg\}.
+\label{eq:complete_ll_fmm}
+\end{align}
+The three blocks are additively separable: the type-weight block depends
+only on \(\phi\), the type-\(k\) Markov prior block depends only on
+\((\theta_0^k, \theta_1^k)\), and the misclassification block depends
+only on \(\pi\). All blocks can be maximised independently.
+
+\paragraph{E-step: joint responsibilities.}
+Starting from current parameter estimates \(\Theta^{(\text{old})}\),
+the E-step computes the posterior probability that individual \(i\) has
+history \(h\) \emph{and} is type \(k\):
+\begin{equation}
+\gamma_{ihk} \equiv \mathbb{E}[z_{ihk} \mid y_i;\, \Theta^{(\text{old})}]
+= \frac{
+  \Pr(K_i = k)\,
+  p(H = h \mid \theta_0^k{}^{(\text{old})}, \theta_1^k{}^{(\text{old})})\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi^{(\text{old})})
+}{
+  p(y_i \mid \Theta^{(\text{old})})
+},
+\label{eq:responsibility_fmm}
+\end{equation}
+where the denominator is \eqref{eq:marginal_fmm} evaluated at
+\(\Theta^{(\text{old})}\). Each \(\gamma_{ihk} \geq 0\) and
+\(\sum_{h,k} \gamma_{ihk} = 1\). The type-marginalised responsibility
+\(\gamma_{ik} = \sum_{h} \gamma_{ihk}\) is the posterior probability
+that individual \(i\) belongs to type \(k\).
+
+\paragraph{M-step: type weights (closed form).}
+Maximising the type-weight block of \(Q\) yields
+\begin{equation}
+\hat{\phi} = \frac{\sum_{i=1}^{N} w_i \gamma_{iA}}{W},
+\label{eq:mstep_phi}
+\end{equation}
+where \(W = \sum_i w_i\). This is the responsibility-weighted fraction
+of individuals assigned to type \(A\).
+
+\paragraph{M-step: type-specific transition probabilities (closed form).}
+For each type \(k \in \{A, B\}\), define type-specific sufficient
+statistics:
+\begin{align}
+T_{11}^k &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ihk}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 1,\, h_t = 1\}, \qquad
+D_1^k = \sum_{i,h} w_i \gamma_{ihk}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 1\},
+\label{eq:suff_T_fmm} \\
+T_{01}^k &= \sum_{i=1}^{N} \sum_{h \in \mathcal{H}} w_i \gamma_{ihk}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 0,\, h_t = 1\}, \qquad
+D_0^k = \sum_{i,h} w_i \gamma_{ihk}
+  \sum_{t=2}^{3} \mathbf{1}\{h_{t-1} = 0\}.
+\label{eq:suff_T01_fmm}
+\end{align}
+The M-step updates are the same ratio formulas as the baseline, now
+applied type by type:
+\begin{equation}
+\hat{\theta}_1^k = \frac{T_{11}^k}{D_1^k}, \qquad
+\hat{\theta}_0^k = \frac{T_{01}^k}{D_0^k}, \qquad
+\hat{\alpha}^k = \frac{\hat{\theta}_0^k}{\hat{\theta}_0^k + 1 - \hat{\theta}_1^k}.
+\label{eq:mstep_theta_fmm}
+\end{equation}
+The two types are updated independently: there is no cross-type coupling
+in the M-step.
+
+\paragraph{M-step: misclassification (closed form, pooled).}
+Since \(\pi\) is shared across types, the misclassification update pools
+over both types and all histories:
+\begin{equation}
+\hat{\pi} = \frac{M}{3W}, \qquad
+M = \sum_{i=1}^{N} \sum_{k} \sum_{h \in \mathcal{H}}
+  w_i \gamma_{ihk}
+  \sum_{t=1}^{3} \mathbf{1}\{s_{it} \neq h_t\}.
+\label{eq:mstep_pi_fmm}
+\end{equation}
+The structure is identical to \eqref{eq:mstep_pi}; only the definition
+of \(M\) now marginalises over types.
+
+\paragraph{Parameter count and identification.}
+The FMM adds four parameters relative to the baseline:
+\(\theta_0^B, \theta_1^B\) (the second type's transitions) and
+\(\phi\) (the mixing weight), while \(\theta_0^A, \theta_1^A\)
+correspond to the baseline \(\theta_0, \theta_1\). With five
+parameters \((\theta_0^A, \theta_1^A, \theta_0^B, \theta_1^B, \phi)\)
+plus \(\pi\) against seven free moments, the model is just-identified
+for the Markov parameters and requires care. In practice, identification
+of two-component mixtures in short Markov chain panels relies on the
+different implied patterns of serial dependence across the eight cell
+probabilities; separability of the two types is aided by the three-wave
+structure. Multiple starts are strongly recommended, as the FMM
+likelihood typically has local maxima corresponding to label switching
+between types \(A\) and \(B\).
+
+% ==============================================================================
+\subsection{Extension IV: Inconsistency-augmented misclassification}
+\label{sec:inconsistencies}
+% ==============================================================================
+
+\subsubsection{Motivation}
+
+Identification in the baseline model rests on the violation of the
+conditional Markov property caused by misclassification. An independent
+source of evidence for misclassification is the existence of respondents
+who exhibit obviously erroneous answers to other survey questions.
+Deterministic variables --- such as age, which can only remain constant
+or increase by exactly one year between quarterly waves, or education
+level, which is non-decreasing and constrained in how rapidly it can
+advance --- provide a clean signal of unreliable survey responses.
+
+If a respondent misreports age or education, they are plausibly more
+likely to have also misreported their employment status. Incorporating
+inconsistency indicators into the misclassification probability
+therefore (i) increases the model's ability to identify \(\pi\), and
+(ii) provides a direct empirical test of the misclassification
+hypothesis: a significant positive coefficient on an inconsistency
+indicator means that workers who demonstrably misreport one variable
+also exhibit employment transition patterns consistent with
+misclassification error.
+
+\subsubsection{Inconsistency indicators}
+\label{sec:incons_indicators}
+
+Let \(a_{it}\) denote reported age and \(e_{it}\) reported education
+level at wave \(t\). We define wave-specific inconsistency indicators
+by attributing each pairwise discrepancy to one of the three waves.
+
+\paragraph{Age inconsistencies.}
+Between consecutive waves, age should either remain constant or increase
+by exactly one unit. Define pairwise age-gap dummies:
+\[
+V_{i,t,t+1}^{\text{age}} \equiv
+\mathbf{1}\!\Big\{a_{i,t+1} - a_{it} \notin \{0, 1\}\Big\},
+\quad t \in \{1, 2\}.
+\]
+Under the assumption that age is measured with error in at most one wave,
+the wave-attribution rule is:
+\begin{equation}
+Y_{i1}^{\text{age}} = V_{i12}^{\text{age}}\,(1 - V_{i23}^{\text{age}}), \quad
+Y_{i2}^{\text{age}} = V_{i12}^{\text{age}}\, V_{i23}^{\text{age}}, \quad
+Y_{i3}^{\text{age}} = (1 - V_{i12}^{\text{age}})\, V_{i23}^{\text{age}}.
+\label{eq:age_attribution}
+\end{equation}
+An inconsistency in waves~1--2 but not 2--3 is attributed to wave~1; an
+inconsistency in waves~2--3 but not 1--2 is attributed to wave~3; a
+simultaneous inconsistency in both pairs is attributed to wave~2, since
+a single erroneous wave~2 response generates both pairwise discrepancies.
+
+\paragraph{Education inconsistencies.}
+Education level should be non-decreasing across waves and cannot jump by
+more than one educational category in a single quarter. Define:
+\[
+V_{i,t,t+1}^{\text{edu}} \equiv
+\mathbf{1}\!\Big\{e_{i,t+1} < e_{it} \;\text{or}\;
+e_{i,t+1} - e_{it} > 1\Big\},
+\quad t \in \{1, 2\},
+\]
+with wave attribution \(Y_{it}^{\text{edu}}\) constructed analogously
+to \eqref{eq:age_attribution}.
+
+\subsubsection{Extended misclassification model}
+
+We model the wave-specific misclassification probability as
+\begin{equation}
+\pi_{it} = \frac{1}{2}\,
+  \sigma\!\Big(\delta_0 + \delta_1 Y_{it}^{\text{age}} + \delta_2 Y_{it}^{\text{edu}}\Big),
+\label{eq:pi_link}
+\end{equation}
+where \(\sigma(u) = (1 + e^{-u})^{-1}\) is the logistic function. Since
+\(\sigma(\cdot) \in (0, 1)\), the factor \(\tfrac{1}{2}\) ensures
+\(\pi_{it} \in (0, \tfrac{1}{2})\) for all values of the linear
+predictor, preserving the identifiability constraint. The parameter
+vector for the misclassification block is
+\(\delta = (\delta_0, \delta_1, \delta_2)\).
+
+\paragraph{Baseline parameters.}
+The baseline misclassification probability (in the absence of any
+inconsistency) is \(\pi_{it}^{\text{base}} = \frac{1}{2}\,\sigma(\delta_0)\).
+This corresponds to the \(\hat\pi\) of the symmetric baseline model and
+is recovered by setting \(\delta_1 = \delta_2 = 0\).
+
+\subsubsection{EM algorithm with inconsistency indicators}
+
+\paragraph{E-step.}
+The responsibility formula \eqref{eq:responsibility} is modified by
+replacing the scalar \(\pi\) with the individual- and wave-specific
+\(\pi_{it}\) from \eqref{eq:pi_link}:
+\begin{equation}
+\gamma_{ih} =
+\frac{
+  p(H = h \mid \theta_0, \theta_1)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h_t}(\pi_{it}^{(\text{old})})
+}{
+  \sum_{h' \in \mathcal{H}}
+  p(H = h' \mid \theta_0, \theta_1)\,
+  \prod_{t=1}^{3} q_{s_{it},\, h'_t}(\pi_{it}^{(\text{old})})
+}.
+\label{eq:responsibility_incons}
+\end{equation}
+The Markov prior and transition-probability blocks are unchanged.
+
+\paragraph{M-step: misclassification coefficients (GEM).}
+The expected complete-data log-likelihood with respect to \(\delta\) is
+\begin{equation}
+Q_{\text{miscl}}(\delta) = \sum_{i=1}^{N} \sum_{h \in \mathcal{H}}
+  w_i \gamma_{ih}
+  \sum_{t=1}^{3} \Big[
+    \mathbf{1}\{s_{it} = h_t\}\log(1 - \pi_{it})
+    + \mathbf{1}\{s_{it} \neq h_t\}\log\pi_{it}
+  \Big],
+\label{eq:Q_miscl_incons}
+\end{equation}
+where \(\pi_{it}\) depends on \(\delta\) via \eqref{eq:pi_link}. The
+gradient of \eqref{eq:Q_miscl_incons} with respect to \(\delta\) is
+\begin{equation}
+\nabla_\delta Q_{\text{miscl}} = \sum_{i,h} w_i \gamma_{ih}
+  \sum_{t=1}^{3}
+  \frac{\partial \pi_{it}}{\partial \delta}
+  \left[
+    \frac{\mathbf{1}\{s_{it} \neq h_t\}}{\pi_{it}}
+    - \frac{\mathbf{1}\{s_{it} = h_t\}}{1 - \pi_{it}}
+  \right],
+\label{eq:grad_delta}
+\end{equation}
+where \(\partial \pi_{it}/\partial \delta =
+\tfrac{1}{2}\,\sigma(\cdot)(1 - \sigma(\cdot))\, f_{it}\)
+with \(f_{it} = (1,\, Y_{it}^{\text{age}},\, Y_{it}^{\text{edu}})^\top\).
+A GEM step performs one Newton--Raphson update on
+\eqref{eq:Q_miscl_incons} using gradient \eqref{eq:grad_delta} and the
+analytic Hessian, which is negative semi-definite and therefore
+guarantees a strict increase in \(Q_{\text{miscl}}\) provided the step
+is bounded appropriately.
+
+\paragraph{M-step: transition probabilities (closed form).}
+The transition-probability block is unchanged from the baseline. The
+M-step updates \eqref{eq:mstep_theta} continue to hold exactly, since
+the Markov prior is independent of \(\delta\).
+
+\paragraph{Interpretation.}
+A positive and significant estimate \(\hat\delta_1 > 0\) means that
+waves with an age inconsistency exhibit employment patterns consistent
+with elevated misclassification: the responsibilities \(\gamma_{ih}\)
+are systematically allocated toward histories where the observed state
+\(s_{it}\) disagrees with the true state \(h_t\). This constitutes
+independent, auxiliary evidence for the misclassification hypothesis
+--- evidence that does not rely solely on violations of the Markov
+property.
+

@@ -1,0 +1,80 @@
+% ==============================================================================
+% sections/conclusion.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+Classification error in survey responses to employment questions is pervasive
+and, even when small, systematically inflates measured employment transition
+rates. We have developed a structural EM-algorithm estimator that jointly
+identifies true transition rates and misclassification probabilities from
+three consecutive waves of panel data, requiring no reinterview data or
+administrative validation. The estimator exploits the fact that transient
+misclassification causes the observed employment sequence to violate the
+first-order Markov property in a specific, quantifiable way, and converts
+this insight into a fast, numerically reliable sequence of closed-form
+parameter updates.
+
+Applied to the South African Quarterly Labour Force Survey, the estimator
+yields a misclassification probability of approximately 3\%, which reduces
+estimated quarterly entry and exit rates from roughly 8\% to roughly 3\%---a
+correction factor of nearly three. This finding is robust across all
+specifications we consider: controlling for observable worker characteristics
+(age, education, gender, race, contract type) reduces the estimated
+misclassification probability moderately but does not eliminate it; allowing
+unobserved two-type heterogeneity in transition rates leaves the misclassification
+estimate essentially unchanged while resolving an implausible ``coin-flip''
+high-churn type; extending the Markov order to AR(2) with four waves reveals
+substantial duration dependence but retains a positive misclassification
+probability; and the tenure contamination model provides an independent
+structural corroboration using job tenure data. Survey respondents with
+objectively inconsistent age or education progressions exhibit employment
+dynamics consistent with misclassification rates more than fifteen percentage
+points higher than reliable respondents, providing direct mechanism evidence
+that the estimated misclassification reflects genuine survey error.
+
+The policy implications are substantial. If true quarterly entry and exit rates
+are approximately 3\%, the average employment spell in South Africa is on the
+order of several years---considerably longer than the raw transition matrix
+would suggest. This characterisation of South African employment as highly
+persistent implies that unemployment reflects primarily a failure of job creation
+rather than a failure of job retention. The policy prescription is correspondingly
+different: interventions that lower barriers to hiring, promote labour demand,
+and reduce the cost of formal employment are more likely to be effective than
+policies focused on worker protections, employment insurance, or the facilitation
+of job search. This does not imply that active labour market policies are
+irrelevant---workers who are persistently non-employed may still benefit from
+training and placement programmes---but it does imply that the design of such
+programmes should be predicated on a realistic understanding of the degree of
+labour market dynamism.
+
+Beyond South Africa, our estimator is applicable wherever three-wave panel data
+on a binary state are available and reinterview data are not. The measurement
+error problem we address is particularly acute in developing country surveys,
+where reinterviews are uncommon and measurement quality may be lower, but it
+arises in any survey context where respondents may conflate employment states
+or where the survey instrument introduces transient coding errors. Potential
+extensions include applications to poverty transitions \citep{Bigsten2008},
+health insurance coverage \citep{van2017critique}, and educational enrolment
+\citep{fredriksson1997economic}, all of which involve binary state variables
+measured with potential transient error in panel surveys. The misclassification
+problem is not unique to employment, and the EM approach extends naturally to
+any setting where the first-order Markov assumption can be motivated for the
+underlying true process.
+
+Several limitations of our approach merit acknowledgment. First, the baseline
+misclassification structure assumes symmetric and time-invariant error
+probabilities. The inconsistency-augmented specification relaxes the
+homogeneity assumption, but the asymmetric baseline results suggest that the
+symmetry restriction is innocuous in our data. Second, we have treated the
+first-order Markov assumption on the latent true process as the baseline
+identification assumption, relaxing it only in the AR(2) extension. Higher-order
+dynamics, time-varying transition rates, or more complex dependence structures
+could in principle be accommodated within the EM framework at the cost of
+additional data requirements. Third, our approach identifies misclassification
+from the time-series variation in employment status across waves; it cannot
+separately identify misclassification that is perfectly correlated across waves
+(a worker who is always misclassified would appear to have a different true
+state, not a noisy version of their actual state). Future work could extend
+the approach to longer panels, time-varying misclassification probabilities,
+or multivariate employment state variables (employed, unemployed, inactive),
+all of which are within the scope of the EM framework developed here.

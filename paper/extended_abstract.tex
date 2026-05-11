@@ -1,0 +1,80 @@
+\documentclass[letterpaper,12pt,final,dvipsnames]{article}
+\usepackage{booktabs,dcolumn,longtable,lscape, pdflscape,setspace,hyperref,epstopdf,graphicx, float, xcolor}
+\usepackage[margin=1.4in]{geometry}
+\usepackage[round]{natbib}
+\usepackage{amsmath, amsthm, amssymb, appendix, epsfig, rotating, multirow, ctable, url, fullpage, natbib}
+\usepackage[format=hang, textfont={md}, labelfont={bf}, justification=raggedright]{caption}[2008/04/01]
+\usepackage{threeparttable}
+\usepackage{etoolbox}
+\usepackage{pdfpages}
+\appto\TPTnoteSettings{\footnotesize}
+\usepackage{textgreek}
+\usepackage{comment}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{ulem}
+\usepackage{subcaption}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+\urlstyle{same}
+
+\hypersetup{
+  linkcolor  = black,
+  citecolor  = blue,
+  urlcolor   = blue,
+  colorlinks = true,
+}
+
+\newcommand{\mynoteRB}[1]{\textcolor{red}{[RB: #1]}}
+\newcommand{\mynoteZP}[1]{\textcolor{orange}{[ZP: #1]}}
+\newcommand\fnote[1]{\captionsetup{font=footnotesize}\caption*{#1}}
+
+\setlength{\parindent}{1em}
+\setlength{\parskip}{1em}
+
+\title{Estimating employment transitions while accounting for classification error: evidence from South Africa\thanks{We gratefully acknowledge financial support from the UK government through the Data and Evidence for Tackling Extreme Poverty (DEEP) Research Programme. All errors and omissions are our own. Declarations of interest: none.}}
+
+
+\author{Zander Prinsloo\thanks{The World Bank. Email: zprinsloo@worldbank.org } \and Cobus Burger\thanks{Department of Economics, Stellenbosch University. Email: cobusburger@sun.ac.za}  \and Rulof Burger\thanks{Department of Economics, Stellenbosch University and JPAL. Email: rulof@sun.ac.za} \and Dean Jolliffe\thanks{The World Bank and JPAL. Email: djolliffe@worldbank.org}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+%\begin{abstract}
+Reliable estimates of employment transitions are central to diagnosing the nature of unemployment and designing effective labor market policy. Distinguishing chronic from transitory unemployment hinges on these transition rates. In high‐unemployment economies can be somewhere along a spectrum of high churn to low churn. High churn labor markets are typically characterized by rapid hiring and firing by firms with wage‐setting power. Policies should focus on creating stronger worker protections and enforcement of such protections \citep{aghion2006}. By contrast, if the labor market is considered low churn, it aligns with constrained job creation and separation rigidities, pointing toward reforms that reduce hiring costs and ease mobility \citep{nattrass2000}. Because transition matrices are used to assess the extent of labor market churn, credible measurement is vital for separating persistent, chronic unemployment from short-lived spells. Misstating transition rates risks prescribing the inappropriate policy remedies.  
+
+Labor force surveys are the workhorse for labor measurement. Yet, survey errors are ubiquitous and often unavoidable, especially in lower income countries \citep{ashenfelter1986}. Classification error in employment status is especially pernicious for transitions: its effect is multiplicative, and even small misclassification probabilities inflate measured flows and attenuate persistence \citep{porteba1986}. A single transient misclassification can make a chronically unemployed worker appear to have first found a job and then lost a job when the misclassification is corrected in the next period. This fabricates two transitions and dampens observed duration dependence \citep{meyer1988}.. Reinterview surveys can be used to correct transition estimates; they have documented substantial misclassification (e.g., U.S. monthly job loss and entry falling from roughly 5\% and 7.2\% to 1.9\% and 2.6\% after correction \citep{porteba1986}.. Yet reinterviews are costly and rare in lower-middle income contexts, and imperfect validators when true answers changes between interviews or when survey modes differ. Thus, while survey data are indispensable, transition estimates that ignore classification error tend to overstate churn and understate persistence – the exact information needed to separate chronic from transitory unemployment. Similar concerns arise for dynamic classifications in poverty \citep{Bigsten2008}, education \citep{fredriksson1997economic}, labor supply \citep{cairo2022cyclicality}, mental health \citep{van2017critique}, and changes in behavior \citep{khosravi2018transition}. 
+
+We develop a structural estimator that uses three consecutive panel data waves to identify and jointly estimate the true employment transitions and misclassification probabilities. Under the assumption that the latent employment state follows a first-order Markov process while the observed state may be misclassified, the distribution of reported employment statuses displays Markov violations that separately pin down transition and error parameters. We derive and maximize the full likelihood directly, yielding a modular framework that allows for survey-relevant extensions. We incorporate (i) observed and unobserved heterogeneity using respondent covariates and a finite mixture over latent worker types, since heterogeneity can mimic Markov violations; and (ii) duration dependence via two routes: controlling for reported (un)employment durations in the likelihood and allowing second-order dependence in the latent process. These features prevent over-assigning all Markov violations to misclassification when heterogeneity or duration are the true sources. The estimator requires only three waves, no reinterviews or administrative linkages, making it scalable and cost-effective for survey programs.
+
+Applying the estimator to South African labor market panels where reinterviews are unavailable and measurement concerns are well known \citep{aguero2007, dinkelman2004} reconciles an empirical puzzle: high churn at short horizons but much lower annualized churn when waves are farther apart \citep{banerjee2008}. This pattern is inconsistent with the geometric pattern implied by the Markov assumption, yet consistent with transient misclassification overlaying a persistent latent process. Naive quarterly transition matrices that ignore misclassification, imply job entry and exit rates of 8.42\% and 8.32\%. Our structural estimates, estimating a modest 3\% misclassification probability, find that true quarterly entry and exit rates are approximately 2.92\% and 2.88\%, nearly a threefold correction. Despite small error rates, the multiplicative bias on flows is large, materially altering inferences about persistence versus churn and, hence, policy emphasis. Two auxiliary findings reinforce the classification-error interpretation. First, tightening matching criteria across waves lowers both estimated churn and inferred misclassification, consistent with mismatches inflating estimated churn. Second, allowing misclassification to vary with cross-item reliability shows that interviews with inconsistent age progressions are more likely to display patterns consistent with misclassification, suggesting churn is due to noise in the survey rather than genuine mobility. 
+
+
+
+\bibliographystyle{chicago} % or another style like unsrt, alpha, abbrv, etc.
+
+\begingroup
+\setstretch{1.0}
+
+\clearpage
+	\bibliography{ref.bib}
+	\bibliographystyle{agsm}
+%	\bibliographystyle{chicago}
+\endgroup
+
+
+\appendix
+
+
+    
+%\end{abstract}
+
+
+\end{document}

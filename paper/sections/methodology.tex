@@ -1,0 +1,264 @@
+% ==============================================================================
+% sections/methodology.tex
+% Created: 2026-05-08
+% ==============================================================================
+
+\subsection{Baseline model}\label{subsec:baseline}
+
+\subsubsection*{Setup and notation}
+
+Let $h_{t} \in \{0,1\}$ denote the true employment status at
+quarter $t$, where $h_{t} = 1$ indicates employment. We assume that the true
+process follows a first-order, time-homogeneous Markov chain with transition
+probabilities
+\begin{equation}
+  \theta_0 \equiv \Pr(h_{t}=1 \mid h_{t-1}=0), \qquad
+  \theta_1 \equiv \Pr(h_{t}=0 \mid h_{t-1}=1),
+  \label{eq:baseline_transition}
+\end{equation}
+The stationary (long-run) employment rate is $\alpha = \theta_0 / (\theta_0 + \theta_1)$.
+We consider both a stationarity-restricted specification in which the initial
+probability $\Pr(h_1=1) = \alpha$ and an unrestricted specification in which
+$\Pr(h_1=1)$ is estimated freely.
+
+Survey respondents report $s_{t} \in \{0,1\}$, their observed employment
+status, which may differ from $h_{t}$ due to measurement error. We assume
+a symmetric, time-invariant misclassification structure:
+\begin{equation}
+  \pi \equiv \Pr(s_{t} = 1 \mid h_{t} = 0) = \Pr(s_{t} = 0 \mid h_{t} = 1),
+  \label{eq:baseline_error}
+\end{equation}
+so that employment and non-employment are equally likely to be misclassified,
+and errors are independent across waves conditional on the true state. The
+full technical derivation of the likelihood and its properties, including
+the identification analysis, is given in Appendix~\ref{app:baseline}.
+
+\subsubsection*{Observed histories and marginal likelihood}
+
+For each individual observed in three consecutive waves, the observed
+employment history is the triple $(s_1, s_2, s_3) \in \{0,1\}^3$, yielding
+eight possible observed histories $\mathcal{H} = \{000, 001, \ldots, 111\}$.
+The marginal likelihood for an individual with observed history $\mathbf{s}$
+is obtained by summing the joint likelihood of $(\mathbf{s}, \mathbf{h})$
+over all eight latent histories $\mathbf{h} \in \mathcal{H}$:
+\begin{equation}
+  L_i(\theta_0, \theta_1, \pi) =
+  \sum_{\mathbf{h} \in \mathcal{H}}
+    \Pr(\mathbf{s}_i \mid \mathbf{h}; \pi)
+    \Pr(\mathbf{h}; \theta_0, \theta_1),
+  \label{eq:marginal_lik}
+\end{equation}
+where $\Pr(\mathbf{s} \mid \mathbf{h}; \pi) = \prod_{t=1}^{3} \Pr(s_t \mid h_t; \pi)$
+exploits the conditional independence of errors across waves, and
+$\Pr(\mathbf{h}; \theta_0, \theta_1)$ is the Markov chain probability of the
+latent history. The sample log-likelihood is $\ell = \sum_i \log L_i$.
+
+The marginal likelihood \eqref{eq:marginal_lik} is a finite mixture: at each
+parameter draw, the data assign responsibility for each observation to the
+eight latent histories in proportion to their joint likelihood. This mixture
+structure is what makes the EM algorithm well-suited to this problem.
+
+\subsubsection*{Identification}
+
+The three-wave observed employment distribution contains eight cell probabilities
+subject to one adding-up constraint, yielding seven free moments. The baseline
+model has three free parameters: $\theta_0$, $\theta_1$, and $\pi$ (and,
+in the free initial-probability specification, a fourth parameter for
+$\Pr(h_1=1)$). Since seven moments exceed three (or four) free parameters,
+the model is over-identified when the true process satisfies the first-order
+Markov property.
+
+The key identification insight is that the eight observed cell probabilities
+encode the Markov property as a testable restriction. Specifically, the
+conditional independence $s_1 \perp s_3 \mid s_2$ holds for any first-order
+Markov process on \emph{observed} status---but it fails when the observed
+process is a noisy version of a latent Markov chain. In that case, knowing
+$s_1$ provides information about $h_2$ (because $h_2$ is correlated with $h_1$
+through the latent dynamics), and hence information about $s_3$, even
+conditional on $s_2$. The magnitude of this additional dependence identifies
+$\pi$: if misclassification is zero, the observed process is itself Markov and
+satisfies the restriction; as $\pi$ increases, the Markov violation grows.
+With three waves, the restriction is testable and $\pi$ is non-parametrically
+identified up to the auxiliary assumption of a symmetric error structure.
+
+\subsubsection*{EM algorithm}
+
+The EM algorithm maximises the complete-data log-likelihood---the
+log-likelihood of the full $(s, h)$ data---by iterating between two steps.
+The E-step computes, for each individual and each latent history
+$\mathbf{h}$, the posterior responsibility:
+\begin{equation}
+  \gamma_{i\mathbf{h}}^{(k)} =
+  \frac{\Pr(\mathbf{s}_i \mid \mathbf{h}; \pi^{(k)}) \Pr(\mathbf{h}; \theta_0^{(k)}, \theta_1^{(k)})}
+       {L_i(\theta_0^{(k)}, \theta_1^{(k)}, \pi^{(k)})},
+  \label{eq:estep}
+\end{equation}
+where $k$ indexes the iteration. The M-step updates the parameters by
+maximising the expected complete-data log-likelihood:
+\begin{align}
+  \theta_0^{(k+1)} &= \frac{\sum_i \sum_{\mathbf{h}: h_1=0, h_2=1} \gamma_{i\mathbf{h}}^{(k)}
+                            + \sum_i \sum_{\mathbf{h}: h_2=0, h_3=1} \gamma_{i\mathbf{h}}^{(k)}}
+                           {\sum_i \sum_{\mathbf{h}: h_1=0} \gamma_{i\mathbf{h}}^{(k)}
+                            + \sum_i \sum_{\mathbf{h}: h_2=0} \gamma_{i\mathbf{h}}^{(k)}}, \label{eq:mstep_theta0}\\
+  \theta_1^{(k+1)} &= \frac{\sum_i \sum_{\mathbf{h}: h_1=1, h_2=0} \gamma_{i\mathbf{h}}^{(k)}
+                            + \sum_i \sum_{\mathbf{h}: h_2=1, h_3=0} \gamma_{i\mathbf{h}}^{(k)}}
+                           {\sum_i \sum_{\mathbf{h}: h_1=1} \gamma_{i\mathbf{h}}^{(k)}
+                            + \sum_i \sum_{\mathbf{h}: h_2=1} \gamma_{i\mathbf{h}}^{(k)}}, \label{eq:mstep_theta1}\\
+  \pi^{(k+1)}     &= \frac{\sum_i \sum_{\mathbf{h}} \gamma_{i\mathbf{h}}^{(k)}
+                           \sum_{t=1}^{3} \mathbf{1}[s_{it} \ne h_t]}
+                          {3\, \sum_i 1}. \label{eq:mstep_pi}
+\end{align}
+The M-step updates \eqref{eq:mstep_theta0}--\eqref{eq:mstep_pi} have a
+transparent interpretation: $\theta_0$ is the responsibility-weighted empirical
+fraction of periods in which a truly non-employed worker becomes employed,
+$\theta_1$ is the analogous exit fraction, and $\pi$ is the
+responsibility-weighted empirical misclassification rate. Each update is
+in closed form, so the algorithm requires no numerical optimisation and
+is guaranteed to converge to a local maximum of the observed-data
+log-likelihood \citep{dempster1977}.
+
+Standard errors are obtained by a parametric bootstrap with $B=200$
+repetitions, sampling from the multinomial distribution over the eight
+observed histories at the estimated cell probabilities.
+
+\subsection{Extensions}\label{subsec:extensions}
+
+The extensions below each generalise one aspect of the baseline model. All
+retain the core EM structure; the main difference is in the M-step update
+for the extended parameter set.
+
+\subsubsection{Observable worker heterogeneity}\label{subsubsec:covariates}
+
+We allow the entry and exit probabilities to depend on individual characteristics
+$X_i$ (age, education, gender, race, contract type) through probit link functions:
+\[
+  \theta_{0i} = \Phi(X_i \beta_0), \qquad
+  \theta_{1i} = \Phi(X_i \beta_1),
+\]
+where $\Phi(\cdot)$ is the standard normal CDF. The misclassification parameter
+$\pi$ is held common across individuals in the main specification; a variant
+allows $\pi$ to vary with observable reliability indicators (see
+Section~\ref{subsubsec:inconsistency}). Since the M-step for $\beta_0$ and
+$\beta_1$ no longer has a closed form, we use the Generalised EM (GEM)
+algorithm of \citet{dempster1977}, performing a single gradient step in the
+direction of the expected complete-data likelihood gradient at each iteration.
+The GEM algorithm is guaranteed to produce non-decreasing likelihoods and
+converges under the same conditions as the full EM.
+
+\subsubsection{Finite mixture model for unobserved heterogeneity}\label{subsubsec:fmm}
+
+Unobserved worker heterogeneity---workers who persistently have very high or
+very low transition probabilities---can mimic the Markov violations created by
+misclassification: a persistently high-exit worker looks, in the observed data,
+like someone who repeatedly enters and exits employment within the observation
+window. We disentangle these mechanisms through a two-type finite mixture model
+(FMM):
+\[
+  L_i(\phi, \theta^A, \theta^B, \pi) =
+  \phi\, L_i(\theta^A, \pi) + (1-\phi)\, L_i(\theta^B, \pi),
+\]
+where type $A$ has parameters $(\theta_0^A, \theta_1^A)$, type $B$ has
+parameters $(\theta_0^B, \theta_1^B)$, and $\phi$ is the mixing proportion.
+The EM algorithm for the FMM introduces a second layer of latent variables
+(the type indicator) and iterates the E-step responsibilities jointly over
+latent states and types. The misclassification parameter $\pi$ is identified
+separately from the type heterogeneity because Markov violations attributable
+to types can be attributed to heterogeneity in $(\theta^A, \theta^B, \phi)$, while
+additional violations residual to the type structure are attributed to $\pi$.
+
+\subsubsection{Inconsistency-augmented misclassification}\label{subsubsec:inconsistency}
+
+If misclassification is driven by survey response error, respondents who make
+other types of survey errors should also have higher misclassification rates.
+We test this prediction by allowing $\pi$ to depend on an indicator of survey
+unreliability. Specifically, we define:
+\begin{itemize}
+  \item $A_i = 1$ if individual $i$ has an age inconsistency in any wave pair;
+  \item $E_i = 1$ if individual $i$ has an education inconsistency in any wave pair.
+\end{itemize}
+We then estimate the generalised model:
+\[
+  \pi_i = \mathrm{logit}^{-1}(\beta_0 + \beta_1 A_i + \beta_2 E_i),
+\]
+where $\mathrm{logit}^{-1}(x) = e^x/(1+e^x)$ ensures that $\pi_i \in (0,1)$.
+The identifying variation comes from whether the inconsistency is attributed
+to the first, second, or third wave of the triad. We use a wave-attribution
+rule based on the sign of the change in the inconsistent variable to assign
+each inconsistency to the wave most likely responsible, and we then condition
+$\pi_i$ on the presence of a second-wave attribution (since a first-wave error
+in the first-wave status and a third-wave error in the third-wave status
+would be absorbed into the initial and terminal probabilities). The details of
+the attribution rule are described in Appendix~\ref{app:baseline}.
+
+\subsubsection{AR(2) extension}\label{subsubsec:ar2}
+
+The baseline model assumes that the latent true employment process is
+first-order Markov: conditional on last quarter's true status, the probability
+of this quarter's status is independent of all earlier history. This rules out
+duration dependence---the possibility that the probability of finding a job
+increases or decreases with the length of the current non-employment spell.
+We relax this assumption by extending the model to a second-order Markov
+specification using four consecutive waves.
+
+In the AR(2) model, the latent transition probability depends on the current
+state and the state one period earlier:
+\begin{align*}
+  p_{00} &= \Pr(h_t=1 \mid h_{t-1}=0, h_{t-2}=0), &
+  p_{01} &= \Pr(h_t=1 \mid h_{t-1}=0, h_{t-2}=1), \\
+  p_{10} &= \Pr(h_t=0 \mid h_{t-1}=1, h_{t-2}=0), &
+  p_{11} &= \Pr(h_t=0 \mid h_{t-1}=1, h_{t-2}=1),
+\end{align*}
+where the first subscript denotes the state at $t-1$ and the second the state
+at $t-2$. This specification accommodates negative duration dependence in
+non-employment (if $p_{00} > p_{01}$, a longer non-employment spell reduces
+the probability of entry) and positive duration dependence in employment. The
+four-wave observed histories, of which there are 16, support identification of
+these four additional transition probabilities along with the misclassification
+parameter. The full derivation is in Appendix~\ref{app:ar2}.
+
+\subsubsection{Tenure contamination model}\label{subsec:tenure}
+
+The baseline model and its extensions above identify misclassification from
+Markov violations in the employment status sequence. The tenure contamination
+model provides an independent identification channel using job tenure and
+non-employment duration data.
+
+The key observation is that if an employment observation is misclassified---say,
+a truly non-employed worker is recorded as employed at wave $t$---the reported
+job tenure at wave $t+1$ should be inconsistent with normal tenure accumulation.
+Specifically, if the worker was truly non-employed at $t$ and is truly employed
+at $t+1$, their tenure at $t+1$ should be short (consistent with a new job).
+But if the worker is also truly employed at $t-1$, their tenure at $t-1$ should
+be long (consistent with a continuing job), and the jump in tenure between
+$t-1$ and $t+1$ (or the failure of tenure to accumulate between $t$ and $t+1$)
+signals a ``contaminated'' intermediate observation.
+
+We formalise this intuition as follows. Let $d_{it}$ denote the duration
+variable (tenure if employed, time since last job if non-employed) at wave $t$.
+We model the joint distribution of $(s_{i,t-1}, d_{i,t-1}, s_{it}, d_{it},
+s_{i,t+1}, d_{i,t+1})$ as a function of the underlying latent employment
+sequence $\mathbf{h}$ and an additional contamination parameter $\varepsilon$:
+the probability that a duration observation is ``contaminated,'' meaning it is
+drawn from the distribution of the wrong employment state. The contamination
+probability is interpreted as a form of tenure recall error that is correlated
+with employment state misclassification. Jointly identifying $\pi$ and
+$\varepsilon$ from the observed employment--tenure sequence requires an
+assumption about the marginal distribution of tenure; we model tenure as
+exponential with rate parameters $(\lambda_g, \lambda_d)$ for employed and
+non-employed workers respectively, and fit the model by EM. The full derivation
+is in Appendix~\ref{app:tenure}.
+
+\subsection{Matching and sample construction}\label{subsec:matching}
+
+Each three-wave triad is constructed by linking panel observations using
+household and individual identifiers. We consider a hierarchy of matching
+strictness, from the baseline matching---which requires agreement on household
+identifiers only---to stricter matching algorithms that additionally require
+agreement on gender, race, and certain time-invariant characteristics. Stricter
+matching reduces the sample size (by discarding potential false matches) but
+should also reduce the incidence of spurious transitions arising from
+mismatched observations rather than genuine employment changes. As discussed
+in Section~\ref{sec:alternatives}, we use this variation as a design-based
+robustness check: if our estimated misclassification $\pi$ reflects genuine
+survey error rather than modelling artefact, stricter matching should reduce
+but not eliminate $\pi$.
