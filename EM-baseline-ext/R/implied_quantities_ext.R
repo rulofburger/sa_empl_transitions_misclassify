@@ -286,12 +286,20 @@ implied_inconsistency <- function(params, incons_mat) {
 
   pi_base <- 0.5 * plogis(delta[1L])   # misclassification at zero flags
 
+  # Additional misclassification probability when each inconsistency flag fires
+  # (holding the other flag at zero).  These are finite-difference marginal
+  # effects on the logistic scale.
+  pi_age_additional <- 0.5 * plogis(delta[1L] + delta[2L]) - pi_base
+  pi_edu_additional <- 0.5 * plogis(delta[1L] + delta[3L]) - pi_base
+
   list(
-    entry_rate      = theta0,
-    exit_rate       = 1 - theta1,
-    employment_rate = employment_rate,
-    mean_pi         = mean_pi,
-    delta           = delta,
-    pi_base         = pi_base
+    entry_rate        = theta0,
+    exit_rate         = 1 - theta1,
+    employment_rate   = employment_rate,
+    mean_pi           = mean_pi,
+    delta             = delta,
+    pi_base           = pi_base,
+    pi_age_additional = pi_age_additional,
+    pi_edu_additional = pi_edu_additional
   )
 }
