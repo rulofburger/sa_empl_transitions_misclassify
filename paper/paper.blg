@@ -3,46 +3,48 @@ Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: paper.aux
 The style file: chicago.bst
 Database file #1: ref.bib
+Warning--no number and no volume in goldstein1982contamination
+Warning--no number and no volume in horowitz1995identification
 Warning--page numbers missing in kerr2018
-You've used 23 entries,
+You've used 26 entries,
             2861 wiz_defined-function locations,
-            762 strings with 8322 characters,
-and the built_in function-call counts, 15512 in all, are:
-= -- 1354
-> -- 1093
-< -- 5
-+ -- 330
-- -- 392
-* -- 1370
-:= -- 2850
-add.period$ -- 69
-call.type$ -- 23
-change.case$ -- 160
-chr.to.int$ -- 23
-cite$ -- 24
-duplicate$ -- 404
-empty$ -- 923
-format.name$ -- 456
-if$ -- 2833
+            782 strings with 8976 characters,
+and the built_in function-call counts, 17751 in all, are:
+= -- 1537
+> -- 1283
+< -- 6
++ -- 390
+- -- 458
+* -- 1575
+:= -- 3270
+add.period$ -- 78
+call.type$ -- 26
+change.case$ -- 184
+chr.to.int$ -- 26
+cite$ -- 29
+duplicate$ -- 455
+empty$ -- 1041
+format.name$ -- 530
+if$ -- 3239
 int.to.chr$ -- 1
 int.to.str$ -- 0
-missing$ -- 17
-newline$ -- 118
-num.names$ -- 230
-pop$ -- 97
+missing$ -- 19
+newline$ -- 133
+num.names$ -- 260
+pop$ -- 112
 preamble$ -- 1
-purify$ -- 299
+purify$ -- 341
 quote$ -- 0
-skip$ -- 448
+skip$ -- 504
 stack$ -- 0
-substring$ -- 848
-swap$ -- 129
-text.length$ -- 5
+substring$ -- 960
+swap$ -- 144
+text.length$ -- 6
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 460
-warning$ -- 1
-while$ -- 241
+type$ -- 520
+warning$ -- 3
+while$ -- 271
 width$ -- 0
-write$ -- 308
-(There was 1 warning)
+write$ -- 349
+(There were 3 warnings)

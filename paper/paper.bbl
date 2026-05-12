@@ -65,6 +65,16 @@ Fredriksson, P. (1997).
 \newblock Economic incentives and the demand for higher education.
 \newblock {\em Scandinavian Journal of Economics\/}~{\em 99\/}(1), 129--142.
 
+\bibitem[\protect\citeauthoryear{Goldstein}{Goldstein}{1982}]{goldstein1982contamination}
+Goldstein, M. (1982).
+\newblock Contamination distributions.
+\newblock {\em The Annals of Statistics\/}, 174--183.
+
+\bibitem[\protect\citeauthoryear{Horowitz and Manski}{Horowitz and Manski}{1995}]{horowitz1995identification}
+Horowitz, J.~L. and C.~F. Manski (1995).
+\newblock Identification and robustness with contaminated and corrupted data.
+\newblock {\em Econometrica: Journal of the Econometric Society\/}, 281--302.
+
 \bibitem[\protect\citeauthoryear{Kalbfleisch and Lawless}{Kalbfleisch and Lawless}{1985}]{kalbfleisch1985}
 Kalbfleisch, J. and J.~Lawless (1985).
 \newblock The analysis of panel data under a markov assumption.
@@ -79,6 +89,11 @@ Kerr, A. (2018, January).
 Lechtenfeld, T. and A.~Zoch (2014).
 \newblock Income convergence in south africa: Fact or measurement error?
 \newblock Discussion Paper 157, University of Gottingen Research Centre - Poverty, Equity, and Growth.
+
+\bibitem[\protect\citeauthoryear{Markhof, Wollburg, Palacios-Lopez, Castaing, Sagesaka, and Contreras}{Markhof et~al.}{2026}]{Pauline2026ModeEffects}
+Markhof, Y.~V., P.~R. Wollburg, A.~Palacios-Lopez, P.~Castaing, A.~Sagesaka, and I.~Contreras (2026).
+\newblock The effect of survey mode on data quality: Experimental evidence from nigeria.
+\newblock Policy Research Working Paper Policy Research Working Paper No. WPS11302, The World Bank, Washington, DC.
 
 \bibitem[\protect\citeauthoryear{Meyer}{Meyer}{1988}]{meyer1988}
 Meyer, B. (1988).

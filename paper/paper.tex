@@ -99,25 +99,53 @@
 % --- Abstract ---
 \begin{abstract}
 Reliable estimates of employment transition rates are central to diagnosing the
-nature of unemployment and designing effective labour market policy. Yet
-classification error in survey responses to employment questions is pervasive
-and, even when small, can inflate measured transition rates by an order of
-magnitude. We develop a structural EM-algorithm estimator that uses three
+nature of unemployment and designing effective labour market policy. Distinguishing
+chronic from transitory unemployment hinges on accurate measurement of these churn
+rates. Yet measurement and classification error are pervasive in survey data, 
+especially in lower income countries where well-targeted policies are most urgent 
+and where alternative data sources, such as reinterview or administrative data, are 
+scarce. Classification error in employment status is especially pernicious 
+for transitions due to its well-documented multiplicative upward bias on churn estimates.
+
+We develop a structural estimator that uses three
 consecutive waves of panel data to jointly identify true transition rates and
 misclassification probabilities, requiring no reinterview or administrative
-data. The estimator accommodates observed and unobserved worker heterogeneity,
-second-order Markov dynamics, and tenure-based identification of classification
-error. Applied to the South African Quarterly Labour Force Survey, we find a
+data. Under the assumption that the latent, true employment state is a first-order Markov 
+process while the observed state may be misclassified, the distribution of reported 
+employment statuses displays Markov violations that separately pin down transition 
+and error parameters. We derive a modular framework, estimated using the expectation-maximization 
+(EM) algorithm that allows for survey-relevant extensions. 
+Applied to the South African Quarterly Labour Force Survey, we find a
 misclassification probability of approximately 3\%, which causes conventional
 methods to overstate quarterly employment entry and exit rates by a factor of
-nearly three---from roughly 8\% to roughly 3\%. This finding is robust to
-controlling for observable and unobservable worker heterogeneity, duration
-dependence, and alternative matching algorithms. Survey respondents with
-inconsistent age or education progressions exhibit substantially higher estimated
-misclassification, providing direct mechanism evidence. Our results imply that
-South African employment is considerably more persistent than previously
+nearly three---from roughly 8\% to roughly 3\%. 
+Despite small error rates, the multiplicative bias on flows is large, materially altering inferences 
+about persistence versus churn and, hence, policy emphasis. These results are robust 
+to extensions that incorporate (i) observed and unobserved heterogeneity 
+using respondent covariates and 
+a finite mixture over latent worker types, since heterogeneity can mimic Markov violations; 
+and (ii) duration-dependence by directly relaxing the Markov assumption and allowing second-order 
+dependence in the latent process. These extensions prevent over-assigning all Markov violations 
+to misclassification when heterogeneity or duration are the true sources of a small number of 
+transient, mean-reverting employment spells. Three additional findings reinforce the conclusion 
+that classification error is present and
+materially inflates estimated churn and attenuates persistence. First, we exploit the fact 
+that true duration progressions are deterministic conditional on the true 
+employment histories in a tenure-contamination model to structurally identify transition rates by using
+information from the joint distribution of tenure and employment status. Tenure data suggested even higher
+employment misclassification rates than the baseline model, and find that employment churn is 
+overestimated by a factor of 2.  Second, tightening matching criteria across waves lowers both 
+estimated churn and inferred misclassification, consistent with mismatches inflating estimated churn. 
+Third, allowing misclassification to vary with cross-item reliability shows that interviews with 
+inconsistent age progressions are more likely to display patterns consistent with misclassification, 
+suggesting churn is due to noise in the survey rather than genuine mobility. 
+Our results imply that South African employment is considerably more persistent than previously
 characterised, with important implications for the design of labour market
-policy.
+policy. The baseline estimator requires only three 
+waves, no reinterviews or administrative linkages, making it scalable and cost-effective 
+for survey programs.
+
+
 
 \medskip
 \noindent\textbf{Keywords:} Misclassification error, employment transitions,

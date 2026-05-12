@@ -7,27 +7,26 @@
 
 \subsubsection*{Setup and notation}
 
-Let $h_{t} \in \{0,1\}$ denote the true employment status at
-quarter $t$, where $h_{t} = 1$ indicates employment. We assume that the true
+Let $h_{it} \in \{0,1\}$ denote the true employment status of individual $i$ at
+quarter $t$, where $h_{it} = 1$ indicates employment. We assume that the true
 process follows a first-order, time-homogeneous Markov chain with transition
 probabilities
-\begin{equation}
-  \theta_0 \equiv \Pr(h_{t}=1 \mid h_{t-1}=0), \qquad
-  \theta_1 \equiv \Pr(h_{t}=0 \mid h_{t-1}=1),
-  \label{eq:baseline_transition}
-\end{equation}
-The stationary (long-run) employment rate is $\alpha = \theta_0 / (\theta_0 + \theta_1)$.
+\[
+  \theta_0 = \Pr(h_{t}=1 \mid h_{t-1}=0), \qquad
+  \theta_1 = \Pr(h_{t}=0 \mid h_{t-1}=1),
+\]
+where we suppress the individual subscript for clarity. The stationary
+(long-run) employment rate is $\alpha = \theta_0 / (\theta_0 + \theta_1)$.
 We consider both a stationarity-restricted specification in which the initial
 probability $\Pr(h_1=1) = \alpha$ and an unrestricted specification in which
 $\Pr(h_1=1)$ is estimated freely.
 
-Survey respondents report $s_{t} \in \{0,1\}$, their observed employment
-status, which may differ from $h_{t}$ due to measurement error. We assume
+Survey respondents report $s_{it} \in \{0,1\}$, their observed employment
+status, which may differ from $h_{it}$ due to measurement error. We assume
 a symmetric, time-invariant misclassification structure:
-\begin{equation}
-  \pi \equiv \Pr(s_{t} = 1 \mid h_{t} = 0) = \Pr(s_{t} = 0 \mid h_{t} = 1),
-  \label{eq:baseline_error}
-\end{equation}
+\[
+  \pi = \Pr(s_{t} = 1 \mid h_{t} = 0) = \Pr(s_{t} = 0 \mid h_{t} = 1),
+\]
 so that employment and non-employment are equally likely to be misclassified,
 and errors are independent across waves conditional on the true state. The
 full technical derivation of the likelihood and its properties, including
