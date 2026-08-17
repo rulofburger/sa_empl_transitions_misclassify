@@ -38,6 +38,7 @@
 bootstrap_one_covariates <- function(df, X, seed, model_type, stationary,
                                      params_start, point_loglik, pi_cap = 0.49) {
   boot <- bootstrap_resample(df, seed, X = X)
+  attr(boot$X, "entry_active") <- attr(X, "entry_active")
   fit  <- tryCatch(
     em_fit_covariates(
       df         = boot$df,
@@ -56,6 +57,33 @@ bootstrap_one_covariates <- function(df, X, seed, model_type, stationary,
   if (!is.null(fit$.error)) {
     return(list(params = NULL, implied = NULL, loglik = NA_real_,
                 converged = FALSE, flag = "error"))
+  }
+
+  # For symmetric models, also fit from the nested no-error solution. This
+  # supplies a likelihood floor in every bootstrap sample rather than relying
+  # on a single interior warm start.
+  if (model_type == "symmetric") {
+    fit_nested <- tryCatch({
+      p_none <- params_start
+      p_none$pi <- NULL
+      restricted <- em_fit_covariates(
+        df = boot$df, X = boot$X, model_type = "none",
+        stationary = stationary, params0 = p_none,
+        max_iter = 500L, tol = 1e-6, pi_cap = pi_cap, verbose = 0L
+      )
+      p_nested <- restricted$params
+      p_nested$pi <- 1e-8
+      candidate <- em_fit_covariates(
+        df = boot$df, X = boot$X, model_type = "symmetric",
+        stationary = stationary, params0 = p_nested,
+        max_iter = 500L, tol = 1e-6, pi_cap = pi_cap, verbose = 0L
+      )
+      if (candidate$loglik < restricted$loglik - 1e-5)
+        stop("symmetric bootstrap fit failed no-error nesting check")
+      candidate
+    }, error = function(e) NULL)
+    if (!is.null(fit_nested) && fit_nested$loglik > fit$loglik)
+      fit <- fit_nested
   }
 
   flag <- .flag_fit(fit, point_loglik)

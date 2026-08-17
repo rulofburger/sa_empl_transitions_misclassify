@@ -10,7 +10,10 @@
 # Covariate sets:
 #   Set 1 (parsimonious): intercept, age, age^2, education
 #   Set 2 (demographics): Set 1 + race dummies + female
-#   Set 3 (full):         Set 2 + contract type dummies
+#   Set 3 (exit-rich):    Set 2 + contract type dummies in the persistence
+#                         equation only. Contract type is structurally missing
+#                         outside employment and is therefore excluded from the
+#                         job-finding equation.
 # ==============================================================================
 
 #' Build the probit covariate design matrix
@@ -199,10 +202,18 @@ prepare_covariate_matrix <- function(df, covariate_set = 1L) {
   # ---- Assemble final matrix -----------------------------------------------
   X <- do.call(cbind, col_parts)
 
+  # Contract type is defined only for employed respondents.  Keep a common
+  # coefficient layout for both transition equations, but mark contract
+  # columns inactive in the entry equation.  The EM driver enforces the
+  # corresponding beta0 coefficients at exactly zero.
+  entry_active <- !grepl("^contracttype_", colnames(X))
+  attr(X, "entry_active") <- entry_active
+
   list(
     X         = X,
     col_names = colnames(X),
     center    = center_vals,
-    scale     = scale_vals
+    scale     = scale_vals,
+    entry_active = entry_active
   )
 }

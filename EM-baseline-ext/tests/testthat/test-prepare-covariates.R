@@ -41,6 +41,26 @@ test_that("set 3 includes contract type dummies on top of set 2", {
   out3 <- prepare_covariate_matrix(df, covariate_set = 3L)
   expect_true(ncol(out3$X) > ncol(out2$X))
   expect_true(any(grepl("^contracttype_", colnames(out3$X))))
+  contract_cols <- grepl("^contracttype_", colnames(out3$X))
+  expect_true(all(!out3$entry_active[contract_cols]))
+  expect_true(all(out3$entry_active[!contract_cols]))
+})
+
+test_that("set 3 contract coefficients remain zero in the entry equation", {
+  set.seed(12L)
+  n <- 250L
+  cov_df <- .make_cov_df(n)
+  prep <- prepare_covariate_matrix(cov_df, covariate_set = 3L)
+  panel <- data.frame(
+    y1 = rbinom(n, 1L, 0.5),
+    y2 = rbinom(n, 1L, 0.5),
+    y3 = rbinom(n, 1L, 0.5),
+    weight = rep(1, n)
+  )
+  fit <- em_fit_covariates(panel, prep$X, model_type = "symmetric",
+                           max_iter = 100L, verbose = 0L)
+  contract_cols <- grepl("^contracttype_", colnames(prep$X))
+  expect_equal(fit$params$beta0[contract_cols], rep(0, sum(contract_cols)))
 })
 
 # ---- Intercept -------------------------------------------------------------

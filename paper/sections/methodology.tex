@@ -128,21 +128,26 @@ for the extended parameter set.
 
 \subsubsection{Observable worker heterogeneity}\label{subsubsec:covariates}
 
-We allow the entry and exit probabilities to depend on individual characteristics
-$X_i$ (age, education, gender, race, contract type) through probit link functions:
+We allow transition probabilities to depend on individual characteristics
+through probit link functions. Age, education, gender, and race enter both
+transition equations. Current contract type is defined only for employed
+respondents, so it enters the employment-persistence (exit-risk) equation only
+and is excluded from the job-entry equation:
 \[
-  \theta_{0i} = \Phi(X_i \beta_0), \qquad
-  \theta_{1i} = \Phi(X_i \beta_1),
+  \theta_{0i} = \Phi(X_{0i} \beta_0), \qquad
+  \theta_{1i} = \Phi(X_{1i} \beta_1),
 \]
-where $\Phi(\cdot)$ is the standard normal CDF. The misclassification parameter
+where $X_{1i}$ additionally contains the contract-type indicators and
+$\Phi(\cdot)$ is the standard normal CDF. The misclassification parameter
 $\pi$ is held common across individuals in the main specification; a variant
 allows $\pi$ to vary with observable reliability indicators (see
 Section~\ref{subsubsec:inconsistency}). Since the M-step for $\beta_0$ and
 $\beta_1$ no longer has a closed form, we use the Generalised EM (GEM)
-algorithm of \citet{dempster1977}, performing a single gradient step in the
-direction of the expected complete-data likelihood gradient at each iteration.
-The GEM algorithm is guaranteed to produce non-decreasing likelihoods and
-converges under the same conditions as the full EM.
+algorithm of \citet{dempster1977}. Under stationarity the initial-state term
+couples the two coefficient vectors, so we update them jointly using limited
+BFGS steps on the full expected complete-data log-likelihood. Backtracking is
+applied until both that objective and the observed-data likelihood are
+non-decreasing.
 
 \subsubsection{Finite mixture model for unobserved heterogeneity}\label{subsubsec:fmm}
 

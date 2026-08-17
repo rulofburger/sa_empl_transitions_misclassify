@@ -55,13 +55,20 @@ run_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 }
 
 # ---- Multi-start runner: covariate extension --------------------------------
-.run_cov <- function(df, X, model_type, stationary, label) {
+.run_cov <- function(df, X, model_type, stationary, label, nested_fit = NULL) {
   best <- NULL
   for (s in seq_len(N_STARTS)) {
-    p0 <- init_params_covariates(ncol(X), model_type)
-    p0$beta0 <- .perturb_beta(p0$beta0)
-    p0$beta1 <- .perturb_beta(p0$beta1)
-    if (!is.null(p0$pi)) p0$pi <- .clamp_pi(p0$pi)
+    if (s == 1L && model_type == "symmetric" && !is.null(nested_fit)) {
+      # The symmetric model nests the no-error model at pi=0. Always include
+      # that restricted solution as a deterministic warm start.
+      p0 <- nested_fit$params
+      p0$pi <- 1e-8
+    } else {
+      p0 <- init_params_covariates(ncol(X), model_type)
+      p0$beta0 <- .perturb_beta(p0$beta0)
+      p0$beta1 <- .perturb_beta(p0$beta1)
+      if (!is.null(p0$pi)) p0$pi <- .clamp_pi(p0$pi)
+    }
     fit <- tryCatch(
       em_fit_covariates(df, X, model_type = model_type, stationary = stationary,
                         params0 = p0, max_iter = 1000L, tol = 1e-8,
@@ -71,6 +78,12 @@ run_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
     if (!is.null(fit) && (is.null(best) || fit$loglik > best$loglik)) best <- fit
   }
   if (is.null(best)) stop(sprintf("All %d starts failed for %s", N_STARTS, label))
+  if (!is.null(nested_fit) && best$loglik < nested_fit$loglik - 1e-5) {
+    stop(sprintf(
+      "%s failed nesting check: symmetric LL %.6f < no-error LL %.6f",
+      label, best$loglik, nested_fit$loglik
+    ))
+  }
   saveRDS(best, file.path(results_dir, sprintf("fit_%s.rds", label)))
   cat(sprintf("  [%s] loglik=%.4f | converged=%s | iters=%d\n",
               label, best$loglik, best$converged, best$iterations))
@@ -245,27 +258,21 @@ cat("\n\n========== EXTENSION I: COVARIATE MODELS ==========\n")
 
 cat("\n--- Set 1 (age + educ) ---\n")
 
-fits[["cov_s1_sym_stat"]] <- .run_cov(df_ext, X1, "symmetric", TRUE,  "cov_s1_sym_stat")
-run_rows[["cov_s1_sym_stat"]] <- .make_row("cov_s1_sym_stat", "covariate", "symmetric", TRUE,  fits[["cov_s1_sym_stat"]])
-
-fits[["cov_s1_sym_free"]] <- .run_cov(df_ext, X1, "symmetric", FALSE, "cov_s1_sym_free")
-run_rows[["cov_s1_sym_free"]] <- .make_row("cov_s1_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s1_sym_free"]])
-
 fits[["cov_s1_non_stat"]] <- .run_cov(df_ext, X1, "none",      TRUE,  "cov_s1_non_stat")
 run_rows[["cov_s1_non_stat"]] <- .make_row("cov_s1_non_stat", "covariate", "none",      TRUE,  fits[["cov_s1_non_stat"]])
 
 fits[["cov_s1_non_free"]] <- .run_cov(df_ext, X1, "none",      FALSE, "cov_s1_non_free")
 run_rows[["cov_s1_non_free"]] <- .make_row("cov_s1_non_free", "covariate", "none",      FALSE, fits[["cov_s1_non_free"]])
 
+fits[["cov_s1_sym_stat"]] <- .run_cov(df_ext, X1, "symmetric", TRUE, "cov_s1_sym_stat", fits[["cov_s1_non_stat"]])
+run_rows[["cov_s1_sym_stat"]] <- .make_row("cov_s1_sym_stat", "covariate", "symmetric", TRUE, fits[["cov_s1_sym_stat"]])
+
+fits[["cov_s1_sym_free"]] <- .run_cov(df_ext, X1, "symmetric", FALSE, "cov_s1_sym_free", fits[["cov_s1_non_free"]])
+run_rows[["cov_s1_sym_free"]] <- .make_row("cov_s1_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s1_sym_free"]])
+
 # --- Set 2: Set 1 + race + female ---------------------------------------------
 
 cat("\n--- Set 2 (age + educ + race + female) ---\n")
-
-fits[["cov_s2_sym_stat"]] <- .run_cov(df_ext, X2, "symmetric", TRUE,  "cov_s2_sym_stat")
-run_rows[["cov_s2_sym_stat"]] <- .make_row("cov_s2_sym_stat", "covariate", "symmetric", TRUE,  fits[["cov_s2_sym_stat"]])
-
-fits[["cov_s2_sym_free"]] <- .run_cov(df_ext, X2, "symmetric", FALSE, "cov_s2_sym_free")
-run_rows[["cov_s2_sym_free"]] <- .make_row("cov_s2_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s2_sym_free"]])
 
 fits[["cov_s2_non_stat"]] <- .run_cov(df_ext, X2, "none",      TRUE,  "cov_s2_non_stat")
 run_rows[["cov_s2_non_stat"]] <- .make_row("cov_s2_non_stat", "covariate", "none",      TRUE,  fits[["cov_s2_non_stat"]])
@@ -273,21 +280,27 @@ run_rows[["cov_s2_non_stat"]] <- .make_row("cov_s2_non_stat", "covariate", "none
 fits[["cov_s2_non_free"]] <- .run_cov(df_ext, X2, "none",      FALSE, "cov_s2_non_free")
 run_rows[["cov_s2_non_free"]] <- .make_row("cov_s2_non_free", "covariate", "none",      FALSE, fits[["cov_s2_non_free"]])
 
+fits[["cov_s2_sym_stat"]] <- .run_cov(df_ext, X2, "symmetric", TRUE, "cov_s2_sym_stat", fits[["cov_s2_non_stat"]])
+run_rows[["cov_s2_sym_stat"]] <- .make_row("cov_s2_sym_stat", "covariate", "symmetric", TRUE, fits[["cov_s2_sym_stat"]])
+
+fits[["cov_s2_sym_free"]] <- .run_cov(df_ext, X2, "symmetric", FALSE, "cov_s2_sym_free", fits[["cov_s2_non_free"]])
+run_rows[["cov_s2_sym_free"]] <- .make_row("cov_s2_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s2_sym_free"]])
+
 # --- Set 3: Set 2 + contract type ---------------------------------------------
 
-cat("\n--- Set 3 (age + educ + race + female + contracttype) ---\n")
-
-fits[["cov_s3_sym_stat"]] <- .run_cov(df_ext, X3, "symmetric", TRUE,  "cov_s3_sym_stat")
-run_rows[["cov_s3_sym_stat"]] <- .make_row("cov_s3_sym_stat", "covariate", "symmetric", TRUE,  fits[["cov_s3_sym_stat"]])
-
-fits[["cov_s3_sym_free"]] <- .run_cov(df_ext, X3, "symmetric", FALSE, "cov_s3_sym_free")
-run_rows[["cov_s3_sym_free"]] <- .make_row("cov_s3_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s3_sym_free"]])
+cat("\n--- Set 3 (contract type in persistence/exit equation only) ---\n")
 
 fits[["cov_s3_non_stat"]] <- .run_cov(df_ext, X3, "none",      TRUE,  "cov_s3_non_stat")
 run_rows[["cov_s3_non_stat"]] <- .make_row("cov_s3_non_stat", "covariate", "none",      TRUE,  fits[["cov_s3_non_stat"]])
 
 fits[["cov_s3_non_free"]] <- .run_cov(df_ext, X3, "none",      FALSE, "cov_s3_non_free")
 run_rows[["cov_s3_non_free"]] <- .make_row("cov_s3_non_free", "covariate", "none",      FALSE, fits[["cov_s3_non_free"]])
+
+fits[["cov_s3_sym_stat"]] <- .run_cov(df_ext, X3, "symmetric", TRUE, "cov_s3_sym_stat", fits[["cov_s3_non_stat"]])
+run_rows[["cov_s3_sym_stat"]] <- .make_row("cov_s3_sym_stat", "covariate", "symmetric", TRUE, fits[["cov_s3_sym_stat"]])
+
+fits[["cov_s3_sym_free"]] <- .run_cov(df_ext, X3, "symmetric", FALSE, "cov_s3_sym_free", fits[["cov_s3_non_free"]])
+run_rows[["cov_s3_sym_free"]] <- .make_row("cov_s3_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s3_sym_free"]])
 
 # ==============================================================================
 # SECTION 2: Extension III — 2-type FMM

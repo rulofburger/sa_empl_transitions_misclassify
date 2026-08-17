@@ -61,7 +61,8 @@
 #' }
 #' @export
 e_step_covariates <- function(df, X, params, model_type = "symmetric",
-                               validate = TRUE, mm_precomp = NULL) {
+                               validate = TRUE, mm_precomp = NULL,
+                               stationary = TRUE) {
   if (!model_type %in% c("symmetric", "none"))
     stop("e_step_covariates: model_type must be 'symmetric' or 'none'")
 
@@ -100,8 +101,15 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
   theta1_i <- pmin(pmax(theta1_i, 1e-6), 1 - 1e-6)
   theta0_i <- pmin(pmax(theta0_i, 1e-6), 1 - 1e-6)
 
-  # Stationary alpha (individual-specific)
-  alpha_i <- theta0_i / (theta0_i + 1 - theta1_i)
+  # Initial employment probability. Under stationarity it is implied by the
+  # individual transition probabilities; otherwise alpha is a free scalar.
+  alpha_i <- if (stationary) {
+    theta0_i / (theta0_i + 1 - theta1_i)
+  } else {
+    if (is.null(params$alpha) || !is.finite(params$alpha))
+      stop("e_step_covariates: free-alpha model requires finite params$alpha")
+    rep(params$alpha, N)
+  }
   alpha_i <- pmin(pmax(alpha_i, 1e-6), 1 - 1e-6)
 
   # ---- Latent histories (8 x 3) -------------------------------------------
@@ -196,9 +204,12 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
     M <- 0
   }
 
-  # Initial state mass (for free alpha — scalar approximation)
-  C1 <- sum(wg[, h1 == 1L, drop = FALSE])
-  C0 <- sum(wg[, h1 == 0L, drop = FALSE])
+  # Initial-state posterior mass.  Retain individual contributions because the
+  # stationary initial probability alpha_i depends jointly on beta0 and beta1.
+  init_w1 <- as.vector(wg %*% as.integer(h1 == 1L))
+  init_w0 <- as.vector(wg %*% as.integer(h1 == 0L))
+  C1 <- sum(init_w1)
+  C0 <- sum(init_w0)
 
   suff <- list(
     # GEM probit cross-products — computed lazily in m_step_covariates
@@ -209,6 +220,8 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
     M            = M,
     C1           = C1,
     C0           = C0,
+    init_w1      = init_w1,
+    init_w0      = init_w0,
     total_weight = sum(w)
   )
 

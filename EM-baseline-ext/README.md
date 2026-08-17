@@ -23,8 +23,10 @@ design used here and are left for future work.
 ### Extension I: Observable heterogeneity (covariate model)
 
 Transition probabilities θ₀ᵢ and θ₁ᵢ are individual-specific via probit link
-functions: θ₁ᵢ = Φ(Xᵢ β₁), θ₀ᵢ = Φ(Xᵢ β₀). The M-step uses a GEM step
-(one IRLS update per EM iteration) rather than full probit maximisation.
+functions: θ₁ᵢ = Φ(X₁ᵢ β₁), θ₀ᵢ = Φ(X₀ᵢ β₀). Under stationarity, the initial
+employment term couples β₀ and β₁. The M-step therefore applies limited joint
+BFGS updates to the full Q-function, with Q-function and observed-likelihood
+backtracking safeguards.
 
 Three covariate sets:
 
@@ -32,7 +34,7 @@ Three covariate sets:
 |-----|-----------|---|
 | 1 | intercept, age (std), age² (std), educ (std) | 4 |
 | 2 | Set 1 + race dummies + female | 4 + r |
-| 3 | Set 2 + contracttype dummies | 4 + r + c |
+| 3 | Set 2 + contracttype dummies in persistence/exit only | 4 + r + c |
 
 For each set: symmetric and no-error model × stationary and free α → **12 models**.
 
@@ -69,7 +71,7 @@ EM-baseline-ext/
 │   ├── compute_inconsistencies.R    # Wave-specific age/edu inconsistency indicators
 │   ├── prepare_covariates.R         # Build covariate design matrices (3 sets)
 │   ├── estep_covariates.R           # E-step: covariate extension
-│   ├── mstep_covariates.R           # M-step: IRLS GEM for β
+│   ├── mstep_covariates.R           # M-step: joint monotone GEM for β
 │   ├── em_driver_covariates.R       # Driver + init + loglik: covariate
 │   ├── estep_fmm.R                  # E-step: 2-type FMM
 │   ├── mstep_fmm.R                  # M-step: closed form for FMM + label switch

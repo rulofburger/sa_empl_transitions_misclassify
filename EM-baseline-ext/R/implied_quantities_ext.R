@@ -92,8 +92,15 @@ implied_covariates <- function(params, X, model_type = "symmetric") {
   if (anyNA(X))
     stop("implied_covariates: X contains NA values — impute or filter before calling.")
 
+  # Contract-type columns are inactive in the entry equation. Enforce the mask
+  # here as a defensive guard for older saved parameter objects.
+  entry_active <- attr(X, "entry_active")
+  if (is.null(entry_active)) entry_active <- rep(TRUE, ncol(X))
+  beta0 <- params$beta0
+  beta0[!entry_active] <- 0
+
   # Cache linear predictors to avoid recomputing X %*% beta for both pnorm and dnorm
-  xb0 <- as.vector(X %*% params$beta0)
+  xb0 <- as.vector(X %*% beta0)
   xb1 <- as.vector(X %*% params$beta1)
 
   theta0_i <- pnorm(xb0)
@@ -114,7 +121,7 @@ implied_covariates <- function(params, X, model_type = "symmetric") {
   mean_phi0 <- mean(phi0)
   mean_phi1 <- mean(phi1)
 
-  ame_entry <- params$beta0 * mean_phi0  # vectorized: one multiplication per coef
+  ame_entry <- beta0 * mean_phi0  # contract-type AMEs are exactly zero for entry
   ame_exit  <- -params$beta1 * mean_phi1 # negative: d(1-theta1)/dX = -d(theta1)/dX
 
   col_nms <- colnames(X)

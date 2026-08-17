@@ -1,168 +1,148 @@
 # ==============================================================================
-# EM-baseline-ext: M-step (GEM) for Extension I (observable heterogeneity)
-# Created: 2026-05-06
-#
-# Performs a single IRLS (iteratively reweighted least squares) step for the
-# weighted probit regression that updates beta0 and beta1. This is a GEM
-# (Generalized EM) step: it strictly increases the Q function without finding
-# the exact maximiser, guaranteeing monotone ascent of the observed-data LL.
-#
-# TeX ref: EM baseline.tex Section 5, Eqs (12)--(14).
+# EM-baseline-ext: monotone M/GEM step for observable heterogeneity
 # ==============================================================================
 
-# Ridge constant for numerical stability of X'WX inversion
-.IRLS_RIDGE <- 1e-6
+# The stationary initial probability depends jointly on the two transition
+# equations. Separate IRLS updates therefore need not increase the correct
+# complete Q-function. This module maximizes the full coefficient block jointly
+# and applies a backtracking guard.
 
-#' M-step (GEM) for the covariate extension
+.covariate_q <- function(par, suff, X, entry_active, stationary,
+                         gradient = FALSE) {
+  p <- ncol(X)
+  p0 <- sum(entry_active)
+  beta0 <- numeric(p)
+  beta0[entry_active] <- par[seq_len(p0)]
+  beta1 <- par[p0 + seq_len(p)]
+
+  eta0 <- as.vector(X %*% beta0)
+  eta1 <- as.vector(X %*% beta1)
+  theta0 <- pmin(pmax(pnorm(eta0), 1e-10), 1 - 1e-10)
+  theta1 <- pmin(pmax(pnorm(eta1), 1e-10), 1 - 1e-10)
+
+  fail0 <- pmax(suff$eff_w_0 - suff$eff_wy_0, 0)
+  fail1 <- pmax(suff$eff_w_1 - suff$eff_wy_1, 0)
+  q <- sum(suff$eff_wy_0 * log(theta0) + fail0 * log1p(-theta0)) +
+       sum(suff$eff_wy_1 * log(theta1) + fail1 * log1p(-theta1))
+
+  score_eta0 <- dnorm(eta0) *
+    (suff$eff_wy_0 / theta0 - fail0 / (1 - theta0))
+  score_eta1 <- dnorm(eta1) *
+    (suff$eff_wy_1 / theta1 - fail1 / (1 - theta1))
+
+  if (stationary) {
+    denom <- theta0 + 1 - theta1
+    alpha <- pmin(pmax(theta0 / denom, 1e-10), 1 - 1e-10)
+    q <- q + sum(suff$init_w1 * log(alpha) +
+                 suff$init_w0 * log1p(-alpha))
+
+    score_alpha <- suff$init_w1 / alpha - suff$init_w0 / (1 - alpha)
+    score_eta0 <- score_eta0 + score_alpha *
+      ((1 - theta1) / denom^2) * dnorm(eta0)
+    score_eta1 <- score_eta1 + score_alpha *
+      (theta0 / denom^2) * dnorm(eta1)
+  }
+
+  # Scaling leaves the maximizer unchanged and improves conditioning with
+  # large survey weights.
+  scale <- max(suff$total_weight, 1)
+  if (!gradient) return(q / scale)
+
+  c(as.vector(crossprod(X[, entry_active, drop = FALSE], score_eta0)),
+    as.vector(crossprod(X, score_eta1))) / scale
+}
+
+.interpolate_cov_params <- function(old, proposed, fraction, entry_active) {
+  out <- old
+  out$beta0 <- old$beta0 + fraction * (proposed$beta0 - old$beta0)
+  out$beta0[!entry_active] <- 0
+  out$beta1 <- old$beta1 + fraction * (proposed$beta1 - old$beta1)
+  if (!is.null(proposed$pi))
+    out$pi <- old$pi + fraction * (proposed$pi - old$pi)
+  if (!is.null(proposed$alpha))
+    out$alpha <- old$alpha + fraction * (proposed$alpha - old$alpha)
+  out
+}
+
+#' Monotone M/GEM step for the covariate extension
 #'
-#' Given sufficient statistics from \code{\link{e_step_covariates}}, performs
-#' one IRLS step for each of the two probit regressions (\eqn{\beta_0} and
-#' \eqn{\beta_1}) and updates \eqn{\pi} (if applicable) in closed form.
+#' Maximizes the transition-coefficient block jointly. Under stationarity the
+#' objective includes the individual initial-state contribution, which couples
+#' beta0 and beta1. A backtracking line search rejects coefficient proposals
+#' that do not increase the complete Q-function.
 #'
-#' \strong{IRLS for weighted probit (GEM step)}:
-#' Given current coefficient \eqn{\beta}, compute working quantities:
-#' \deqn{\mu_i = \Phi(\eta_i), \quad \eta_i = x_i^\top \beta}
-#' \deqn{z_i = \eta_i + (y_i - \mu_i)/\phi(\eta_i)}
-#' \deqn{v_i = \phi(\eta_i)^2 / (\mu_i(1-\mu_i))}
-#' then solve the weighted least squares:
-#' \deqn{\beta_{\mathrm{new}} = (X^\top D X + \lambda I)^{-1} X^\top D z}
-#' where \eqn{D = \mathrm{diag}(w_i \cdot v_i)} and \eqn{\lambda} is a
-#' small ridge constant for numerical stability.
-#'
-#' TeX ref: EM baseline.tex Section 5, Eqs (12)--(14).
-#'
-#' @param suff Sufficient statistics list from \code{\link{e_step_covariates}}.
-#' @param X N × p design matrix (same as passed to \code{e_step_covariates}).
-#' @param params_old Named list with current \code{beta0}, \code{beta1},
-#'   and optionally \code{pi}.
-#' @param model_type Character: \code{"symmetric"} or \code{"none"}.
-#' @param stationary Logical. If \code{TRUE}, \eqn{\alpha} is not a free
-#'   parameter (derived from individual-level stationarity). If \code{FALSE},
-#'   returns a scalar \eqn{\alpha = C_1 / (C_1 + C_0)}.
-#' @param pi_cap Upper bound for \eqn{\pi} (default 0.49).
-#' @return Named list with updated \code{beta0}, \code{beta1},
-#'   and optionally \code{pi} and \code{alpha} (free only).
-#' @examples
-#' \dontrun{
-#'   df     <- data.frame(y1 = rbinom(50,1,.6), y2 = rbinom(50,1,.6),
-#'                        y3 = rbinom(50,1,.6), weight = rep(1,50))
-#'   X      <- matrix(1, nrow = 50, ncol = 1)
-#'   params <- init_params_covariates(p = 1L)
-#'   suff   <- e_step_covariates(df, X, params)$suff
-#'   m_step_covariates(suff, X, params)
-#' }
-#' @export
+#' @param suff Sufficient statistics returned by e_step_covariates().
+#' @param X Covariate matrix.
+#' @param params_old Current parameter list.
+#' @param model_type "symmetric" or "none".
+#' @param stationary Whether initial employment is restricted to stationarity.
+#' @param pi_cap Upper bound for the symmetric error probability.
+#' @param entry_active Logical vector identifying coefficients active in the
+#'   entry equation. Defaults to the entry_active attribute on X.
+#' @return Updated parameter list, with diagnostics in attribute "mstep".
 m_step_covariates <- function(suff, X, params_old, model_type = "symmetric",
-                               stationary = TRUE, pi_cap = 0.49) {
+                               stationary = TRUE, pi_cap = 0.49,
+                               entry_active = attr(X, "entry_active")) {
   if (!model_type %in% c("symmetric", "none"))
     stop("m_step_covariates: model_type must be 'symmetric' or 'none'")
 
-  # ---- GEM: one IRLS step for beta1 (from state 1 -> persistence) ----------
-  beta1_new <- .irls_probit_step(
-    X          = X,
-    eff_w      = suff$eff_w_1,
-    eff_wy     = suff$eff_wy_1,
-    beta_old   = params_old$beta1
-  )
-
-  # ---- GEM: one IRLS step for beta0 (from state 0 -> job finding) ----------
-  beta0_new <- .irls_probit_step(
-    X          = X,
-    eff_w      = suff$eff_w_0,
-    eff_wy     = suff$eff_wy_0,
-    beta_old   = params_old$beta0
-  )
-
-  params_out <- list(beta0 = beta0_new, beta1 = beta1_new)
-
-  # ---- pi update (closed form, TeX Eq 19) ----------------------------------
-  if (model_type == "symmetric") {
-    eps <- 1e-10
-    pi  <- suff$M / max(3 * suff$total_weight, eps)
-    pi  <- min(max(pi, 0), pi_cap)
-    params_out$pi <- pi
-  }
-
-  # ---- Free alpha (scalar approximation) -----------------------------------
-  if (!stationary) {
-    eps   <- 1e-10
-    alpha <- suff$C1 / max(suff$C1 + suff$C0, eps)
-    alpha <- max(min(alpha, 1 - eps), eps)
-    params_out$alpha <- alpha
-  }
-
-  params_out
-}
-
-
-# ------------------------------------------------------------------------------
-# Internal: single IRLS step for probit
-# ------------------------------------------------------------------------------
-
-#' One IRLS step for weighted probit regression (GEM sub-routine)
-#'
-#' Performs a single iteration of IRLS for a weighted probit model where the
-#' response is fractional (pseudo-observations from the E-step).
-#'
-#' @param X N × p design matrix.
-#' @param eff_w N-vector: effective weights (responsibility-weighted transition
-#'   counts at each individual, summed over both transitions).
-#' @param eff_wy N-vector: effective weighted outcome numerators (responsibility
-#'   × 1{h_t = 1} summed over transitions).
-#' @param beta_old Current p-vector of probit coefficients.
-#' @return Updated p-vector of probit coefficients.
-#' @keywords internal
-.irls_probit_step <- function(X, eff_w, eff_wy, beta_old) {
-  N <- nrow(X)
   p <- ncol(X)
+  if (is.null(entry_active)) entry_active <- rep(TRUE, p)
+  if (!is.logical(entry_active) || length(entry_active) != p || !any(entry_active))
+    stop("m_step_covariates: entry_active must be a logical vector of length ncol(X)")
 
-  # Mask: individuals with effective weight near zero contribute nothing
-  active <- eff_w > 1e-10
-  if (!any(active)) return(beta_old)  # no contributing observations
+  old <- params_old
+  old$beta0[!entry_active] <- 0
+  par_old <- c(old$beta0[entry_active], old$beta1)
 
-  # Fractional outcome at each individual (weighted average)
-  # y_frac = eff_wy / eff_w for active rows; clamp to (0,1) for stability
-  y_frac     <- rep(0.5, N)
-  y_frac[active] <- eff_wy[active] / eff_w[active]
-  y_frac     <- pmin(pmax(y_frac, 1e-6), 1 - 1e-6)
-
-  # Linear predictor from current beta
-  eta <- as.vector(X %*% beta_old)
-
-  # IRLS working quantities (probit)
-  mu      <- pnorm(eta)
-  mu      <- pmin(pmax(mu, 1e-10), 1 - 1e-10)
-  phi_eta <- dnorm(eta)
-  phi_eta <- pmax(phi_eta, 1e-10)
-
-  # Working weights: v_i = phi(eta)^2 / (mu * (1 - mu))
-  v <- (phi_eta^2) / (mu * (1 - mu))
-
-  # Working response: z_i = eta_i + (y_i - mu_i) / phi(eta_i)
-  z <- eta + (y_frac - mu) / phi_eta
-
-  # Combined weight: observation weight * IRLS weight
-  d <- eff_w * v  # N-vector
-
-  # Weighted least squares: beta_new = (X' D X + ridge I)^{-1} X' D z
-  # crossprod avoids materialising the p×N transposed intermediate.
-  Xd   <- X * d               # N × p scaled X
-  XtDX <- crossprod(Xd, X)    # p × p, no p×N temp
-  XtDz <- crossprod(X, d * z) # p × 1
-
-  # Ridge regularisation for numerical stability
-  XtDX_reg <- XtDX + diag(.IRLS_RIDGE, p, p)
-
-  beta_new <- tryCatch(
-    as.vector(solve(XtDX_reg, XtDz)),
-    error = function(e) {
-      warning(paste0(
-        ".irls_probit_step: solve() failed (", e$message,
-        "). Returning current beta unchanged."
-      ))
-      beta_old
-    }
+  opt <- optim(
+    par = par_old,
+    fn = function(z) -.covariate_q(z, suff, X, entry_active, stationary),
+    gr = function(z) -.covariate_q(z, suff, X, entry_active, stationary,
+                                    gradient = TRUE),
+    method = "BFGS",
+    # A handful of joint BFGS iterations is sufficient for a GEM step. The
+    # outer EM loop and ascent safeguards finish the optimization without an
+    # expensive fully-converged inner solve at every iteration.
+    control = list(maxit = 12L, reltol = 1e-8)
   )
 
-  beta_new
+  proposed <- old
+  p0 <- sum(entry_active)
+  proposed$beta0[entry_active] <- opt$par[seq_len(p0)]
+  proposed$beta0[!entry_active] <- 0
+  proposed$beta1 <- opt$par[p0 + seq_len(p)]
+
+  if (model_type == "symmetric") {
+    pi_new <- suff$M / max(3 * suff$total_weight, 1e-10)
+    proposed$pi <- min(max(pi_new, 0), pi_cap)
+  }
+  if (!stationary) {
+    alpha_new <- suff$C1 / max(suff$C1 + suff$C0, 1e-10)
+    proposed$alpha <- pmin(pmax(alpha_new, 1e-10), 1 - 1e-10)
+  }
+
+  q_old <- .covariate_q(par_old, suff, X, entry_active, stationary)
+  par_new <- c(proposed$beta0[entry_active], proposed$beta1)
+  q_new <- .covariate_q(par_new, suff, X, entry_active, stationary)
+
+  proposal_full <- proposed
+  fraction <- 1
+  while ((!is.finite(q_new) || q_new < q_old - 1e-12) && fraction > 2^-20) {
+    fraction <- fraction / 2
+    proposed <- .interpolate_cov_params(old, proposal_full, fraction, entry_active)
+    par_new <- c(proposed$beta0[entry_active], proposed$beta1)
+    q_new <- .covariate_q(par_new, suff, X, entry_active, stationary)
+  }
+  if (!is.finite(q_new) || q_new < q_old - 1e-12) {
+    proposed <- old
+    q_new <- q_old
+    fraction <- 0
+  }
+
+  attr(proposed, "mstep") <- list(
+    q_old = q_old, q_new = q_new, step_fraction = fraction,
+    optim_convergence = opt$convergence, optim_message = opt$message
+  )
+  proposed
 }

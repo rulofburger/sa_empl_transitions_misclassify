@@ -105,6 +105,8 @@ em_fit_covariates <- function(df,
 
   p      <- ncol(X)
   params <- params0 %||% init_params_covariates(p, model_type = model_type)
+  entry_active <- attr(X, "entry_active")
+  if (is.null(entry_active)) entry_active <- rep(TRUE, p)
 
   # Validate required fields
   for (nm in c("beta0", "beta1")) {
@@ -118,6 +120,8 @@ em_fit_covariates <- function(df,
         params$pi < 0 || params$pi >= 0.5)
       stop("em_fit_covariates: params$pi must be a scalar in [0, 0.5) for model_type='symmetric'")
   }
+  params$beta0[!entry_active] <- 0
+  if (!stationary && is.null(params$alpha)) params$alpha <- 0.5
 
   # ---- Validate data quality once ------------------------------------------
   for (.col in c("y1", "y2", "y3")) {
@@ -127,11 +131,15 @@ em_fit_covariates <- function(df,
   if (anyNA(df$weight) || any(df$weight <= 0))
     stop("em_fit_covariates: weight must be non-NA and strictly positive")
 
-  ll_prev   <- -Inf
+  # Normalize weights for numerical conditioning. This does not change the
+  # estimates or responsibilities; returned likelihoods retain the input scale.
+  weight_scale <- mean(df$weight)
+  df_fit <- df
+  df_fit$weight <- df$weight / weight_scale
   converged <- FALSE
 
-  # History: track intercept terms only (scalar summary of vector params)
-  history_rows <- vector("list", max_iter)
+  # Include the starting point so monotonicity is directly testable.
+  history_rows <- vector("list", max_iter + 1L)
 
   # Precompute static mismatch indicator matrix (N x 8) for symmetric model.
   # outer(s_t, h_t, "!=") is constant across iterations; precomputing avoids
@@ -139,58 +147,95 @@ em_fit_covariates <- function(df,
   hmat_static <- .hmat_cache()
   h1_s <- hmat_static[, 1L]; h2_s <- hmat_static[, 2L]; h3_s <- hmat_static[, 3L]
   mm_static <- if (model_type == "symmetric") {
-    outer(as.integer(df$y1), h1_s, "!=") +
-    outer(as.integer(df$y2), h2_s, "!=") +
-    outer(as.integer(df$y3), h3_s, "!=")
+    outer(as.integer(df_fit$y1), h1_s, "!=") +
+    outer(as.integer(df_fit$y2), h2_s, "!=") +
+    outer(as.integer(df_fit$y3), h3_s, "!=")
   } else {
     NULL
   }
 
+  current <- e_step_covariates(
+    df_fit, X, params, model_type, validate = FALSE,
+    mm_precomp = mm_static, stationary = stationary
+  )
+  ll_current <- current$loglik
+  history_rows[[1L]] <- c(
+    iter = 0, loglik = ll_current * weight_scale,
+    beta0_intercept = params$beta0[1L], beta1_intercept = params$beta1[1L],
+    pi = if (model_type == "symmetric") params$pi else NA_real_,
+    step_fraction = NA_real_
+  )
+
   for (iter in seq_len(max_iter)) {
-    estep_out <- e_step_covariates(df, X, params, model_type, validate = FALSE,
-                                   mm_precomp = mm_static)
-    ll_new    <- estep_out$loglik
-
-    # Record
-    history_rows[[iter]] <- c(
-      iter   = iter,
-      loglik = ll_new,
-      beta0_intercept = params$beta0[1L],
-      beta1_intercept = params$beta1[1L],
-      pi     = if (model_type == "symmetric") params$pi else NA_real_
-    )
-
-    # Convergence check
-    if (iter > 1L) {
-      rel_change <- abs(ll_new - ll_prev) / (abs(ll_prev) + 1e-16)
-      if (rel_change < tol) {
-        converged <- TRUE
-        break
-      }
-      if (ll_new < ll_prev - 1e-6) {
-        warning(sprintf(
-          "em_fit_covariates iter %d: LL decreased by %.2e (GEM step).",
-          iter, ll_prev - ll_new
-        ))
-      }
-    }
-    ll_prev <- ll_new
-
-    params <- m_step_covariates(
-      suff       = estep_out$suff,
+    candidate <- m_step_covariates(
+      suff       = current$suff,
       X          = X,
       params_old = params,
       model_type = model_type,
       stationary = stationary,
-      pi_cap     = pi_cap
+      pi_cap     = pi_cap,
+      entry_active = entry_active
     )
+    mdiag <- attr(candidate, "mstep")
+    attr(candidate, "mstep") <- NULL
+
+    candidate_estep <- e_step_covariates(
+      df_fit, X, candidate, model_type, validate = FALSE,
+      mm_precomp = mm_static, stationary = stationary
+    )
+    ll_candidate <- candidate_estep$loglik
+
+    # Observed-likelihood safeguard. A valid GEM Q-step should already pass;
+    # this protects against optimizer and floating-point failures.
+    candidate_full <- candidate
+    obs_fraction <- 1
+    while (ll_candidate < ll_current - 1e-10 && obs_fraction > 2^-20) {
+      obs_fraction <- obs_fraction / 2
+      candidate <- .interpolate_cov_params(params, candidate_full, obs_fraction,
+                                            entry_active)
+      candidate_estep <- e_step_covariates(
+        df_fit, X, candidate, model_type, validate = FALSE,
+        mm_precomp = mm_static, stationary = stationary
+      )
+      ll_candidate <- candidate_estep$loglik
+    }
+    if (ll_candidate < ll_current - 1e-10) {
+      candidate <- params
+      candidate_estep <- current
+      ll_candidate <- ll_current
+      obs_fraction <- 0
+    }
+
+    old_vec <- c(params$beta0[entry_active], params$beta1,
+                 params$pi %||% numeric(0), params$alpha %||% numeric(0))
+    new_vec <- c(candidate$beta0[entry_active], candidate$beta1,
+                 candidate$pi %||% numeric(0), candidate$alpha %||% numeric(0))
+    param_change <- max(abs(new_vec - old_vec))
+    improvement <- ll_candidate - ll_current
+    rel_improvement <- improvement / (abs(ll_current) + 1e-16)
+
+    params <- candidate
+    current <- candidate_estep
+    ll_current <- ll_candidate
+    history_rows[[iter + 1L]] <- c(
+      iter = iter, loglik = ll_current * weight_scale,
+      beta0_intercept = params$beta0[1L], beta1_intercept = params$beta1[1L],
+      pi = if (model_type == "symmetric") params$pi else NA_real_,
+      step_fraction = obs_fraction * (mdiag$step_fraction %||% 1)
+    )
+
+    if (improvement >= -1e-10 && rel_improvement < tol &&
+        param_change < max(sqrt(tol), 1e-6)) {
+      converged <- TRUE
+      break
+    }
   }
 
   if (verbose >= 1L) {
     status <- if (converged) "converged" else "did NOT converge"
     cat(sprintf(
       "em_fit_covariates [%s, stationary=%s]: %s in %d iters. loglik = %.4f\n",
-      model_type, stationary, status, iter, ll_new
+      model_type, stationary, status, iter, ll_current * weight_scale
     ))
     cat(sprintf(
       "  beta0 intercept = %.4f (theta0 ~ %.4f)\n",
@@ -210,18 +255,15 @@ em_fit_covariates <- function(df,
       model_type, stationary, max_iter
     ))
 
-  # Final E-step for gamma
-  final_estep <- e_step_covariates(df, X, params, model_type, validate = FALSE)
-
-  history_df <- as.data.frame(do.call(rbind, history_rows[seq_len(iter)]))
+  history_df <- as.data.frame(do.call(rbind, history_rows[seq_len(iter + 1L)]))
 
   list(
     params     = params,
-    loglik     = final_estep$loglik,
+    loglik     = current$loglik * weight_scale,
     history    = history_df,
     converged  = converged,
     iterations = iter,
-    gamma      = final_estep$gamma,
+    gamma      = current$gamma,
     model_type = model_type,
     stationary = stationary
   )
@@ -245,6 +287,8 @@ em_fit_covariates <- function(df,
 #' }
 #' @export
 compute_observed_loglik_covariates <- function(df, X, params,
-                                               model_type = "symmetric") {
-  e_step_covariates(df, X, params, model_type, validate = TRUE)$loglik
+                                               model_type = "symmetric",
+                                               stationary = TRUE) {
+  e_step_covariates(df, X, params, model_type, validate = TRUE,
+                    stationary = stationary)$loglik
 }

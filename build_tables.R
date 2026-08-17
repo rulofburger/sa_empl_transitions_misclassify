@@ -488,7 +488,7 @@ names(cov_implied) <- cov_labels_all
   list(
     make_row("Age, Age$^2$, Educ.", 1L),
     make_row("+ Race, Gender", 2L),
-    make_row("+ Contract type", 3L)
+    make_row("+ Contract type (exit only)", 3L)
   )
 }
 
