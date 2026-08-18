@@ -1,7 +1,17 @@
 
-# Import
+# Import. The option is used by sensitivity scripts; ordinary callers retain
+# df_qlfs_A.rds as the default panel.
+qlfs_3wave_panel_file <- getOption(
+  "sa_empl_transitions.qlfs_3wave_panel",
+  "df_qlfs_A.rds"
+)
+if (length(qlfs_3wave_panel_file) != 1L ||
+    !qlfs_3wave_panel_file %in% paste0("df_qlfs_", c("A", "B", "C"), ".rds")) {
+  stop("Unknown three-wave QLFS panel: ", qlfs_3wave_panel_file)
+}
+
 df_qlfs <- readRDS(
-  here::here("data", "raw", "df_qlfs_A.rds")
+  here::here("data", "raw", qlfs_3wave_panel_file)
   ) %>%
   filter(age1 > 17 & age1 < 56) %>%  
   filter(!is.na(employed1)) %>%
@@ -309,6 +319,8 @@ df_qlfs %>%
     method = "gam",
     formula = y ~ s(x, bs = "cs", k = 5)
   )
+
+attr(df_qlfs, "source_panel") <- qlfs_3wave_panel_file
 
 df_qlfs %>%
   filter(y1 == 0) %>%

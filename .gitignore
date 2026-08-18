@@ -33,6 +33,7 @@ data-use/
 # Large binary outputs (fitted models, results) — untrack with: git rm --cached
 output/results/*.rds
 output/results/*.csv
+**/output/results/*.csv
 # R data objects — both conventional cases (.rds lowercase and .Rds mixed-case
 # both appear in data-use/ from older serialization code)
 *.rds

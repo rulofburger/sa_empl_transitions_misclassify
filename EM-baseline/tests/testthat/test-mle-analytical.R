@@ -54,3 +54,15 @@ test_that("analytical inference rejects a mismatched sample", {
   fit <- fit_baseline_mle(df, "none", FALSE, verbose = 0L)
   expect_error(analytical_se_baseline(df[-1L, ], fit), "signatures differ")
 })
+
+test_that("exact MLE records explicit and attributed panel provenance", {
+  df <- .make_mle_panel(n = 600, seed = 105)
+  fit_explicit <- fit_baseline_mle(
+    df, "none", FALSE, verbose = 0L, source_panel = "df_qlfs_B.rds"
+  )
+  expect_identical(fit_explicit$sample$source_panel, "df_qlfs_B.rds")
+
+  attr(df, "source_panel") <- "df_qlfs_C.rds"
+  fit_attributed <- fit_baseline_mle(df, "none", FALSE, verbose = 0L)
+  expect_identical(fit_attributed$sample$source_panel, "df_qlfs_C.rds")
+})

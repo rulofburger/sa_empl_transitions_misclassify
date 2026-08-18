@@ -126,8 +126,13 @@ baseline_cell_probabilities <- function(params, model_type = "symmetric") {
 
 fit_baseline_mle <- function(df, model_type = "symmetric", stationary = TRUE,
                              starts = NULL, maxit = 2000L, reltol = 1e-12,
-                             compute_gamma = FALSE, verbose = 1L) {
+                             compute_gamma = FALSE, verbose = 1L,
+                             source_panel = NULL) {
   .validate_panel_df(df); .validate_model_type(model_type)
+  if (is.null(source_panel)) source_panel <- attr(df, "source_panel")
+  if (is.null(source_panel)) source_panel <- "unspecified_panel"
+  if (!is.character(source_panel) || length(source_panel) != 1L || is.na(source_panel))
+    stop("fit_baseline_mle: source_panel must be one non-missing string")
   cells <- collapse_baseline_cells(df)
   if (is.null(starts)) starts <- list(init_params(model_type, stationary))
   if (!is.list(starts) || !length(starts)) stop("fit_baseline_mle: starts must be a non-empty list")
@@ -187,7 +192,7 @@ fit_baseline_mle <- function(df, model_type = "symmetric", stationary = TRUE,
       weight_sum = cells$weight_sum,
       cell_weights = cells$weight,
       signature = baseline_sample_signature(cells),
-      source_panel = "df_qlfs_A.rds"
+      source_panel = source_panel
     ),
     estimator = "direct_eight_cell_mle"
   )

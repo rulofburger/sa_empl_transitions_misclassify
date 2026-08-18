@@ -103,7 +103,8 @@ for (cfg in configs) {
   cat("\n--- ", cfg$label, " ---\n", sep = "")
   fit <- fit_baseline_mle(
     df_baseline, cfg$model_type, cfg$stationary,
-    starts = .make_starts(cfg, fits), compute_gamma = FALSE, verbose = 1L
+    starts = .make_starts(cfg, fits), compute_gamma = FALSE, verbose = 1L,
+    source_panel = "df_qlfs_A.rds"
   )
   fit$label <- cfg$label
   if (!fit$converged) stop(cfg$label, " failed convergence diagnostics")

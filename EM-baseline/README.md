@@ -64,7 +64,7 @@ EM-baseline/
 │   └── source_all.R         # Sources files in dependency order
 ├── output/
 │   ├── results/             # fit_{label}.rds, run_summary.csv
-│   ├── tables/              # generated Tables 2 and 3
+│   ├── tables/              # generated Tables 2, 3, and matching sensitivity
 │   └── figures/             # (reserved for diagnostic plots)
 ├── tests/
 │   ├── testthat.R
@@ -77,6 +77,7 @@ EM-baseline/
 │       ├── test-mstep.R
 │       └── test-em-driver.R
 ├── estimate_baseline_pipeline.R  # End-to-end orchestrator
+├── estimate_matching_sensitivity.R # A/B/C matching-rule comparison
 └── README.md                     # This file
 ```
 
@@ -90,6 +91,20 @@ EM-baseline/
 # From project root
 source("EM-baseline/estimate_baseline_pipeline.R")
 ```
+
+### Run the matching-rule sensitivity
+
+```r
+# From project root
+source("EM-baseline/estimate_matching_sensitivity.R")
+```
+
+This estimates the unrestricted (`stationary = FALSE`) no-error and symmetric-
+error models on `df_qlfs_A.rds`, `df_qlfs_B.rds`, and `df_qlfs_C.rds`. It uses
+the baseline ingestion filters for every panel, calculates survey-weighted
+sandwich/delta standard errors, and writes
+`output/tables/table_matching_implied.tex`. Intermediate fit, inference, and
+CSV summary files under `output/results/` are generated and ignored by Git.
 
 ### Source the module interactively
 
