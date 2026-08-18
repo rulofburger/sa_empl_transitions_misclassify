@@ -40,6 +40,8 @@ source(file.path(.em_baseline_r, "estep.R"))
 source(file.path(.em_baseline_r, "mstep.R"))
 source(file.path(.em_baseline_r, "em_driver.R"))
 source(file.path(.em_baseline_r, "implied_quantities.R"))
+source(file.path(.em_baseline_r, "mle_baseline.R"))
+source(file.path(.em_baseline_r, "analytical_se_baseline.R"))
 source(file.path(.em_baseline_r, "bootstrap_utils.R"))
 
 rm(.em_baseline_root, .em_baseline_r)

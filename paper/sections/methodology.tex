@@ -13,10 +13,12 @@ process follows a first-order, time-homogeneous Markov chain with transition
 probabilities
 \[
   \theta_0 = \Pr(h_{t}=1 \mid h_{t-1}=0), \qquad
-  \theta_1 = \Pr(h_{t}=0 \mid h_{t-1}=1),
+  \theta_1 = \Pr(h_{t}=1 \mid h_{t-1}=1),
 \]
 where we suppress the individual subscript for clarity. The stationary
-(long-run) employment rate is $\alpha = \theta_0 / (\theta_0 + \theta_1)$.
+(long-run) employment rate is
+$\alpha = \theta_0 / (\theta_0 + 1 - \theta_1)$; the employment exit rate is
+$1-\theta_1$.
 We consider both a stationarity-restricted specification in which the initial
 probability $\Pr(h_1=1) = \alpha$ and an unrestricted specification in which
 $\Pr(h_1=1)$ is estimated freely.
@@ -99,8 +101,8 @@ maximising the expected complete-data log-likelihood:
                             + \sum_i \sum_{\mathbf{h}: h_2=0, h_3=1} \gamma_{i\mathbf{h}}^{(k)}}
                            {\sum_i \sum_{\mathbf{h}: h_1=0} \gamma_{i\mathbf{h}}^{(k)}
                             + \sum_i \sum_{\mathbf{h}: h_2=0} \gamma_{i\mathbf{h}}^{(k)}}, \label{eq:mstep_theta0}\\
-  \theta_1^{(k+1)} &= \frac{\sum_i \sum_{\mathbf{h}: h_1=1, h_2=0} \gamma_{i\mathbf{h}}^{(k)}
-                            + \sum_i \sum_{\mathbf{h}: h_2=1, h_3=0} \gamma_{i\mathbf{h}}^{(k)}}
+  \theta_1^{(k+1)} &= \frac{\sum_i \sum_{\mathbf{h}: h_1=1, h_2=1} \gamma_{i\mathbf{h}}^{(k)}
+                            + \sum_i \sum_{\mathbf{h}: h_2=1, h_3=1} \gamma_{i\mathbf{h}}^{(k)}}
                            {\sum_i \sum_{\mathbf{h}: h_1=1} \gamma_{i\mathbf{h}}^{(k)}
                             + \sum_i \sum_{\mathbf{h}: h_2=1} \gamma_{i\mathbf{h}}^{(k)}}, \label{eq:mstep_theta1}\\
   \pi^{(k+1)}     &= \frac{\sum_i \sum_{\mathbf{h}} \gamma_{i\mathbf{h}}^{(k)}
@@ -110,16 +112,30 @@ maximising the expected complete-data log-likelihood:
 The M-step updates \eqref{eq:mstep_theta0}--\eqref{eq:mstep_pi} have a
 transparent interpretation: $\theta_0$ is the responsibility-weighted empirical
 fraction of periods in which a truly non-employed worker becomes employed,
-$\theta_1$ is the analogous exit fraction, and $\pi$ is the
-responsibility-weighted empirical misclassification rate. Each update is
-in closed form, so the algorithm requires no numerical optimisation and
-is guaranteed to converge to a local maximum of the observed-data
-log-likelihood \citep{dempster1977}.
+$\theta_1$ is the analogous employment-persistence fraction (so
+$1-\theta_1$ is the exit fraction), and $\pi$ is the
+responsibility-weighted empirical misclassification rate. With a freely
+estimated initial probability these updates define an exact EM algorithm.
+Under stationarity, however, the initial-state term couples $\theta_0$ and
+$\theta_1$, so imposing stationarity only after the closed-form transition
+updates need not maximise the constrained likelihood.
 
-For the covariate specifications, the reported standard errors use an
+For the reported estimates we therefore maximise the observed-data likelihood
+directly after collapsing the sample to the eight possible observed histories.
+This collapse is exact because individuals with the same three-wave history
+have the same likelihood contribution. Probabilities are parameterised on
+unconstrained logit scales, the stationary initial probability is imposed inside
+the likelihood, and several starts are used. The symmetric model is initialized
+from the corresponding no-error solution and the asymmetric model from the
+symmetric solution. We require a small likelihood score, positive observed
+information, and the likelihood inequalities implied by nesting before retaining
+a result. The EM estimates remain useful as starting values and for calculating
+posterior latent-history probabilities.
+
+For the baseline and covariate specifications, the reported standard errors use an
 individual-level survey-weighted sandwich covariance matrix. We obtain the
-observed-information ``bread'' by differentiating the analytic observed-data
-score and use the outer product of weighted individual scores as the ``meat.''
+observed-information ``bread'' from the observed likelihood and use the outer
+product of weighted individual scores as the ``meat.''
 Standard errors for risk-set weighted rates, flows, and discrete effects are
 then obtained by the delta method, including both parameter uncertainty and
 direct sampling variation in the weighted empirical functionals. These are

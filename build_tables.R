@@ -2,7 +2,7 @@
 # Table builder: parameter estimates and implied probabilities
 # Created: 2026-05-06 | Revised: 2026-05-07
 #
-# Reads point estimates (.rds) and bootstrap results (boot_*_B200.rds), then
+# Reads point estimates and analytical/bootstrap inference results, then
 # produces publication-ready LaTeX tables with:
 #   - Significance stars (. 10%, * 5%, ** 1%) testing H0: θ=0
 #   - Implied probabilities expressed as percentages (2 d.p.)
@@ -13,18 +13,13 @@
 #   - N (observations) row in all tables
 #
 # Tables produced:
-#   Table 1: Baseline parameter estimates                (table_baseline_params.tex)
-#   Table 2: Baseline implied probabilities              (table_baseline_implied.tex)
-#   Table 3a/b: Covariate model implied (stat/free)      (table_cov_implied_stat.tex / _free.tex)
-#   Table 4: Average Marginal Effects (all 3 cov sets)   (table_cov_ame.tex)
-#   Table 5: FMM model results                           (table_fmm.tex)
-#   Table 6: Inconsistency model results                 (table_inconsistency.tex)
+#   Paper Table 2: Baseline implied probabilities         (table_baseline_implied.tex)
+#   Paper Table 3: Baseline parameter estimates           (table_baseline_params.tex)
 #
 # Usage (from project root):
 #   Rscript build_tables_v2.R
 #
-# Prerequisites:
-#   bootstrap_pipeline.R must have been run first.
+# Baseline prerequisite: estimate_baseline_pipeline.R must have been run first.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -79,6 +74,13 @@ rm(sector_source)
 keep_baseline <- !is.na(df_qlfs$y1) & !is.na(df_qlfs$y2) & !is.na(df_qlfs$y3) &
                  !is.na(df_qlfs$weight) & df_qlfs$weight > 0
 N_baseline <- sum(keep_baseline)
+df_baseline_check <- data.frame(
+  y1 = as.integer(df_qlfs$y1[keep_baseline]),
+  y2 = as.integer(df_qlfs$y2[keep_baseline]),
+  y3 = as.integer(df_qlfs$y3[keep_baseline]),
+  weight = as.numeric(df_qlfs$weight[keep_baseline])
+)
+baseline_signature <- baseline_sample_signature(collapse_baseline_cells(df_baseline_check))
 
 # Extension sample: additionally requires covariates
 keep <- keep_baseline &
@@ -141,6 +143,11 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 
 #' Format a raw parameter estimate (4 d.p.) with stars + SE row
 .fmt_param <- function(est, se, digits = 4L) .fmt_estimate(est, se, factor = 1,   digits = digits)
+.fmt_param_plain <- function(est, se, digits = 4L) {
+  if (is.na(est)) return(c("---", ""))
+  c(formatC(est, format = "f", digits = digits),
+    if (is.na(se)) "" else sprintf("(%s)", formatC(se, format = "f", digits = digits)))
+}
 
 #' Format a probability as percentage (×100, 2 d.p.) with stars + SE row
 .fmt_pct   <- function(est, se, digits = 2L) .fmt_estimate(est, se, factor = 100, digits = digits)
@@ -154,9 +161,9 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 .fmt_pp    <- function(est, se, digits = 2L) .fmt_pct(est, se, digits)
 
 #' Format log-likelihood in millions
-.fmt_ll <- function(ll) {
+.fmt_ll <- function(ll, digits = 1L) {
   if (is.na(ll) || is.null(ll)) return("---")
-  sprintf("%.1fM", ll / 1e6)
+  sprintf(paste0("%.", digits, "fM"), ll / 1e6)
 }
 
 #' Format sample size with comma separator
@@ -242,8 +249,8 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   obj
 }
 
-.load_analytic <- function(label) {
-  path <- here::here("EM-baseline-ext", "output", "results",
+.load_analytic <- function(label, subdir = "EM-baseline-ext") {
+  path <- here::here(subdir, "output", "results",
                      sprintf("analytical_se_%s.rds", label))
   if (!file.exists(path)) return(NULL)
   obj <- readRDS(path)
@@ -313,10 +320,23 @@ baseline_sub_headers <- c(
 bl_fits  <- lapply(baseline_labels, function(lbl) .load_fit(lbl, "EM-baseline"))
 names(bl_fits) <- baseline_labels
 
-bl_boots <- lapply(baseline_labels, function(lbl)
-  .load_boot(lbl, boot_baseline_dir))
-names(bl_boots) <- baseline_labels
-bl_se    <- lapply(bl_boots, .se_map)  # named SE vectors for O(1) lookup
+for (lbl in baseline_labels) {
+  fit <- bl_fits[[lbl]]
+  if (is.null(fit)) stop("Missing baseline fit: ", lbl)
+  if (!identical(fit$estimator, "direct_eight_cell_mle"))
+    stop("Baseline fit is not a validated direct MLE: ", lbl)
+  if (!isTRUE(fit$converged)) stop("Baseline fit failed diagnostics: ", lbl)
+  if (!identical(fit$sample$signature, baseline_signature))
+    stop("Baseline fit was estimated on a different or stale sample: ", lbl)
+}
+check_baseline_nesting(bl_fits)
+
+bl_analytic <- lapply(baseline_labels, function(lbl)
+  .load_analytic(lbl, "EM-baseline"))
+names(bl_analytic) <- baseline_labels
+if (any(vapply(bl_analytic, is.null, logical(1L))))
+  stop("Analytical baseline inference is missing; rerun estimate_baseline_pipeline.R")
+bl_se <- lapply(bl_analytic, .se_map)
 
 model_types_bl <- c(none_stat = "none", none_free = "none",
                     sym_stat = "symmetric", sym_free = "symmetric",
@@ -336,7 +356,7 @@ names(bl_implied) <- baseline_labels
     v   <- if (!is.null(fit)) fit$params[[param_name]] else NA_real_
     if (is.null(v)) v <- NA_real_
     se  <- .get_se(bl_se[[lbl]], param_name)
-    .fmt_param(v, se)
+    .fmt_param_plain(v, se)
   })
   list(
     est = c(row_label, sapply(cells, `[[`, 1L)),
@@ -344,7 +364,7 @@ names(bl_implied) <- baseline_labels
   )
 }
 
-# Table 1: baseline parameters
+# Paper Table 3: baseline parameters
 param_rows_bl <- list(
   list(header = "Transition parameters", rows = list(
     .bl_param_row("theta0", "$\\theta_0$ (entry)"),
@@ -360,7 +380,7 @@ param_rows_bl <- list(
     list(
       est = c("Log-likelihood", vapply(baseline_labels, function(lbl) {
         fit <- bl_fits[[lbl]]
-        if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
+        if (is.null(fit)) "---" else .fmt_ll(fit$loglik, digits = 3L)
       }, character(1L))),
       se = rep("", 7L)
     ),
@@ -374,21 +394,25 @@ param_rows_bl <- list(
 .write_latex_table(
   col_headers = baseline_col_headers,
   row_data    = param_rows_bl,
-  caption     = "Baseline EM model: parameter estimates",
+  caption     = "Baseline latent-state model: parameter estimates",
   label       = "tab:baseline_params",
   path        = file.path(tables_baseline_dir, "table_baseline_params.tex"),
   sub_headers = baseline_sub_headers,
-  note        = sprintf("Bootstrap SE in parentheses ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
+  note        = paste0("Analytical SE in parentheses use an individual-level ",
+                       "survey-weighted sandwich covariance matrix. $\\alpha$ is the ",
+                       "initial employment probability; in stationary columns it is ",
+                       "derived from the transition parameters. The calculation does ",
+                       "not incorporate strata or PSU clustering.")
 )
 
-# Table 2: baseline implied probabilities (as %)
+# Paper Table 2: baseline implied probabilities (as %)
 .bl_implied_row <- function(qty_name, row_label) {
   cells <- lapply(baseline_labels, function(lbl) {
     imp <- bl_implied[[lbl]]
     v   <- if (!is.null(imp)) imp[[qty_name]] else NA_real_
     if (is.null(v)) v <- NA_real_
     se  <- .get_se(bl_se[[lbl]], qty_name)
-    .fmt_pct(v, se)
+    .fmt_pct_plain(v, se)
   })
   list(
     est = c(row_label, sapply(cells, `[[`, 1L)),
@@ -416,11 +440,16 @@ implied_rows_bl <- list(
 .write_latex_table(
   col_headers = baseline_col_headers,
   row_data    = implied_rows_bl,
-  caption     = "Baseline EM model: implied probabilities (\\%)",
+  caption     = "Baseline latent-state model: implied probabilities (\\%)",
   label       = "tab:baseline_implied",
   path        = file.path(tables_baseline_dir, "table_baseline_implied.tex"),
   sub_headers = baseline_sub_headers,
-  note        = sprintf("Estimates in \\%%. Bootstrap SE in parentheses ($B=%d$). Employment rate is steady-state $\\alpha^* = \\theta_0 / (\\theta_0 + 1 - \\theta_1)$. Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
+  note        = paste0("Estimates in \\%. Analytical SE in parentheses use an ",
+                       "individual-level survey-weighted sandwich covariance matrix ",
+                       "and the delta method. Employment rate is steady-state ",
+                       "$\\alpha^* = \\theta_0 / (\\theta_0 + 1 - \\theta_1)$, ",
+                       "including in free-initial-probability columns. The calculation ",
+                       "does not incorporate strata or PSU clustering.")
 )
 
 # ------------------------------------------------------------------------------

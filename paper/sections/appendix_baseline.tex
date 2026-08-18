@@ -235,18 +235,12 @@ Q_{\text{prior}}(\theta_0, \theta_1) =
 Under the stationarity restriction \eqref{eq:stationarity}, the
 \(\alpha\)-dependent terms couple \(\theta_0\) and \(\theta_1\) through
 \(\alpha(\theta_0, \theta_1)\), so the first-order conditions do not
-yield fully closed-form expressions. In practice, however, because the
-contribution of the initial-state term (one observation per individual)
-is small relative to the transition terms (two transitions per
-individual), the stationarity coupling has negligible effect on the
-estimates. We adopt the standard approximation used in the EM literature
-for short panels: update \(\theta_0\) and \(\theta_1\) from the
-transition counts alone, then set \(\alpha\) by
-\eqref{eq:stationarity}:
+yield fully closed-form expressions. If the initial probability is freely
+estimated, the transition block has the familiar closed-form updates
 \begin{equation}
 \hat{\theta}_1 = \frac{T_{11}}{D_1}, \qquad
 \hat{\theta}_0 = \frac{T_{01}}{D_0}, \qquad
-\hat{\alpha} = \frac{\hat{\theta}_0}{\hat{\theta}_0 + 1 - \hat{\theta}_1}.
+\hat{\alpha} = \frac{C_1}{C_0+C_1}.
 \label{eq:mstep_theta}
 \end{equation}
 In words: \(\hat{\theta}_1\) is the fraction of
@@ -255,6 +249,11 @@ result in continued employment, and \(\hat{\theta}_0\) is the fraction
 starting in nonemployment that result in employment. These are the
 standard Markov chain MLEs, the only difference being that the counts
 are soft (weighted by responsibilities \(\gamma_{ih}\)) rather than hard.
+Under stationarity, substituting
+\(\alpha(\theta_0,\theta_1)\) into \eqref{eq:Q_prior} requires a joint
+numerical update of the transition parameters. Merely applying the
+transition-count ratios and imposing stationarity afterwards is an
+approximation and is not used for the reported estimates.
 
 \paragraph{Misclassification probability (closed form).}
 The misclassification block of \(Q\) is
@@ -276,9 +275,10 @@ wave-observations where the observed state disagrees with the latent
 state. The denominator \(3W\) reflects that each of the \(N\) individuals
 contributes three wave-observations.
 
-\paragraph{Summary.} The complete M-step consists of three closed-form
-updates \eqref{eq:mstep_theta}--\eqref{eq:mstep_pi}. No numerical
-optimisation is required.
+\paragraph{Summary.} The free-initial-probability EM has closed-form block
+updates. The stationarity-restricted model requires joint optimisation of the
+transition block. For consistency across all six baseline specifications, the
+reported estimates use the direct observed-data maximisation described below.
 
 \subsubsection{Iteration and convergence}
 \label{sec:convergence}
@@ -296,14 +296,14 @@ Starting from an initial guess \(\Theta^{(0)} = (\theta_0^{(0)},
   increase \(\ell(\Theta^{(\text{new})}) - \ell(\Theta^{(\text{old})})\)
   is below a tolerance \(\delta > 0\).
 \end{enumerate}
-The EM algorithm guarantees monotone ascent:
+When every M-step maximises the relevant complete-data objective, the EM
+algorithm guarantees monotone ascent:
 \(\ell(\Theta^{(\text{new})}) \geq \ell(\Theta^{(\text{old})})\) at
 every iteration. This follows from the standard EM convergence theorem
-(Dempster, Laird, and Rubin, 1977; Wu, 1983), since each M-step block
-independently maximises its portion of \(Q\). In this model, all M-step
-updates are in closed form, so each iteration is computationally cheap
-and the ascent property holds exactly (no inner-loop approximation
-errors).
+(Dempster, Laird, and Rubin, 1977; Wu, 1983). The closed-form transition
+ratios meet this condition when the initial probability is free. They do not
+meet it if stationarity is imposed only after the update, which motivates the
+exact direct maximisation used for the reported stationary estimates.
 
 Because the observed-data likelihood \eqref{eq:obs_ll} is a finite
 mixture of products of Bernoulli-type terms, it is bounded above
@@ -337,15 +337,15 @@ Because the set of latent histories \(\mathcal{H}\) is finite and small
 pattern \((s_1, s_2, s_3)\), the marginal probability
 \eqref{eq:marginal} is an explicit polynomial in
 \((\theta_0, \theta_1, \pi)\). The gradient of \(\ell(\Theta)\) can
-likewise be computed analytically. This permits direct maximisation of
-\eqref{eq:obs_ll} via standard gradient-based methods (e.g., BFGS with
-analytic gradients on a logit-transformed parameter space). The EM
-algorithm and direct numerical maximisation converge to the same
-stationary points; the choice between them is one of convenience. We
-adopt the EM formulation because it generalises naturally when the model
-is extended to incorporate duration data: the Markov prior and
-misclassification blocks remain unchanged, and only the emission terms
-in the E-step and corresponding M-step blocks are added.
+likewise be computed numerically or analytically. For the reported estimates,
+the sample is collapsed to the eight observed histories and this likelihood is
+maximised directly with BFGS. Probabilities are mapped from unconstrained logit
+parameters and multiple starts are used. The symmetric model is initialized
+from the no-error solution and the asymmetric model from the symmetric
+solution. A result is retained only if its score is small, its observed
+information is positive definite, and its likelihood is no lower than that of
+every nested restricted model. EM remains useful for starting values, posterior
+histories, and extensions with more elaborate emissions.
 
 \subsection{Identification}
 \label{sec:identification}
@@ -1024,4 +1024,3 @@ are systematically allocated toward histories where the observed state
 independent, auxiliary evidence for the misclassification hypothesis
 --- evidence that does not rely solely on violations of the Markov
 property.
-

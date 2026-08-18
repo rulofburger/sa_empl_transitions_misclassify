@@ -13,15 +13,18 @@ crossed with no misclassification, symmetric misclassification, and asymmetric
 misclassification.
 
 Without misclassification correction---the standard Markov transition matrix
-applied to observed employment status---the estimated quarterly entry rate is
-8.28\% and the exit rate is 8.54\%. These estimates are close to the raw
+applied to observed employment status---the free-initial-condition estimates
+of the quarterly entry and exit rates are 8.28\% (SE 0.05) and 8.54\%
+(SE 0.05). Imposing stationarity gives 8.18\% and 8.64\%, respectively. These estimates are close to the raw
 transition rates in Table~\ref{tab:descriptive}, confirming that the
 no-misclassification specification simply recovers the moments of the observed
 transition matrix.
 
 The symmetric misclassification specification yields a dramatically different
-picture. The estimated misclassification probability is $\hat{\pi} = 2.98\%$,
-and the implied entry and exit rates fall to 2.93\% and 3.00\% respectively.
+picture. The estimated misclassification probability is $\hat{\pi} = 2.99\%$
+in both initial-condition specifications. The stationary model implies entry
+and exit rates of 2.86\% (SE 0.05) and 3.04\% (SE 0.05); the free-initial-condition
+model gives 2.98\% (SE 0.06) and 2.91\% (SE 0.06).
 The correction factor is approximately three: a single additional parameter
 reduces the estimated transition rates by two-thirds. This is the main finding
 of the paper. The factor-of-three correction is driven by the severity of the
@@ -32,22 +35,25 @@ substantially because each transient error fabricates two transitions.
 The asymmetric misclassification specification, which allows the probabilities
 of falsely reporting employment and non-employment to differ, produces estimates
 that are virtually indistinguishable from the symmetric specification. The
-estimated misclassification probabilities for both directions are approximately
-3\%, and the implied transition rates are within a rounding error of the
-symmetric case. The symmetric restriction is not rejected and we adopt it in
-all subsequent specifications for parsimony.
+estimated false-positive and false-negative probabilities are approximately
+3.05\% and 2.93\%, and the implied transition rates are within a rounding error
+of the symmetric case. The directional difference is only about 0.12 percentage
+points, although it is statistically detectable in this large sample. We adopt
+the symmetric specification subsequently because the economic implications are
+unchanged and the restriction is substantially more parsimonious.
 
 Comparing the stationarity-restricted and free initial-probability specifications
-yields similarly negligible differences. The data are consistent with the
-estimated Markov chain having been in the stationary distribution at the start
-of the observation window, and the stationarity assumption is maintained in
-subsequent models.
+yields modest differences in the transition rates but a larger difference in
+the implied steady-state employment share. We therefore report both versions
+for the baseline model and use a free initial probability in the revised
+covariate comparison, where transition-varying characteristics also make a
+time-homogeneous stationarity restriction unattractive.
 
-The standard errors, obtained from 200 parametric bootstrap replications,
-indicate that the misclassification probability is estimated with considerable
-precision. The 95\% bootstrap confidence interval for $\hat{\pi}$ in the
-symmetric stationarity-restricted specification is approximately
-[2.5\%, 3.4\%], comfortably above zero and well below magnitudes that would
+The analytical survey-weighted sandwich standard errors indicate that the
+misclassification probability is estimated with considerable precision. The
+delta-method 95\% interval for $\hat{\pi}$ in the symmetric
+stationarity-restricted specification is approximately [2.92\%, 3.06\%],
+comfortably above zero and well below magnitudes that would
 be necessary to explain the raw transition matrix moments without correction.
 
 \subsection{Observable worker heterogeneity}\label{subsec:results:covariates}

@@ -10,15 +10,18 @@ EM algorithm for three-wave binary employment transitions with misclassification
 
 ## Overview
 
-This module implements the Expectation–Maximisation (EM) algorithm described
-in `EM baseline.tex` for a three-wave panel model of binary employment status
-with measurement error.
+This module implements the three-wave binary employment model with measurement
+error. The EM algorithm remains available for latent-history responsibilities
+and starting values. Reported estimates use an exact direct maximisation of the
+observed likelihood collapsed to the eight possible observed histories.
 
 **True employment** follows a first-order Markov chain with parameters
 (θ₀, θ₁, α). **Observed employment** is measured with misclassification
 probability π (symmetric) or (π₀, π₁) (asymmetric). The EM algorithm exploits
 the finite, enumerable set of 8 latent histories h ∈ {0,1}³ to obtain
-**closed-form M-step updates** — no numerical optimisation is needed.
+For free initial conditions the EM M-step is closed form. Under stationarity,
+the initial-state term couples the transition parameters, so the reporting
+pipeline uses the exact stationarity-constrained observed-data MLE.
 
 ---
 
@@ -54,12 +57,14 @@ EM-baseline/
 │   ├── em_driver.R          # em_fit_baseline(), init_params(),
 │   │                        #   compute_observed_loglik()    [TeX Sec 2.4]
 │   ├── implied_quantities.R # implied_baseline() — post-estimation transforms
+│   ├── mle_baseline.R       # exact eight-cell observed-data MLE + diagnostics
+│   ├── analytical_se_baseline.R # weighted sandwich + delta-method inference
 │   ├── bootstrap_utils.R    # bootstrap_resample(), bootstrap_one_baseline(),
 │   │                        #   summarise_bootstrap()
 │   └── source_all.R         # Sources files in dependency order
 ├── output/
 │   ├── results/             # fit_{label}.rds, run_summary.csv
-│   ├── tables/              # table_baseline_results.tex
+│   ├── tables/              # generated Tables 2 and 3
 │   └── figures/             # (reserved for diagnostic plots)
 ├── tests/
 │   ├── testthat.R
@@ -103,12 +108,10 @@ source("scripts/ingest_data_3waves_SA.R")
 df <- df_qlfs[, c("y1", "y2", "y3", "weight")]
 
 # Symmetric misclassification, stationary alpha
-fit <- em_fit_baseline(
+fit <- fit_baseline_mle(
   df         = df,
   model_type = "symmetric",
   stationary = TRUE,
-  max_iter   = 1000L,
-  tol        = 1e-8,
   verbose    = 1L
 )
 
@@ -117,7 +120,7 @@ fit$params     # final estimates: alpha, theta0, theta1, pi
 fit$loglik     # observed-data log-likelihood
 fit$converged  # TRUE if converged
 fit$iterations # number of EM iterations
-fit$gamma      # N x 8 responsibility matrix
+fit$diagnostics # score, information, and optimizer checks
 ```
 
 ### Compute implied probabilities
@@ -132,7 +135,16 @@ q   <- implied_baseline(fit$params, model_type = "symmetric")
 
 ---
 
-## Bootstrap Standard Errors
+## Analytical Standard Errors
+
+`estimate_baseline_pipeline.R` calculates individual-level survey-weighted
+sandwich covariance matrices for all six models. Delta-method standard errors
+are produced for entry, exit, steady-state employment, and misclassification
+probabilities. Results are saved as
+`output/results/analytical_se_{label}.rds`. Strata and PSU clustering are not
+included because those design identifiers are unavailable in the extract.
+
+## Optional Bootstrap Standard Errors
 
 Bootstrap SEs for all 6 baseline models are computed by `bootstrap_pipeline.R`
 (project root). Each model's B=200 results are saved to:
@@ -224,7 +236,7 @@ are structurally identical. Key differences:
 | Feature | EM-baseline | EM-tenure |
 |---------|------------|---------|
 | Duration data | None | Tenure + timegap |
-| M-step | Fully closed-form | Closed-form + Brent 1D |
+| Reported estimator | Exact eight-cell observed-data MLE | EM with closed-form + Brent 1D updates |
 | Emission model | Bernoulli (misclass only) | EMG / Exponential / Gaussian |
 | CTMC link | Not applicable | Optional λ ↔ θ link |
 | Variants | 6 (2 stat × 3 miscl) | 12 (2 stat × 2 linked × 3 models) |
@@ -233,13 +245,10 @@ are structurally identical. Key differences:
 
 ## Numerical Notes
 
-- The **stationarity approximation** (TeX Sec 2.3) updates θ₀, θ₁ from
-  transition counts alone, ignoring the initial-state contribution to Q.
-  This can cause tiny per-step log-likelihood decreases (< 0.01 per iteration
-  in typical data). The free-alpha model (`stationary = FALSE`) satisfies
-  strict EM monotonicity.
-- **Multiple starts**: the pipeline runs 5 random starts per model and
-  retains the solution with the highest log-likelihood, guarding against
-  local optima.
-- **Boundary constraints**: θ₀, θ₁ ∈ (1e-10, theta_cap), π ∈ [0, pi_cap),
-  α ∈ (1e-10, 1 − 1e-10).
+- The observed likelihood is evaluated using eight survey-weighted history
+  cells, which is exactly equivalent to the row-level likelihood.
+- Probabilities are optimized on unconstrained logit scales; misclassification
+  probabilities use a half-logit transform to remain below 0.5.
+- Multiple starts and deterministic nested-model starts guard against local
+  optima. The pipeline requires small scores, positive observed information,
+  and all model-nesting likelihood inequalities before saving results.

@@ -1,5 +1,5 @@
 ---
-title: "Covariate-model revisions on `codex/rulof_new_work`"
+title: "Estimation revisions on `codex/rulof_new_work`"
 subtitle: "Changes relative to the `efficient` branch"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
@@ -44,18 +44,37 @@ include_tex_table <- function(relative_path, tabular_scale = NULL) {
 # Purpose and scope
 
 This note records the changes made on `codex/rulof_new_work` relative to the
-`efficient` branch. It concentrates on the observable-covariate extension and
-the revised version of Table 4. The baseline, finite-mixture, inconsistency,
-AR(2), and tenure specifications are not reinterpreted here because the work on
-this branch did not substantively change their economic specification.
+`efficient` branch. It covers the exact baseline estimator and analytical
+inference used in Tables 2 and 3, together with the observable-covariate
+extension and revised Table 4. The finite-mixture, inconsistency, AR(2), and
+tenure specifications are not reinterpreted here.
 
-The central objective was to replace numerically unreliable covariate-model
-solutions with valid maximum-likelihood estimates, handle contract type without
-discarding non-employed respondents, add informal-sector status to Set 3, and
-report heterogeneous transition risks in a way that remains comparable with
-the paper's earlier tables.
+The central objectives were to replace stale or numerically unreliable results
+with validated maximum-likelihood estimates, provide fast analytical inference,
+handle contract type without discarding non-employed respondents, add
+informal-sector status to Set 3, and report heterogeneous transition risks in a
+way that remains comparable with the paper's earlier tables.
 
 # Changes to the code and estimation approach
+
+## Exact baseline estimator and result provenance
+
+The simple model is now maximised directly on the eight possible observed
+three-wave employment histories. This collapse is exactly equivalent to the
+row-level likelihood and makes the optimisation extremely fast. It also fixes
+the stationary model: the earlier closed-form transition update imposed the
+stationary initial probability only afterwards and therefore did not maximise
+the exact constrained likelihood.
+
+All probabilities are mapped from unconstrained logit parameters. Each model
+uses multiple starts, with symmetric models initialized from the corresponding
+no-error estimates and asymmetric models from the symmetric estimates. Results
+are saved only when the likelihood score is small, observed information is
+positive definite, and every unrestricted model has a likelihood at least as
+large as its nested restriction. Each saved fit also records its source panel,
+sample signature, sample size, weight total, and optimiser diagnostics. The
+table builder rejects stale fits or inference files that do not match the
+current `df_qlfs_A.rds` estimation sample.
 
 ## Numerical optimisation
 
@@ -144,9 +163,33 @@ be rebuilt locally from the underlying confidential QLFS files.
 
 # New and revised tables
 
-The following are the two tables introduced by this branch: the revised main
-Table 4 and its new coefficient/distribution appendix. Unchanged tables already
-present on `efficient` are not duplicated.
+The following are the baseline tables rebuilt with the exact estimator and
+analytical inference, followed by the two covariate tables introduced on this
+branch. Unchanged tables are not duplicated.
+
+## Table 2: baseline implied probabilities
+
+```{r baseline-implied, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_baseline_implied.tex")
+```
+
+Without a reporting-error correction, quarterly entry and exit rates are about
+8.2--8.6%. Allowing symmetric misclassification lowers both rates to roughly
+3%, while the estimated per-wave misclassification probability is itself only
+2.99%. The result is robust to freeing the initial employment probability and
+to allowing asymmetric reporting errors.
+
+## Table 3: baseline parameters
+
+```{r baseline-parameters, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_baseline_params.tex")
+```
+
+The asymmetric estimates now satisfy the required likelihood nesting
+relationship. False-positive and false-negative probabilities are approximately
+3.05% and 2.93%; their small difference has virtually no effect on the implied
+transition rates. The table distinguishes the initial employment probability
+$\alpha$ from the steady-state employment share $\alpha^*$ reported in Table 2.
 
 ## Revised Table 4
 

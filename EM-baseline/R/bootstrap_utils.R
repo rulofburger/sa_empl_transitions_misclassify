@@ -13,9 +13,8 @@
 # functions. This file is standalone: it only requires EM-baseline symbols.
 #
 # Design principles:
-#  - Each bootstrap_one_*() warm-starts from the point estimate (params_start).
-#    No multi-start: one EM run per replicate is sufficient because the bootstrap
-#    DGP is a small perturbation of the original likelihood surface.
+#  - Baseline replicates use the exact eight-cell MLE, warm-started from the
+#    point estimate and a generic interior start.
 #  - Quality flags: reps where EM failed to converge OR where loglik is more
 #    than .LL_THRESHOLD nats below the point-estimate loglik are flagged.
 #    Flagged reps are stored but excluded from SE computation.
@@ -141,16 +140,13 @@ bootstrap_one_baseline <- function(df, seed, model_type, stationary,
 .bootstrap_run_baseline <- function(df_boot, model_type, stationary,
                                     params_start, point_loglik, theta_cap, pi_cap) {
   fit <- tryCatch(
-    em_fit_baseline(
-      df         = df_boot,
+    fit_baseline_mle(
+      df = df_boot,
       model_type = model_type,
       stationary = stationary,
-      params0    = params_start,
-      max_iter   = 1000L,
-      tol        = 1e-8,
-      theta_cap  = theta_cap,
-      pi_cap     = pi_cap,
-      verbose    = 0L
+      starts = list(params_start, init_params(model_type, stationary)),
+      compute_gamma = FALSE,
+      verbose = 0L
     ),
     error = function(e) list(.error = conditionMessage(e))
   )
@@ -160,7 +156,9 @@ bootstrap_one_baseline <- function(df, seed, model_type, stationary,
                 converged = FALSE, flag = "error"))
   }
 
-  flag    <- .flag_fit(fit, point_loglik)
+  # Likelihood levels are not comparable across bootstrap resamples, so the
+  # point-sample low-likelihood threshold is deliberately not applied here.
+  flag    <- .flag_fit(fit, NA_real_)
   implied <- tryCatch(
     implied_baseline(fit$params, model_type),
     error = function(e) NULL
