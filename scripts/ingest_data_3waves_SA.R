@@ -140,6 +140,28 @@ df_qlfs <- df_qlfs %>%
     tenure1 = tenure1/12,
     tenure2 = tenure2/12,
     tenure3 = tenure3/12
+  ) %>%
+  # Preserve the reported, state-appropriate origin-wave durations for the
+  # transition regressions before the EM-tenure module fills duration values
+  # across spells. Zero is a structural placeholder outside the relevant
+  # reported state; equation-specific coefficient restrictions ensure that
+  # tenure enters persistence only and time since work enters entry only.
+  mutate(
+    tenure_missing_cov1 = as.integer(y1 == 1 & is.na(tenure1)),
+    tenure_missing_cov2 = as.integer(y2 == 1 & is.na(tenure2)),
+    tenure_missing_cov3 = as.integer(y3 == 1 & is.na(tenure3)),
+    timegap_missing_cov1 = as.integer(y1 == 0 & is.na(timegap1)),
+    timegap_missing_cov2 = as.integer(y2 == 0 & is.na(timegap2)),
+    timegap_missing_cov3 = as.integer(y3 == 0 & is.na(timegap3)),
+    tenure_cov1 = if_else(y1 == 1, coalesce(tenure1, 0), 0),
+    tenure_cov2 = if_else(y2 == 1, coalesce(tenure2, 0), 0),
+    tenure_cov3 = if_else(y3 == 1, coalesce(tenure3, 0), 0),
+    timegap_cov1 = if_else(y1 == 0, coalesce(timegap1, 0), 0),
+    timegap_cov2 = if_else(y2 == 0, coalesce(timegap2, 0), 0),
+    timegap_cov3 = if_else(y3 == 0, coalesce(timegap3, 0), 0),
+    neverworked_cov1 = if_else(y1 == 0, coalesce(as.numeric(unclass(neverworked1)), 0), 0),
+    neverworked_cov2 = if_else(y2 == 0, coalesce(as.numeric(unclass(neverworked2)), 0), 0),
+    neverworked_cov3 = if_else(y3 == 0, coalesce(as.numeric(unclass(neverworked3)), 0), 0)
   )
 
 df_qlfs <- df_qlfs %>% 

@@ -23,13 +23,19 @@ rm(df_qlfs)
 cv1 <- prepare_covariate_matrix(df_ext, 1L)
 cv2 <- prepare_covariate_matrix(df_ext, 2L)
 cv3 <- prepare_covariate_matrix(df_ext, 3L)
-designs <- list(s1 = cv1$X, s2 = cv2$X, s3 = cv3$X_transition)
-labels <- c("cov_s1_non_free", "cov_s2_non_free", "cov_s3_non_free",
-            "cov_s1_sym_free", "cov_s2_sym_free", "cov_s3_sym_free")
+cv4 <- prepare_covariate_matrix(df_ext, 4L)
+designs <- list(s1 = cv1$X, s2 = cv2$X, s3 = cv3$X_transition,
+                s4 = cv4$X_transition)
+labels <- if (identical(Sys.getenv("NEW_COVARIATE_SETS_ONLY"), "1")) {
+  c("cov_s3_non_free", "cov_s4_non_free", "cov_s3_sym_free", "cov_s4_sym_free")
+} else {
+  c("cov_s1_non_free", "cov_s2_non_free", "cov_s3_non_free", "cov_s4_non_free",
+    "cov_s1_sym_free", "cov_s2_sym_free", "cov_s3_sym_free", "cov_s4_sym_free")
+}
 results_dir <- here::here("EM-baseline-ext", "output", "results")
 
 for (label in labels) {
-  set_name <- sub("^cov_(s[123])_.*$", "\\1", label)
+  set_name <- sub("^cov_(s[1234])_.*$", "\\1", label)
   model_type <- if (grepl("_sym_", label)) "symmetric" else "none"
   fit <- readRDS(file.path(results_dir, paste0("fit_", label, ".rds")))
   cat(sprintf("[%s] analytical sandwich/delta SE...\n", label))

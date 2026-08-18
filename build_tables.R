@@ -99,8 +99,9 @@ N_ext  <- nrow(df_ext)
 cv_set1 <- prepare_covariate_matrix(df_ext, covariate_set = 1L)
 cv_set2 <- prepare_covariate_matrix(df_ext, covariate_set = 2L)
 cv_set3 <- prepare_covariate_matrix(df_ext, covariate_set = 3L)
+cv_set4 <- prepare_covariate_matrix(df_ext, covariate_set = 4L)
 X_list  <- list(X1 = cv_set1$X, X2 = cv_set2$X,
-                X3 = cv_set3$X_transition)
+                X3 = cv_set3$X_transition, X4 = cv_set4$X_transition)
 rm(df_qlfs)
 
 cat(sprintf("N_baseline = %s, N_ext = %s\n",
@@ -291,6 +292,11 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   race_3         = "Race: Indian",
   race_4         = "Race: White",
   female         = "Female",
+  log_tenure     = "$\\log(1+\\mathrm{tenure})$",
+  log_time_since_work = "$\\log(1+\\mathrm{time\ since\ work})$",
+  never_worked   = "Never worked",
+  tenure_missing = "Tenure missing",
+  timegap_missing = "Time since work missing",
   contracttype_1 = "Permanent contract",
   informal_sector = "Informal sector"
 )
@@ -458,20 +464,20 @@ implied_rows_bl <- list(
 
 cat("\n--- Building covariate tables ---\n")
 
-# Set 3 has transition-varying contract and sector measures, so stationarity is
+# Sets 3--4 have transition-varying duration/job measures, so stationarity is
 # not imposed on it. The main table consistently compares free-alpha models.
 cov_labels_stat <- c("cov_s1_non_stat", "cov_s2_non_stat",
                      "cov_s1_sym_stat", "cov_s2_sym_stat")
-cov_labels_free <- c("cov_s1_non_free", "cov_s2_non_free", "cov_s3_non_free",
-                     "cov_s1_sym_free", "cov_s2_sym_free", "cov_s3_sym_free")
+cov_labels_free <- c("cov_s1_non_free", "cov_s2_non_free", "cov_s3_non_free", "cov_s4_non_free",
+                     "cov_s1_sym_free", "cov_s2_sym_free", "cov_s3_sym_free", "cov_s4_sym_free")
 cov_labels_all  <- unique(c(cov_labels_stat, cov_labels_free))
 
-cov_col_headers_panel <- c("", "(1)", "(2)", "(3)", "(4)", "(5)", "(6)")
+cov_col_headers_panel <- c("", paste0("(", 1:8, ")"))
 cov_sub_headers_panel <- c(
-  paste(c("", "\\multicolumn{3}{c}{No miscl.}",
-          "\\multicolumn{3}{c}{Symmetric}"), collapse = " & ") %+% " \\\\",
-  "\\cmidrule(lr){2-4} \\cmidrule(lr){5-7}",
-  paste(c("", "Set 1", "Set 2", "Set 3", "Set 1", "Set 2", "Set 3"),
+  paste(c("", "\\multicolumn{4}{c}{No miscl.}",
+          "\\multicolumn{4}{c}{Symmetric}"), collapse = " & ") %+% " \\\\",
+  "\\cmidrule(lr){2-5} \\cmidrule(lr){6-9}",
+  paste(c("", rep(paste("Set", 1:4), 2)),
         collapse = " & ") %+% " \\\\"
 )
 
@@ -484,6 +490,7 @@ names(cov_boots) <- cov_labels_all
 cov_analytic <- lapply(cov_labels_all, .load_analytic)
 names(cov_analytic) <- cov_labels_all
 cov_se <- lapply(cov_labels_all, function(lbl) {
+  if (grepl("_s[34]_", lbl)) return(.se_map(cov_analytic[[lbl]]))
   # Prefer bootstrap inference when it exists; otherwise use the analytical
   # individual-level sandwich/delta approximation.
   .se_map(cov_boots[[lbl]]) %||% .se_map(cov_analytic[[lbl]])
@@ -496,7 +503,8 @@ cov_mt <- c(
   cov_s2_sym_stat = "symmetric", cov_s2_sym_free = "symmetric",
   cov_s2_non_stat = "none",      cov_s2_non_free = "none",
   cov_s3_sym_stat = "symmetric", cov_s3_sym_free = "symmetric",
-  cov_s3_non_stat = "none",      cov_s3_non_free = "none"
+  cov_s3_non_stat = "none",      cov_s3_non_free = "none",
+  cov_s4_sym_free = "symmetric", cov_s4_non_free = "none"
 )
 cov_xmat <- c(
   cov_s1_sym_stat = "X1", cov_s1_sym_free = "X1",
@@ -504,7 +512,8 @@ cov_xmat <- c(
   cov_s2_sym_stat = "X2", cov_s2_sym_free = "X2",
   cov_s2_non_stat = "X2", cov_s2_non_free = "X2",
   cov_s3_sym_stat = "X3", cov_s3_sym_free = "X3",
-  cov_s3_non_stat = "X3", cov_s3_non_free = "X3"
+  cov_s3_non_stat = "X3", cov_s3_non_free = "X3",
+  cov_s4_sym_free = "X4", cov_s4_non_free = "X4"
 )
 
 cov_implied <- lapply(cov_labels_all, function(lbl) {
@@ -538,14 +547,15 @@ names(cov_implied) <- cov_labels_all
   set_of <- function(lbl) {
     if (grepl("_s1_", lbl)) return(1L)
     if (grepl("_s2_", lbl)) return(2L)
-    return(3L)
+    if (grepl("_s3_", lbl)) return(3L)
+    return(4L)
   }
   sets <- vapply(panel_labels, set_of, integer(1L))
 
   # Indicator: Yes if set includes covariate group
   # Set 1: Age, Age^2, Educ
   # Set 2: Set 1 + Race, Gender
-  # Set 3: Set 2 + contract type and informal sector in the exit equation
+  # Set 3 adds state-specific duration; Set 4 adds job characteristics.
   make_row <- function(label, min_set) {
     cells <- ifelse(sets >= min_set, "Yes", "No")
     list(est = c(label, cells), se = rep("", length(panel_labels) + 1L))
@@ -553,7 +563,8 @@ names(cov_implied) <- cov_labels_all
   list(
     make_row("Age, Age$^2$, Educ.", 1L),
     make_row("+ Race, Gender", 2L),
-    make_row("+ Contract type, informal sector (exit only)", 3L)
+    make_row("+ Tenure (exit), time since work (entry)", 3L),
+    make_row("+ Contract type, informal sector (exit only)", 4L)
   )
 }
 
@@ -624,8 +635,8 @@ main_table4_rows <- list(
     list(est = c("Log-likelihood", vapply(cov_labels_free, function(lbl) {
       fit <- cov_fits[[lbl]]
       if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
-    }, character(1L))), se = rep("", 7L)),
-    list(est = c("$N$", rep(.fmt_n(N_ext), 6L)), se = rep("", 7L))
+    }, character(1L))), se = rep("", 9L)),
+    list(est = c("$N$", rep(.fmt_n(N_ext), 8L)), se = rep("", 9L))
   )),
   list(header = "Covariates included", rows = .cov_indicator_rows(cov_labels_free))
 )
@@ -659,7 +670,11 @@ main_table4_rows <- list(
     active <- attr(.as_transition_design(X_list[[cov_xmat[[lbl]]]])$X12,
                    "entry_active")
     if (is.null(active)) active <- rep(TRUE, length(xnames))
-    if (block == "beta0" && !active[j]) return(c("0.0000", "[fixed]"))
+    active1 <- attr(.as_transition_design(X_list[[cov_xmat[[lbl]]]])$X12,
+                    "persistence_active")
+    if (is.null(active1)) active1 <- rep(TRUE, length(xnames))
+    if ((block == "beta0" && !active[j]) || (block == "beta1" && !active1[j]))
+      return(c("0.0000", "[fixed]"))
     value <- fit$params[[block]][j]
     .fmt_param(value, .get_se(cov_se[[lbl]], paste0(block, "_", index)))
   })
@@ -687,7 +702,7 @@ appendix_rows <- list(
     .cov_plain_row("exit_median", "Median", cov_labels_free),
     .cov_plain_row("exit_p90", "90th percentile", cov_labels_free)
   )),
-  list(header = "Set 3 discrete effects on the exit probability", rows = list(
+  list(header = "Set 4 discrete effects on the exit probability", rows = list(
     .cov_plain_row("contract_exit_effect", "Permanent contract", cov_labels_free),
     .cov_plain_row("informal_exit_effect", "Informal sector", cov_labels_free)
   ))
@@ -700,7 +715,8 @@ appendix_rows <- list(
   label = "tab:cov_coefficients_appendix",
   path = file.path(tables_ext_dir, "table_cov_coefficients_appendix.tex"),
   sub_headers = cov_sub_headers_panel,
-  note = paste0("Raw probit coefficients are reported. Contract type and sector are ",
+  note = paste0("Raw probit coefficients are reported. Tenure enters persistence only; ",
+                "time since work and never worked enter entry only. Contract type and sector are ",
                 "origin-wave characteristics and may change between transitions; their ",
                 "entry coefficients are fixed at zero because these attributes are not ",
                 "defined for non-employed origin states. Hazard percentiles use survey ",
@@ -739,20 +755,20 @@ print(screen_hazards, row.names = FALSE, digits = 4)
 cat("\n--- Building AME table ---\n")
 
 # Focus on symmetric + stationary (main specification)
-ame_labels <- c("cov_s1_sym_stat", "cov_s2_sym_stat", "cov_s3_sym_stat")
+ame_labels <- c("cov_s1_sym_stat", "cov_s2_sym_stat")
 
-ame_col_headers <- c("", "(1)", "(2)", "(3)", "(4)", "(5)", "(6)")
+ame_col_headers <- c("", "(1)", "(2)", "(3)", "(4)")
 ame_sub_headers <- c(
-  paste(c("", "\\multicolumn{3}{c}{Entry rate}",
-          "\\multicolumn{3}{c}{Exit rate}"), collapse = " & ") %+% " \\\\",
-  "\\cmidrule(lr){2-4} \\cmidrule(lr){5-7}",
-  paste(c("", "Set 1", "Set 2", "Set 3", "Set 1", "Set 2", "Set 3"),
+  paste(c("", "\\multicolumn{2}{c}{Entry rate}",
+          "\\multicolumn{2}{c}{Exit rate}"), collapse = " & ") %+% " \\\\",
+  "\\cmidrule(lr){2-3} \\cmidrule(lr){4-5}",
+  paste(c("", "Set 1", "Set 2", "Set 1", "Set 2"),
         collapse = " & ") %+% " \\\\"
 )
 
 # Build row-by-row
-all_cov_nms <- if (!is.null(cov_implied[["cov_s3_sym_stat"]])) {
-  names(cov_implied[["cov_s3_sym_stat"]]$ame_entry)
+all_cov_nms <- if (!is.null(cov_implied[["cov_s2_sym_stat"]])) {
+  names(cov_implied[["cov_s2_sym_stat"]]$ame_entry)
 } else {
   character(0L)
 }
@@ -794,8 +810,8 @@ ame_rows_with_footer <- list(
   list(header = NULL, rows = ame_rows),
   list(header = NULL, rows = list(
     list(
-      est = c("$N$", rep(.fmt_n(N_ext), 6L)),
-      se  = rep("", 7L)
+      est = c("$N$", rep(.fmt_n(N_ext), 4L)),
+      se  = rep("", 5L)
     )
   ))
 )
@@ -806,7 +822,7 @@ ame_rows_with_footer <- list(
   caption     = "Average Marginal Effects on entry and exit rates (p.p.): symmetric, stationary models",
   label       = "tab:cov_ame",
   path        = file.path(tables_ext_dir, "table_cov_ame.tex"),
-  col_align   = "lcccccc",
+  col_align   = "lcccc",
   sub_headers = ame_sub_headers,
   note        = sprintf("Estimates in percentage points. AME$_k = N^{-1}\\sum_i \\phi(x_i'\\hat\\beta)\\hat\\beta_k$. Bootstrap SE in parentheses ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
 )

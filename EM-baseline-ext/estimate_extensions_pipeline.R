@@ -2,9 +2,9 @@
 # EM-baseline-ext: Estimation pipeline for baseline model extensions
 # Created: 2026-05-06
 #
-# Estimates all 16 extension model configurations:
+# Estimates all 18 extension model configurations:
 #   Extension I  (covariates):    Sets 1--2 × {symmetric, none} × {stat, free}
-#                                 + Set 3 × {symmetric, none} × {free} = 10
+#                                 + Sets 3--4 × {symmetric, none} × {free} = 12
 #   Extension III (FMM):          {symmetric, none} × {stat, free} = 4
 #   Extension IV  (inconsistency): {symmetric only} × {stat, free} = 2
 #
@@ -35,10 +35,11 @@ source(here::here("EM-baseline-ext", "R", "source_all.R"))
 # Estimation hyperparameters
 THETA_CAP   <- 0.999
 PI_CAP      <- 0.49
-N_STARTS    <- 5L
+N_STARTS    <- as.integer(Sys.getenv("N_STARTS", "5"))
 PERTURB_SD  <- 0.30
 RANDOM_SEED <- 1234L
 TABLE4_ONLY <- identical(Sys.getenv("TABLE4_ONLY"), "1")
+NEW_COVARIATE_SETS_ONLY <- identical(Sys.getenv("NEW_COVARIATE_SETS_ONLY"), "1")
 set.seed(RANDOM_SEED)
 
 # Output directories
@@ -73,11 +74,28 @@ run_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   out_X23 <- Xt$X23[first, , drop = FALSE]
   attr(out_X12, "entry_active") <- attr(Xt$X12, "entry_active")
   attr(out_X23, "entry_active") <- attr(Xt$X12, "entry_active")
+  attr(out_X12, "persistence_active") <- attr(Xt$X12, "persistence_active")
+  attr(out_X23, "persistence_active") <- attr(Xt$X12, "persistence_active")
   list(df = out_df, X = list(X12 = out_X12, X23 = out_X23))
 }
 
 # ---- Multi-start runner: covariate extension --------------------------------
-.run_cov <- function(df, X, model_type, stationary, label, nested_fit = NULL) {
+.expand_cov_start <- function(fit, X, model_type) {
+  target_names <- colnames(.as_transition_design(X)$X12)
+  out <- init_params_covariates(length(target_names), model_type)
+  names(out$beta0) <- names(out$beta1) <- target_names
+  for (block in c("beta0", "beta1")) {
+    old <- fit$params[[block]]
+    common <- intersect(names(old), target_names)
+    out[[block]][common] <- old[common]
+  }
+  if (!is.null(fit$params$alpha)) out$alpha <- fit$params$alpha
+  if (model_type == "symmetric" && !is.null(fit$params$pi)) out$pi <- fit$params$pi
+  out
+}
+
+.run_cov <- function(df, X, model_type, stationary, label, nested_fit = NULL,
+                     warm_fit = NULL) {
   p <- ncol(.as_transition_design(X)$X12)
   collapsed <- .collapse_covariate_cells(df, X)
   cat(sprintf("  [%s] %s rows collapsed to %s likelihood cells\n", label,
@@ -90,6 +108,8 @@ run_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
       # that restricted solution as a deterministic warm start.
       p0 <- nested_fit$params
       p0$pi <- 1e-8
+    } else if (s == 1L && !is.null(warm_fit)) {
+      p0 <- .expand_cov_start(warm_fit, X, model_type)
     } else {
       p0 <- init_params_covariates(p, model_type)
       p0$beta0 <- .perturb_beta(p0$beta0)
@@ -262,13 +282,15 @@ cat(sprintf("Inconsistency indicators: %d observations with at least one age/edu
 cv_set1 <- prepare_covariate_matrix(df_ext, covariate_set = 1L)
 cv_set2 <- prepare_covariate_matrix(df_ext, covariate_set = 2L)
 cv_set3 <- prepare_covariate_matrix(df_ext, covariate_set = 3L)
+cv_set4 <- prepare_covariate_matrix(df_ext, covariate_set = 4L)
 
 X1 <- cv_set1$X
 X2 <- cv_set2$X
 X3 <- cv_set3$X_transition
+X4 <- cv_set4$X_transition
 
-cat(sprintf("Covariate matrices: Set1 p=%d | Set2 p=%d | Set3 p=%d (time-varying)\n",
-            ncol(X1), ncol(X2), ncol(X3$X12)))
+cat(sprintf("Covariate matrices: Set1 p=%d | Set2 p=%d | Set3 p=%d | Set4 p=%d (Sets 3--4 time-varying)\n",
+            ncol(X1), ncol(X2), ncol(X3$X12), ncol(X4$X12)))
 
 # Free large raw object
 rm(df_qlfs, df_incons)
@@ -294,68 +316,92 @@ run_rows <- list()
 
 # ==============================================================================
 # SECTION 1: Extension I — Observable heterogeneity (covariate models)
-#   10 models: Sets 1--2 × model_type {symmetric, none} × {stat, free}, plus
-#              time-varying Set 3 × model_type {symmetric, none} × {free}
+#   12 models: Sets 1--2 × model_type {symmetric, none} × {stat, free}, plus
+#              time-varying Sets 3--4 × model_type {symmetric, none} × {free}
 # ==============================================================================
 
 cat("\n\n========== EXTENSION I: COVARIATE MODELS ==========\n")
+
+if (NEW_COVARIATE_SETS_ONLY) {
+  for (lbl in c("cov_s1_non_free", "cov_s1_sym_free",
+                "cov_s2_non_free", "cov_s2_sym_free")) {
+    fits[[lbl]] <- readRDS(file.path(results_dir, sprintf("fit_%s.rds", lbl)))
+  }
+}
 
 # --- Set 1: intercept + age + age^2 + educ ------------------------------------
 
 cat("\n--- Set 1 (age + educ) ---\n")
 
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
   fits[["cov_s1_non_stat"]] <- .run_cov(df_ext, X1, "none", TRUE, "cov_s1_non_stat")
   run_rows[["cov_s1_non_stat"]] <- .make_row("cov_s1_non_stat", "covariate", "none", TRUE, fits[["cov_s1_non_stat"]])
 }
 
-fits[["cov_s1_non_free"]] <- .run_cov(df_ext, X1, "none",      FALSE, "cov_s1_non_free")
-run_rows[["cov_s1_non_free"]] <- .make_row("cov_s1_non_free", "covariate", "none",      FALSE, fits[["cov_s1_non_free"]])
+if (!NEW_COVARIATE_SETS_ONLY) {
+  fits[["cov_s1_non_free"]] <- .run_cov(df_ext, X1, "none", FALSE, "cov_s1_non_free")
+  run_rows[["cov_s1_non_free"]] <- .make_row("cov_s1_non_free", "covariate", "none", FALSE, fits[["cov_s1_non_free"]])
+}
 
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
   fits[["cov_s1_sym_stat"]] <- .run_cov(df_ext, X1, "symmetric", TRUE, "cov_s1_sym_stat", fits[["cov_s1_non_stat"]])
   run_rows[["cov_s1_sym_stat"]] <- .make_row("cov_s1_sym_stat", "covariate", "symmetric", TRUE, fits[["cov_s1_sym_stat"]])
 }
 
-fits[["cov_s1_sym_free"]] <- .run_cov(df_ext, X1, "symmetric", FALSE, "cov_s1_sym_free", fits[["cov_s1_non_free"]])
-run_rows[["cov_s1_sym_free"]] <- .make_row("cov_s1_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s1_sym_free"]])
+if (!NEW_COVARIATE_SETS_ONLY) {
+  fits[["cov_s1_sym_free"]] <- .run_cov(df_ext, X1, "symmetric", FALSE, "cov_s1_sym_free", fits[["cov_s1_non_free"]])
+  run_rows[["cov_s1_sym_free"]] <- .make_row("cov_s1_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s1_sym_free"]])
+}
 
 # --- Set 2: Set 1 + race + female ---------------------------------------------
 
 cat("\n--- Set 2 (age + educ + race + female) ---\n")
 
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
   fits[["cov_s2_non_stat"]] <- .run_cov(df_ext, X2, "none", TRUE, "cov_s2_non_stat")
   run_rows[["cov_s2_non_stat"]] <- .make_row("cov_s2_non_stat", "covariate", "none", TRUE, fits[["cov_s2_non_stat"]])
 }
 
-fits[["cov_s2_non_free"]] <- .run_cov(df_ext, X2, "none",      FALSE, "cov_s2_non_free")
-run_rows[["cov_s2_non_free"]] <- .make_row("cov_s2_non_free", "covariate", "none",      FALSE, fits[["cov_s2_non_free"]])
+if (!NEW_COVARIATE_SETS_ONLY) {
+  fits[["cov_s2_non_free"]] <- .run_cov(df_ext, X2, "none", FALSE, "cov_s2_non_free")
+  run_rows[["cov_s2_non_free"]] <- .make_row("cov_s2_non_free", "covariate", "none", FALSE, fits[["cov_s2_non_free"]])
+}
 
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
   fits[["cov_s2_sym_stat"]] <- .run_cov(df_ext, X2, "symmetric", TRUE, "cov_s2_sym_stat", fits[["cov_s2_non_stat"]])
   run_rows[["cov_s2_sym_stat"]] <- .make_row("cov_s2_sym_stat", "covariate", "symmetric", TRUE, fits[["cov_s2_sym_stat"]])
 }
 
-fits[["cov_s2_sym_free"]] <- .run_cov(df_ext, X2, "symmetric", FALSE, "cov_s2_sym_free", fits[["cov_s2_non_free"]])
-run_rows[["cov_s2_sym_free"]] <- .make_row("cov_s2_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s2_sym_free"]])
+if (!NEW_COVARIATE_SETS_ONLY) {
+  fits[["cov_s2_sym_free"]] <- .run_cov(df_ext, X2, "symmetric", FALSE, "cov_s2_sym_free", fits[["cov_s2_non_free"]])
+  run_rows[["cov_s2_sym_free"]] <- .make_row("cov_s2_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s2_sym_free"]])
+}
 
-# --- Set 3: Set 2 + contract type + informal sector (exit only) ---------------
+# --- Set 3: Set 2 + state-specific duration covariates ------------------------
 
-cat("\n--- Set 3 (contract type + informal sector in persistence/exit only) ---\n")
+cat("\n--- Set 3 (tenure in persistence; time since work in entry) ---\n")
 
-fits[["cov_s3_non_free"]] <- .run_cov(df_ext, X3, "none",      FALSE, "cov_s3_non_free")
+fits[["cov_s3_non_free"]] <- .run_cov(df_ext, X3, "none", FALSE, "cov_s3_non_free",
+                                       warm_fit = fits[["cov_s2_non_free"]])
 run_rows[["cov_s3_non_free"]] <- .make_row("cov_s3_non_free", "covariate", "none",      FALSE, fits[["cov_s3_non_free"]])
 
 fits[["cov_s3_sym_free"]] <- .run_cov(df_ext, X3, "symmetric", FALSE, "cov_s3_sym_free", fits[["cov_s3_non_free"]])
 run_rows[["cov_s3_sym_free"]] <- .make_row("cov_s3_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s3_sym_free"]])
+
+# --- Set 4: Set 3 + contract type + informal sector (persistence only) --------
+cat("\n--- Set 4 (+ contract type and informal sector in persistence only) ---\n")
+fits[["cov_s4_non_free"]] <- .run_cov(df_ext, X4, "none", FALSE, "cov_s4_non_free",
+                                       warm_fit = fits[["cov_s3_non_free"]])
+run_rows[["cov_s4_non_free"]] <- .make_row("cov_s4_non_free", "covariate", "none", FALSE, fits[["cov_s4_non_free"]])
+fits[["cov_s4_sym_free"]] <- .run_cov(df_ext, X4, "symmetric", FALSE, "cov_s4_sym_free", fits[["cov_s4_non_free"]])
+run_rows[["cov_s4_sym_free"]] <- .make_row("cov_s4_sym_free", "covariate", "symmetric", FALSE, fits[["cov_s4_sym_free"]])
 
 # ==============================================================================
 # SECTION 2: Extension III — 2-type FMM
 #   4 models: model_type {symmetric, none} × {stat, free}
 # ==============================================================================
 
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
 cat("\n\n========== EXTENSION III: FMM MODELS ==========\n")
 
 fits[["fmm_sym_stat"]] <- .run_fmm(df_ext, "symmetric", TRUE,  "fmm_sym_stat")
@@ -390,10 +436,9 @@ run_rows[["incons_sym_free"]] <- .make_row("incons_sym_free", "inconsistency", "
 
 cat("\n\n========== SUMMARY ==========\n")
 
-run_summary <- do.call(rbind, run_rows)
-write.csv(run_summary,
-          file.path(results_dir, "run_summary.csv"),
-          row.names = FALSE)
+run_summary <- if (length(run_rows)) do.call(rbind, run_rows) else data.frame()
+if (!NEW_COVARIATE_SETS_ONLY) write.csv(run_summary,
+  file.path(results_dir, "run_summary.csv"), row.names = FALSE)
 
 # Print compact table
 cat(sprintf("\n%-24s %10s %10s %10s\n", "Label", "LogLik", "Converged", "Iters"))
@@ -404,8 +449,8 @@ for (lbl in names(fits)) {
               lbl, fit$loglik, fit$converged, fit$iterations))
 }
 
-# LR tests within covariate family. Set 3 is necessarily free-alpha because its
-# transition covariates change between intervals.
+# LR tests within covariate family. Sets 3--4 are necessarily free-alpha because
+# their transition covariates change between intervals.
 cat("\n--- LR tests: covariate model complexity (symmetric, free alpha) ---\n")
 .lr_test <- function(fit_null, fit_alt, df_diff, label) {
   if (!is.numeric(df_diff) || df_diff <= 0L)
@@ -422,9 +467,11 @@ cat("\n--- LR tests: covariate model complexity (symmetric, free alpha) ---\n")
          ncol(X2) - ncol(X1), "Set1 vs Set2 (sym, free)")
 .lr_test(fits[["cov_s2_sym_free"]], fits[["cov_s3_sym_free"]],
          ncol(X3$X12) - ncol(X2), "Set2 vs Set3 (sym, free)")
+.lr_test(fits[["cov_s3_sym_free"]], fits[["cov_s4_sym_free"]],
+         ncol(X4$X12) - ncol(X3$X12), "Set3 vs Set4 (sym, free)")
 
 # Stationarity LR test within each extension family (symmetric only)
-if (!TABLE4_ONLY) {
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY) {
   cat("\n--- LR tests: free vs stationary alpha (symmetric) ---\n")
   .lr_test(fits[["cov_s1_sym_stat"]], fits[["cov_s1_sym_free"]], 1L, "Cov Set1 stat vs free")
   .lr_test(fits[["cov_s2_sym_stat"]], fits[["cov_s2_sym_free"]], 1L, "Cov Set2 stat vs free")
@@ -437,7 +484,8 @@ cat("\n--- LR tests: symmetric vs no-error (free alpha) ---\n")
 .lr_test(fits[["cov_s1_non_free"]], fits[["cov_s1_sym_free"]], 1L, "Cov Set1: none vs sym")
 .lr_test(fits[["cov_s2_non_free"]], fits[["cov_s2_sym_free"]], 1L, "Cov Set2: none vs sym")
 .lr_test(fits[["cov_s3_non_free"]], fits[["cov_s3_sym_free"]], 1L, "Cov Set3: none vs sym (free)")
-if (!TABLE4_ONLY)
+.lr_test(fits[["cov_s4_non_free"]], fits[["cov_s4_sym_free"]], 1L, "Cov Set4: none vs sym (free)")
+if (!TABLE4_ONLY && !NEW_COVARIATE_SETS_ONLY)
   .lr_test(fits[["fmm_non_free"]], fits[["fmm_sym_free"]], 1L, "FMM: none vs sym")
 
 cat(sprintf("\nRun complete. Results in: %s\n", results_dir))

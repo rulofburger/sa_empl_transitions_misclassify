@@ -9,9 +9,10 @@
 .pack_covariate_params <- function(params, X, model_type) {
   Xt <- .as_transition_design(X)
   active <- attr(Xt$X12, "entry_active") %||% rep(TRUE, ncol(Xt$X12))
-  out <- c(params$beta0[active], params$beta1, alpha_logit = qlogis(params$alpha))
+  active1 <- attr(Xt$X12, "persistence_active") %||% rep(TRUE, ncol(Xt$X12))
+  out <- c(params$beta0[active], params$beta1[active1], alpha_logit = qlogis(params$alpha))
   names(out) <- c(paste0("beta0_", colnames(Xt$X12)[active]),
-                  paste0("beta1_", colnames(Xt$X12)), "alpha_logit")
+                  paste0("beta1_", colnames(Xt$X12)[active1]), "alpha_logit")
   if (model_type == "symmetric") out <- c(out, pi_logit = qlogis(params$pi))
   out
 }
@@ -19,13 +20,15 @@
 .unpack_covariate_params <- function(eta, template, X, model_type) {
   Xt <- .as_transition_design(X)
   active <- attr(Xt$X12, "entry_active") %||% rep(TRUE, ncol(Xt$X12))
-  p <- ncol(Xt$X12); p0 <- sum(active)
+  active1 <- attr(Xt$X12, "persistence_active") %||% rep(TRUE, ncol(Xt$X12))
+  p <- ncol(Xt$X12); p0 <- sum(active); p1 <- sum(active1)
   out <- template
   out$beta0[] <- 0
   out$beta0[active] <- eta[seq_len(p0)]
-  out$beta1 <- eta[p0 + seq_len(p)]
-  out$alpha <- plogis(eta[p0 + p + 1L])
-  if (model_type == "symmetric") out$pi <- plogis(eta[p0 + p + 2L])
+  out$beta1[] <- 0
+  out$beta1[active1] <- eta[p0 + seq_len(p1)]
+  out$alpha <- plogis(eta[p0 + p1 + 1L])
+  if (model_type == "symmetric") out$pi <- plogis(eta[p0 + p1 + 2L])
   names(out$beta0) <- names(template$beta0) %||% colnames(Xt$X12)
   names(out$beta1) <- names(template$beta1) %||% colnames(Xt$X12)
   out
@@ -42,6 +45,8 @@
   out_X23 <- Xt$X23[first, , drop = FALSE]
   attr(out_X12, "entry_active") <- attr(Xt$X12, "entry_active")
   attr(out_X23, "entry_active") <- attr(Xt$X12, "entry_active")
+  attr(out_X12, "persistence_active") <- attr(Xt$X12, "persistence_active")
+  attr(out_X23, "persistence_active") <- attr(Xt$X12, "persistence_active")
   list(
     df = data.frame(y1 = df$y1[first], y2 = df$y2[first], y3 = df$y3[first],
                     weight = as.vector(rowsum(df$weight, group, reorder = FALSE))),
@@ -53,6 +58,7 @@
   Xt <- .as_transition_design(X, nrow(df))
   h <- .hmat_cache()
   active <- attr(Xt$X12, "entry_active") %||% rep(TRUE, ncol(Xt$X12))
+  active1 <- attr(Xt$X12, "persistence_active") %||% rep(TRUE, ncol(Xt$X12))
   blocks0 <- list(); blocks1 <- list()
   for (tt in seq_len(2L)) {
     hf <- h[, tt]; ht <- h[, tt + 1L]
@@ -67,7 +73,7 @@
     s0 <- dnorm(eta0) * (succ0 / th0 - (risk0 - succ0) / (1 - th0))
     s1 <- dnorm(eta1) * (succ1 / th1 - (risk1 - succ1) / (1 - th1))
     blocks0[[tt]] <- sweep(Xt[[tt]][, active, drop = FALSE], 1L, s0, "*")
-    blocks1[[tt]] <- sweep(Xt[[tt]], 1L, s1, "*")
+    blocks1[[tt]] <- sweep(Xt[[tt]][, active1, drop = FALSE], 1L, s1, "*")
   }
   score <- cbind(blocks0[[1L]] + blocks0[[2L]],
                  blocks1[[1L]] + blocks1[[2L]])
@@ -176,10 +182,11 @@ analytical_se_covariates <- function(df, X, fit, model_type,
 
   natural_est <- c(template$beta0[active <- (attr(Xt$X12, "entry_active") %||%
                                                 rep(TRUE, ncol(Xt$X12)))],
-                   template$beta1, alpha = template$alpha)
+                   template$beta1[active1 <- (attr(Xt$X12, "persistence_active") %||%
+                                                rep(TRUE, ncol(Xt$X12)))], alpha = template$alpha)
   names(natural_est) <- c(paste0("beta0_", coef_names[active]),
-                          paste0("beta1_", coef_names), "alpha")
-  deriv <- c(rep(1, sum(active) + ncol(Xt$X12)),
+                          paste0("beta1_", coef_names[active1]), "alpha")
+  deriv <- c(rep(1, sum(active) + sum(active1)),
              template$alpha * (1 - template$alpha))
   if (model_type == "symmetric") {
     natural_est <- c(natural_est, pi = template$pi)

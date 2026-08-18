@@ -112,6 +112,8 @@ em_fit_covariates <- function(df,
   names(params$beta1) <- coef_names
   entry_active <- attr(X_transition$X12, "entry_active")
   if (is.null(entry_active)) entry_active <- rep(TRUE, p)
+  persistence_active <- attr(X_transition$X12, "persistence_active")
+  if (is.null(persistence_active)) persistence_active <- rep(TRUE, p)
 
   # Validate required fields
   for (nm in c("beta0", "beta1")) {
@@ -126,6 +128,7 @@ em_fit_covariates <- function(df,
       stop("em_fit_covariates: params$pi must be a scalar in [0, 0.5) for model_type='symmetric'")
   }
   params$beta0[!entry_active] <- 0
+  params$beta1[!persistence_active] <- 0
   if (!stationary && is.null(params$alpha)) params$alpha <- 0.5
 
   # ---- Validate data quality once ------------------------------------------
@@ -179,7 +182,8 @@ em_fit_covariates <- function(df,
       model_type = model_type,
       stationary = stationary,
       pi_cap     = pi_cap,
-      entry_active = entry_active
+      entry_active = entry_active,
+      persistence_active = persistence_active
     )
     mdiag <- attr(candidate, "mstep")
     attr(candidate, "mstep") <- NULL
@@ -197,7 +201,7 @@ em_fit_covariates <- function(df,
     while (ll_candidate < ll_current - 1e-10 && obs_fraction > 2^-20) {
       obs_fraction <- obs_fraction / 2
       candidate <- .interpolate_cov_params(params, candidate_full, obs_fraction,
-                                            entry_active)
+                                            entry_active, persistence_active)
       candidate_estep <- e_step_covariates(
         df_fit, X, candidate, model_type, validate = FALSE,
         mm_precomp = mm_static, stationary = stationary
@@ -211,9 +215,9 @@ em_fit_covariates <- function(df,
       obs_fraction <- 0
     }
 
-    old_vec <- c(params$beta0[entry_active], params$beta1,
+    old_vec <- c(params$beta0[entry_active], params$beta1[persistence_active],
                  params$pi %||% numeric(0), params$alpha %||% numeric(0))
-    new_vec <- c(candidate$beta0[entry_active], candidate$beta1,
+    new_vec <- c(candidate$beta0[entry_active], candidate$beta1[persistence_active],
                  candidate$pi %||% numeric(0), candidate$alpha %||% numeric(0))
     param_change <- max(abs(new_vec - old_vec))
     improvement <- ll_candidate - ll_current

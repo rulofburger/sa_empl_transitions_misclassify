@@ -54,8 +54,8 @@ here.
 
 The central objectives were to replace stale or numerically unreliable results
 with validated maximum-likelihood estimates, provide fast analytical inference,
-handle contract type without discarding non-employed respondents, add
-informal-sector status to Set 3, and report heterogeneous transition risks in a
+handle state-specific duration and job characteristics without discarding
+respondents, and report heterogeneous transition risks in a
 way that remains comparable with the paper's earlier tables. The later
 four-wave work tests whether latent classes partly absorb observed heterogeneity
 or heterogeneous measurement reliability.
@@ -107,6 +107,26 @@ The revised estimator:
 These safeguards address the invalid-MLE problem directly: they alter how the
 model is estimated, rather than merely changing how its results are displayed.
 
+## Covariate sets and state-specific variables
+
+The revised sequence of specifications is:
+
+1. Set 1: age, age squared, and education;
+2. Set 2: Set 1 plus race and sex;
+3. Set 3: Set 2 plus log tenure in the employment-persistence equation, and
+   log time since last employment plus a never-worked indicator in the entry
+   equation; and
+4. Set 4: Set 3 plus contract type and informal-sector status in the
+   persistence equation.
+
+Tenure and time since work are measured at the origin wave and transformed as
+$\log(1+d)$. Their coefficients are restricted to the equation in which the
+reported duration is economically defined. The ingestion script preserves
+these state-appropriate reported values before the separate tenure module's
+nearest-spell filling. A missing-tenure indicator prevents missing reports from
+being treated as genuine zero tenure; zero-variance missingness indicators are
+automatically omitted to avoid unidentified information-matrix directions.
+
 ## Contract type and informal-sector status
 
 Contract type is structurally undefined when a respondent is not employed.
@@ -115,7 +135,7 @@ employment-persistence equation. Its coefficient in the job-entry equation is
 fixed at zero, so non-employed observations are retained instead of being
 dropped or assigned an economically artificial contract category.
 
-Set 3 now also includes an informal-sector indicator, defined from the QLFS
+Set 4 also includes an informal-sector indicator, defined from the QLFS
 sector classification and including informal agricultural employment. Like
 contract type, it enters only the persistence/exit equation. Rural or urban
 residence is not included, avoiding the sample loss caused by missing residence
@@ -129,9 +149,9 @@ are not modelled as separate states.
 
 ## Initial conditions and reported transition rates
 
-Because the Set 3 transition probabilities can vary between the two transition
+Because the Set 3 and Set 4 transition covariates can vary between the two transition
 periods, the main comparison no longer imposes a time-homogeneous stationary
-initial distribution. All six columns of the revised Table 4 estimate the
+initial distribution. All eight columns of the revised Table 4 estimate the
 initial employment probability freely.
 
 Average entry and exit rates are computed using the survey weights and the
@@ -149,7 +169,7 @@ individual-level survey-weighted sandwich estimator. The observed-information
 ``bread'' is obtained by numerically differentiating the analytic observed-data
 score, while the ``meat'' is the outer product of weighted individual scores.
 The delta method propagates this covariance matrix to average transition rates,
-total churn, and Set 3 discrete effects. The linearisation also includes direct
+total churn, and Set 4 discrete effects. The linearisation also includes direct
 sampling variation from averaging predicted quantities over the observed
 covariate and posterior-risk distribution.
 
@@ -203,43 +223,49 @@ include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex")
 ```
 
 The no-error specifications imply quarterly entry and exit rates of about
-8.14% and 8.58%, almost invariant to the three covariate sets. Allowing for
-symmetric reporting error lowers these rates to 3.62--3.99% and 3.71--4.16%,
-respectively. The estimated per-wave misclassification probability remains
-narrowly between 2.39% and 2.58%. Observable characteristics therefore explain
+8.14% and 8.58%, almost invariant to the four covariate sets. Allowing for
+symmetric reporting error lowers these rates to 3.62--4.87% and 3.71--5.09%,
+respectively. The estimated per-wave misclassification probability declines
+from 2.58% in Set 1 to 2.18% in Set 4. Observable characteristics therefore explain
 substantial heterogeneity across workers, but they do not explain away the
 measurement-error signal. Ignoring misclassification still approximately
 doubles the estimated average transition hazards and total churn.
 
 The exit rate is only modestly higher than the entry rate in the symmetric
-models. In Set 3 the difference is about 0.17 percentage points, compared with
+models. In Set 4 the difference is about 0.22 percentage points, compared with
 roughly 0.44 percentage points in the no-error specification. This is more
 consistent with the approximately stable employment share than a comparison of
 the two conditional hazards alone might initially suggest.
 
-## Coefficients, hazard distributions, and Set 3 discrete effects
+## Coefficients, hazard distributions, and Set 4 discrete effects
 
 ```{r coefficient-appendix, results='asis'}
 include_tex_table(
   "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
-  tabular_scale = 0.62
+  tabular_scale = 0.55
 )
 ```
 
 The appendix demonstrates why a single mean hazard is incomplete. In symmetric
-Set 3, the risk-weighted 10th--90th percentile range is approximately
-1.07--7.97% for entry and 0.46--9.61% for exit. Thus workers with different
+Set 4, the risk-weighted 10th--90th percentile range is approximately
+1.00--13.82% for entry and 0.19--14.29% for exit. Thus workers with different
 observed characteristics face markedly different transition risks even though
 the population-average entry and exit rates are similar.
 
-The economically clearest Set 3 results concern employment stability. Holding
-the other covariates at their observed values, a permanent contract lowers the
-average quarterly exit probability by about 3.38 percentage points in the
-symmetric-error model. Informal-sector employment raises it by about 1.80
-percentage points. The corresponding no-error effects are larger in magnitude
-(-4.69 and +2.65 percentage points), showing that some observed instability is
-otherwise attributed to genuine labour-market transitions rather than reporting
-error.
+The duration coefficients have the expected signs. In symmetric Set 4, a
+one-standard-deviation increase in log tenure raises the persistence probit
+index by 0.508 (SE 0.012), while a one-standard-deviation increase in log time
+since work lowers the entry index by 0.307 (SE 0.006). Never having worked also
+substantially lowers entry (coefficient -0.835, SE 0.021). The missing-tenure
+coefficient is imprecise and should not be interpreted substantively.
+
+Holding other covariates at their observed values, a permanent contract lowers
+the average quarterly exit probability by about 2.43 percentage points in the
+symmetric-error model, while informal-sector employment raises it by about
+2.36 percentage points. The corresponding no-error effects are -3.28 and +3.01
+percentage points. Adding duration variables therefore exposes much wider
+heterogeneity in predicted hazards while preserving the main conclusion that
+misclassification materially inflates uncorrected transition rates.
 
 # Four-wave finite-mixture results
 
@@ -365,10 +391,11 @@ model it mathematically nests. Once the likelihood is optimised with appropriate
 monotonicity and nesting checks, a small but precisely estimated reporting-error
 rate continues to produce a large reduction in inferred employment turnover.
 
-At the same time, the new Set 3 results sharpen the economic interpretation.
+At the same time, the new Sets 3--4 results sharpen the economic interpretation.
 Misclassification and genuine heterogeneity are not competing explanations in
-which only one survives: contract security and informal employment strongly
-predict true exit risk, while a separate reporting-error component remains.
+which only one survives: duration dependence, contract security, and informal
+employment strongly predict true transition risk, while a separate
+reporting-error component remains.
 The paper should therefore distinguish clearly between variation in transition
 risk across workers and the upward bias in observed transitions caused by
 classification error.

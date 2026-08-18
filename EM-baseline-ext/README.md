@@ -14,9 +14,8 @@ a different assumption of the baseline model.
 | III | Section 7 | 2-type FMM | Latent type mixture (stable vs unstable employment) |
 | IV | Section 8 | Inconsistency-augmented | Wave-specific π tied to age/education inconsistencies |
 
-Extensions II (asymmetric covariates) and duration-dependence covariates are
-excluded; these would require separate identification conditions beyond the 3-wave
-design used here and are left for future work.
+The duration covariates here are observed origin-wave controls. A structural
+model of endogenous duration dependence remains separate future work.
 
 ## Model Descriptions
 
@@ -28,17 +27,18 @@ employment term couples β₀ and β₁. The M-step therefore applies limited jo
 BFGS updates to the full Q-function, with Q-function and observed-likelihood
 backtracking safeguards.
 
-Three covariate sets:
+Four nested covariate sets:
 
 | Set | Variables | p |
 |-----|-----------|---|
 | 1 | intercept, age (std), age² (std), educ (std) | 4 |
 | 2 | Set 1 + race dummies + female | 4 + r |
-| 3 | Set 2 + origin-wave contract type + informal-sector dummy in persistence/exit only | 5 + r + c |
+| 3 | Set 2 + log tenure in persistence; log time since work and never worked in entry | 12 on the current sample |
+| 4 | Set 3 + origin-wave contract type + informal-sector dummy in persistence only | 14 on the current sample |
 
 Sets 1 and 2 use symmetric and no-error models under stationary and free
-initial conditions. Set 3 uses free α only because its contract and sector
-covariates change between transitions → **10 models** in total.
+initial conditions. Sets 3 and 4 use free α because their origin-wave
+covariates change between transitions → **12 models** in total.
 
 ### Extension III: 2-type finite mixture model (FMM)
 
