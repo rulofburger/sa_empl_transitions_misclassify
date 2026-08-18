@@ -880,22 +880,18 @@ between types \(A\) and \(B\).
 
 Identification in the baseline model rests on the violation of the
 conditional Markov property caused by misclassification. An independent
-source of evidence for misclassification is the existence of respondents
-who exhibit obviously erroneous answers to other survey questions.
+source of evidence for misclassification is the existence of linked records
+with implausible progressions in other variables.
 Deterministic variables --- such as age, which can only remain constant
 or increase by exactly one year between quarterly waves, or education
 level, which is non-decreasing and constrained in how rapidly it can
-advance --- provide a clean signal of unreliable survey responses.
+advance --- provide a signal of unreliable linked records.
 
-If a respondent misreports age or education, they are plausibly more
-likely to have also misreported their employment status. Incorporating
-inconsistency indicators into the misclassification probability
-therefore (i) increases the model's ability to identify \(\pi\), and
-(ii) provides a direct empirical test of the misclassification
-hypothesis: a significant positive coefficient on an inconsistency
-indicator means that workers who demonstrably misreport one variable
-also exhibit employment transition patterns consistent with
-misclassification error.
+An incorrect response or an incorrect match can affect age or education and
+employment status together. Incorporating inconsistency indicators into the
+misclassification probability therefore provides a test of whether unreliable
+linked records exhibit employment transition patterns consistent with more
+misclassification, without assigning the association to one source of error.
 
 \subsubsection{Inconsistency indicators}
 \label{sec:incons_indicators}

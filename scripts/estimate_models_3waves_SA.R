@@ -1094,10 +1094,11 @@ model_mle_3w_ar1_covariates2 <- maxLik::maxLik(
 
 df_estimate <- df_qlfs_age_educ %>% 
   mutate(age_inconsistent = if_else(
-    (abs(age1 - age2) > 1) | (abs(age2 - age3) > 1), 1L, 0L
+    !((age2 - age1) %in% c(0, 1)) | !((age3 - age2) %in% c(0, 1)), 1L, 0L
   )) %>% 
   mutate(educ_inconsistent = if_else(
-    (educ2 - educ1 > 1) | (educ2 - educ1 < 0) | (educ3 - educ2 < 0) | (educ3 - educ2 < 0), 1L, 0L
+    (educ2 - educ1 > 1) | (educ2 - educ1 < 0) |
+      (educ3 - educ2 > 1) | (educ3 - educ2 < 0), 1L, 0L
   )) 
 
 

@@ -50,6 +50,8 @@ source(file.path(.ext_r, "em_driver_covariates.R"), local = FALSE)
 source(file.path(.ext_r, "estep_fmm.R"),     local = FALSE)
 source(file.path(.ext_r, "mstep_fmm.R"),     local = FALSE)
 source(file.path(.ext_r, "em_driver_fmm.R"), local = FALSE)
+source(file.path(.baseline_r, "mle_baseline.R"), local = FALSE)
+source(file.path(.ext_r, "mle_fmm.R"),       local = FALSE)
 
 # Extension IV: Inconsistency
 source(file.path(.ext_r, "estep_inconsistency.R"),     local = FALSE)

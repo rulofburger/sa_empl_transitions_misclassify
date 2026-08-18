@@ -902,98 +902,116 @@ names(fmm_implied) <- fmm_labels
 # ------------------------------------------------------------------------------
 
 cat("\n--- Building inconsistency table ---\n")
+audit_path <- here::here("EM-baseline-ext", "output", "results",
+                         "fit_table6_inconsistency_audit.rds")
+if (!file.exists(audit_path))
+  stop("Missing Table 6 estimates. Run EM-baseline-ext/replicate_table6.R first.")
+incons_audit <- readRDS(audit_path)
 
-incons_labels      <- c("incons_sym_stat", "incons_sym_free")
-incons_col_headers <- c("", "(1)", "(2)")
-incons_sub_headers <- c(
-  paste(c("", "Stationary", "Free $\\alpha$"), collapse = " & ") %+% " \\\\"
-)
-
-incons_fits <- lapply(incons_labels, function(lbl) .load_fit(lbl, "EM-baseline-ext"))
-names(incons_fits) <- incons_labels
-
-incons_boots <- lapply(incons_labels, function(lbl) .load_boot(lbl, boot_ext_dir))
-names(incons_boots) <- incons_labels
-incons_se    <- lapply(incons_boots, .se_map)  # named SE vectors for O(1) lookup
-
-df_incons_tbl <- compute_inconsistencies(df_ext)
-if (nrow(df_incons_tbl) != nrow(df_ext))
-  stop(sprintf(
-    "compute_inconsistencies returned %d rows; expected %d (= nrow(df_ext)).",
-    nrow(df_incons_tbl), nrow(df_ext)
-  ))
-inc_mat_tbl   <- as.matrix(df_incons_tbl[, c("Y_age_1", "Y_age_2", "Y_age_3",
-                                               "Y_edu_1", "Y_edu_2", "Y_edu_3")])
-
-incons_implied <- lapply(incons_labels, function(lbl) {
-  fit <- incons_fits[[lbl]]
-  if (is.null(fit)) return(NULL)
-  tryCatch(implied_inconsistency(fit$params, inc_mat_tbl), error = function(e) NULL)
-})
-names(incons_implied) <- incons_labels
-
-.incons_pct_row <- function(qty_name, row_label) {
-  cells <- lapply(incons_labels, function(lbl) {
-    imp <- incons_implied[[lbl]]
-    v   <- if (!is.null(imp)) imp[[qty_name]] else NA_real_
-    if (is.null(v)) v <- NA_real_
-    se  <- .get_se(incons_se[[lbl]], qty_name)
-    .fmt_pct(v, se)
-  })
-  list(
-    est = c(row_label, sapply(cells, `[[`, 1L)),
-    se  = c("",        sapply(cells, `[[`, 2L))
-  )
+.audit_lookup <- function(tbl, quantity, estimate_col = "estimate",
+                          se_col = "std_error") {
+  i <- match(quantity, tbl$quantity)
+  if (is.na(i)) return(c(NA_real_, NA_real_))
+  c(tbl[[estimate_col]][i], tbl[[se_col]][i])
+}
+.audit_row <- function(tbl, quantity, label, probability = TRUE,
+                       estimate_col = "estimate", se_col = "std_error") {
+  x <- .audit_lookup(tbl, quantity, estimate_col, se_col)
+  cell <- if (probability) .fmt_pct(x[1L], x[2L]) else .fmt_param(x[1L], x[2L])
+  list(est = c(label, cell[1L]), se = c("", cell[2L]))
 }
 
-.incons_param_row <- function(idx, row_label) {
-  cells <- lapply(incons_labels, function(lbl) {
-    fit <- incons_fits[[lbl]]
-    if (is.null(fit) || is.null(fit$params$delta)) return(c("---", "(---)"))
-    v  <- fit$params$delta[idx]
-    se <- NA_real_  # delta SEs not yet bootstrapped
-    .fmt_param(v, se)
-  })
-  list(
-    est = c(row_label, sapply(cells, `[[`, 1L)),
-    se  = c("",        sapply(cells, `[[`, 2L))
-  )
+main_tbl <- incons_audit$table
+.main_row <- function(quantity, label, probability = TRUE) {
+  .audit_row(main_tbl, quantity, label, probability,
+             "estimate_free", "std_error_free")
 }
-
 .write_latex_table(
-  col_headers = incons_col_headers,
-  row_data    = list(
+  col_headers = c("", "(1)"),
+  sub_headers = paste(c("", "Free $\\alpha$"), collapse = " & ") %+% " \\\\ ",
+  row_data = list(
     list(header = "Transition parameters", rows = list(
-      .incons_pct_row("entry_rate",      "Entry rate $\\theta_0$ (\\%)"),
-      .incons_pct_row("exit_rate",       "Exit rate $1-\\theta_1$ (\\%)"),
-      .incons_pct_row("employment_rate", "Employment rate $\\alpha^*$ (\\%)")
+      .main_row("entry_rate", "Entry rate $\\theta_0$ (\\%)"),
+      .main_row("exit_rate", "Exit rate $1-\\theta_1$ (\\%)"),
+      .main_row("initial_employment", "Initial employment $\\alpha$ (\\%)")
     )),
-    list(header = "Misclassification (logistic link)", rows = list(
-      .incons_param_row(1L, "$\\delta_0$ (intercept)"),
-      .incons_param_row(2L, "$\\delta_1$ (age incons.)"),
-      .incons_param_row(3L, "$\\delta_2$ (educ. incons.)"),
-      .incons_pct_row("pi_base", "$\\pi^{\\text{base}}$ (\\%)"),
-      .incons_pct_row("mean_pi", "Mean $\\bar{\\pi}$ (\\%)")
+    list(header = "Misclassification probabilities", rows = list(
+      .main_row("pi_base", "No inconsistency (\\%)"),
+      .main_row("pi_age", "Age inconsistency (\\%)"),
+      .main_row("age_effect", "Age increment (p.p.)"),
+      .main_row("pi_education", "Education inconsistency (\\%)"),
+      .main_row("education_effect", "Education increment (p.p.)"),
+      .main_row("pi_both", "Both inconsistencies (\\%)"),
+      .main_row("mean_pi_survey_weighted", "Survey-weighted mean (\\%)")
+    )),
+    list(header = "Logistic-link coefficients", rows = list(
+      .main_row("delta0", "$\\delta_0$ (intercept)", FALSE),
+      .main_row("delta_age", "$\\delta_1$ (age inconsistency)", FALSE),
+      .main_row("delta_education", "$\\delta_2$ (education inconsistency)", FALSE)
     )),
     list(header = NULL, rows = list(
-      list(
-        est = c("Log-likelihood", vapply(incons_labels, function(lbl) {
-          fit <- incons_fits[[lbl]]
-          if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
-        }, character(1L))),
-        se = rep("", 3L)
-      ),
-      list(
-        est = c("$N$", rep(.fmt_n(N_ext), 2L)),
-        se  = rep("", 3L)
-      )
+      list(est = c("Log-likelihood", .fmt_ll(incons_audit$free$loglik)), se = c("", "")),
+      list(est = c("$N$", .fmt_n(N_ext)), se = c("", ""))
     ))
   ),
-  caption     = "Inconsistency-augmented EM model: implied probabilities",
-  label       = "tab:inconsistency",
-  path        = file.path(tables_ext_dir, "table_inconsistency.tex"),
-  sub_headers = incons_sub_headers,
-  note        = sprintf("Implied rates in \\%%. $\\delta$ SEs pending bootstrap. Bootstrap SE for other quantities ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
+  caption = "Inconsistency-augmented model with free initial employment probability",
+  label = "tab:inconsistency",
+  path = file.path(tables_ext_dir, "table_inconsistency.tex"),
+  note = "Probabilities and increments are in percent or percentage points. Analytical standard errors in parentheses use the survey-weighted sandwich covariance and delta method. An inconsistency indicates an unreliable linked record and may arise from response error or an incorrect panel match. Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$."
+)
+
+group_tbl <- incons_audit$reliability_group_table
+.write_latex_table(
+  col_headers = c("", "(1)"),
+  row_data = list(
+    list(header = "Reliable records", rows = list(
+      .audit_row(group_tbl, "entry_reliable", "Entry rate (\\%)"),
+      .audit_row(group_tbl, "exit_reliable", "Exit rate (\\%)"),
+      .audit_row(group_tbl, "initial_reliable", "Initial employment (\\%)")
+    )),
+    list(header = "Records with any inconsistency", rows = list(
+      .audit_row(group_tbl, "entry_unreliable", "Entry rate (\\%)"),
+      .audit_row(group_tbl, "exit_unreliable", "Exit rate (\\%)"),
+      .audit_row(group_tbl, "initial_unreliable", "Initial employment (\\%)")
+    )),
+    list(header = "Misclassification probabilities", rows = list(
+      .audit_row(group_tbl, "pi_base", "No inconsistency (\\%)"),
+      .audit_row(group_tbl, "pi_age", "Age inconsistency (\\%)"),
+      .audit_row(group_tbl, "age_effect", "Age increment (p.p.)"),
+      .audit_row(group_tbl, "pi_education", "Education inconsistency (\\%)"),
+      .audit_row(group_tbl, "education_effect", "Education increment (p.p.)"),
+      .audit_row(group_tbl, "mean_pi_survey_weighted", "Survey-weighted mean (\\%)")
+    )),
+    list(header = NULL, rows = list(list(est = c("$N$", .fmt_n(N_ext)), se = c("", ""))))
+  ),
+  caption = "Robustness: true transition rates by record-reliability group",
+  label = "tab:inconsistency_reliability",
+  path = file.path(tables_ext_dir, "table_inconsistency_reliability.tex"),
+  note = "The true transition process and initial employment probability may differ between records with and without any age or education inconsistency. Other conventions follow Table~\\ref{tab:inconsistency}."
+)
+
+extent_tbl <- incons_audit$extent_table
+.write_latex_table(
+  col_headers = c("", "(1)"),
+  row_data = list(
+    list(header = "Age inconsistencies", rows = list(
+      .audit_row(extent_tbl, "pi_age_mild", "Mild inconsistency (\\%)"),
+      .audit_row(extent_tbl, "pi_age_severe", "Severe inconsistency (\\%)"),
+      .audit_row(extent_tbl, "age_severity_effect", "Severe--mild difference (p.p.)"),
+      .audit_row(extent_tbl, "delta_age_severe", "Severe increment, logit scale", FALSE)
+    )),
+    list(header = "Education inconsistencies", rows = list(
+      .audit_row(extent_tbl, "pi_education_mild", "Mild inconsistency (\\%)"),
+      .audit_row(extent_tbl, "pi_education_severe", "Severe inconsistency (\\%)"),
+      .audit_row(extent_tbl, "education_severity_effect", "Severe--mild difference (p.p.)"),
+      .audit_row(extent_tbl, "delta_education_severe", "Severe increment, logit scale", FALSE)
+    )),
+    list(header = NULL, rows = list(list(est = c("$N$", .fmt_n(N_ext)), se = c("", ""))))
+  ),
+  caption = "Robustness: misclassification by inconsistency severity",
+  label = "tab:inconsistency_extent",
+  path = file.path(tables_ext_dir, "table_inconsistency_extent.tex"),
+  note = "A severe inconsistency lies at least two units beyond the admissible zero-to-one progression between waves. Analytical standard errors are in parentheses."
 )
 
 cat("\n\nAll tables written.\n")

@@ -309,6 +309,8 @@ implied_fmm <- function(params, model_type = "symmetric") {
 #' @param incons_mat  N × 6 integer matrix of inconsistency indicators.  Columns
 #'   must be ordered: \code{Y_age_1, Y_age_2, Y_age_3, Y_edu_1, Y_edu_2,
 #'   Y_edu_3}.
+#' @param weights Optional positive survey-weight vector. Equal weights are used
+#'   when omitted.
 #'
 #' @return A named list:
 #'   \describe{
@@ -328,7 +330,7 @@ implied_fmm <- function(params, model_type = "symmetric") {
 #'               delta = c(-2.2, 0.5, 0.3))
 #' imat  <- matrix(rbinom(300, 1, 0.1), ncol = 6)
 #' implied_inconsistency(p, imat)
-implied_inconsistency <- function(params, incons_mat) {
+implied_inconsistency <- function(params, incons_mat, weights = NULL) {
   stopifnot(
     is.list(params),
     is.numeric(params$theta0), length(params$theta0) == 1L, !is.na(params$theta0),
@@ -342,6 +344,10 @@ implied_inconsistency <- function(params, incons_mat) {
     stop("implied_inconsistency: incons_mat contains NA values.")
   if (!all(incons_mat %in% c(0L, 1L)))
     stop("implied_inconsistency: incons_mat values must be 0 or 1.")
+  if (is.null(weights)) weights <- rep(1, nrow(incons_mat))
+  if (!is.numeric(weights) || length(weights) != nrow(incons_mat) ||
+      anyNA(weights) || any(!is.finite(weights)) || any(weights <= 0))
+    stop("implied_inconsistency: weights must be finite, positive, and have one value per row.")
 
   theta0 <- params$theta0
   theta1 <- params$theta1
@@ -356,7 +362,8 @@ implied_inconsistency <- function(params, incons_mat) {
   linpred_mat <- delta[1L] +
                  delta[2L] * incons_mat[, 1:3, drop = FALSE] +
                  delta[3L] * incons_mat[, 4:6, drop = FALSE]
-  mean_pi <- mean(0.5 * plogis(linpred_mat))
+  pi_mat <- 0.5 * plogis(linpred_mat)
+  mean_pi <- sum(weights * rowSums(pi_mat)) / (3 * sum(weights))
 
   pi_base <- 0.5 * plogis(delta[1L])   # misclassification at zero flags
 

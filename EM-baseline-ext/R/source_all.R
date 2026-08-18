@@ -76,6 +76,7 @@ source(file.path(.ext_r, "em_driver_covariates.R"))
 source(file.path(.ext_r, "estep_fmm.R"))
 source(file.path(.ext_r, "mstep_fmm.R"))
 source(file.path(.ext_r, "em_driver_fmm.R"))
+source(file.path(.ext_r, "mle_fmm.R"))
 
 # ---- 6. Extension IV: Inconsistency-augmented misclassification (GEM)
 source(file.path(.ext_r, "estep_inconsistency.R"))

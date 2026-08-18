@@ -44,10 +44,20 @@ covariates change between transitions → **10 models** in total.
 
 Individuals belong to one of two latent employment types (A = stable/high
 persistence, B = unstable/low persistence) with unknown mixing weight φ. All
-M-step updates are in closed form. Label switching is resolved post-convergence
-by enforcing θ₁ᴬ ≥ θ₁ᴮ.
+free-initial-condition M-step updates are in closed form. Label switching is
+resolved post-convergence by enforcing θ₁ᴬ ≥ θ₁ᴮ. Under stationarity, however,
+the initial-state likelihood couples each type's transition parameters, so the
+legacy closed-form transition update is not an exact stationary M-step.
 
 Symmetric and no-error model × stationary and free α → **4 models**.
+
+**Identification warning.** The direct eight-cell likelihood audit in
+`estimate_fmm_table5.R` finds local Jacobian ranks 4/5 (no error, stationary),
+4/6 (symmetric, stationary), 7/7 (no error, free), and 7/8 (symmetric, free).
+Thus three binary waves do not identify three of the four Table 5 columns; in
+particular, the symmetric-error FMM cannot separately identify π from type
+heterogeneity. Numerical values in those columns are points on likelihood
+ridges and do not have unique structural interpretations or standard errors.
 
 ### Extension IV: Inconsistency-augmented misclassification
 
@@ -56,10 +66,18 @@ Wave-specific misclassification probability:
 
 where σ(·) is the logistic function, ensuring πᵢₜ ∈ (0, ½). Inconsistency
 indicators are computed from age and education reports across waves (see
-`compute_inconsistencies.R`). The δ vector is updated via one Newton–Raphson
-(Fisher scoring) step per EM iteration (GEM guarantee).
+`compute_inconsistencies.R`). The production Table 6 estimates the exact
+observed-data likelihood on collapsed outcome/indicator cells, uses a free
+initial employment probability, and reports analytical survey-weighted
+sandwich/delta-method standard errors. The EM implementation remains available;
+its stationary transition block now jointly maximises the complete-data
+objective because stationarity couples the initial probability to both
+transition parameters.
 
-Symmetric model only × stationary and free α → **2 models**.
+Robustness specifications allow the true transition process to differ between
+records with and without an inconsistency and allow misclassification to differ
+between mild and severe inconsistencies. The indicators are interpreted as
+linked-record reliability measures that encompass response and matching errors.
 
 ## File Structure
 
@@ -67,6 +85,8 @@ Symmetric model only × stationary and free α → **2 models**.
 EM-baseline-ext/
 ├── estimate_extensions_pipeline.R   # Main estimation script
 ├── estimate_analytical_se_table4.R  # Sandwich/delta SEs for Table 4
+├── estimate_fmm_table5.R             # Direct-MLE replication + rank audit
+├── replicate_table6.R                # Direct MLE, analytical SEs, robustness
 ├── README.md                        # This file
 ├── R/
 │   ├── source_all.R                 # Sources all extension modules
@@ -80,6 +100,7 @@ EM-baseline-ext/
 │   ├── estep_fmm.R                  # E-step: 2-type FMM
 │   ├── mstep_fmm.R                  # M-step: closed form for FMM + label switch
 │   ├── em_driver_fmm.R              # Driver + init + loglik: FMM
+│   ├── mle_fmm.R                    # Exact eight-cell FMM MLE + rank diagnostics
 │   ├── estep_inconsistency.R        # E-step: inconsistency model
 │   ├── mstep_inconsistency.R        # M-step: NR GEM for δ
 │   ├── em_driver_inconsistency.R    # Driver + init + loglik: inconsistency

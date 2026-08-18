@@ -196,6 +196,20 @@ test_that("implied_inconsistency pi_base is 0.5 * plogis(delta[1])", {
   expect_equal(out$mean_pi, expected_pi_base, tolerance = 1e-12)
 })
 
+test_that("implied_inconsistency uses supplied survey weights for mean_pi", {
+  p <- list(theta0 = 0.10, theta1 = 0.90, alpha = 0.5,
+            delta = c(-3, 3, 0))
+  imat <- matrix(0L, nrow = 2L, ncol = 6L)
+  imat[1L, 1:3] <- 1L
+  unweighted <- implied_inconsistency(p, imat)$mean_pi
+  weighted <- implied_inconsistency(p, imat, weights = c(1, 100))$mean_pi
+  expect_lt(weighted, unweighted)
+  expect_equal(weighted,
+    (sum(0.5 * plogis(p$delta[1L] + p$delta[2L] * imat[1L, 1:3])) +
+       100 * sum(0.5 * plogis(p$delta[1L] + p$delta[2L] * imat[2L, 1:3]))) /
+      (3 * 101))
+})
+
 test_that("implied_inconsistency errors on wrong ncol of incons_mat", {
   p    <- list(theta0 = 0.10, theta1 = 0.90, alpha = 0.5,
                delta = c(-2.2, 0.5, 0.3))

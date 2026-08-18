@@ -121,26 +121,26 @@ misclassification resolves the implausible coin-flip type.
 \subsection{Inconsistency-augmented misclassification}\label{subsec:results:inconsistency}
 
 Table~\ref{tab:inconsistency} reports the results of the inconsistency-augmented
-model. If misclassification in employment status is driven by the same underlying
-propensity for survey response error that generates age and education
-inconsistencies, then conditioning misclassification on inconsistency indicators
-should significantly improve the model fit, and the coefficient on the
-inconsistency indicators should be positive and significant.
+model. Both response error and incorrect panel linkage can generate age or
+education inconsistencies alongside employment-status misclassification.
+Conditioning misclassification on these indicators therefore tests whether
+unreliable linked records contain more misclassification-consistent employment
+histories, without attempting to distinguish the two mechanisms.
 
-The results confirm this prediction strongly. The baseline misclassification
-probability---for respondents with no age or education inconsistency---is
-estimated at $\hat{\pi}_0 = 2.22\%$, slightly lower than the homogeneous
-baseline estimate. An age inconsistency in any wave pair raises the estimated
-misclassification probability by 15.72 percentage points, and an education
-inconsistency raises it by 4.22 percentage points, both statistically
-significant at conventional levels. The implied mean misclassification
-probability across the full sample, integrating over the distribution of
-inconsistency indicators, is 3.40\%.
+In the preferred free-initial-probability specification, the baseline
+misclassification probability for a wave with no attributed age or education
+inconsistency is 2.26\%. An age inconsistency raises the estimated probability
+by 15.74 percentage points and an education inconsistency raises it by 4.24
+percentage points. The survey-weighted mean misclassification probability is
+3.35\%. All three estimates are reported with analytical standard errors in
+Table~\ref{tab:inconsistency}.
 
-These results support the interpretation that misclassification is driven by
-genuine survey measurement error rather than by model misspecification.
-Respondents who produce objectively incorrect responses to verifiable questions
-(age and education) are substantially more likely to produce
-misclassification-consistent employment dynamics. This mechanism evidence
-is independent of the employment status data itself and cannot be explained
-by heterogeneity in true transition rates.
+These estimates show that unreliable linked records are substantially more
+likely to exhibit employment histories that the model attributes to
+misclassification. They do not distinguish response error from incorrect panel
+matches: either mechanism can jointly generate inconsistent demographic
+responses and implausible employment sequences. The association remains large
+when the true entry and exit processes are allowed to differ between records
+with and without any inconsistency (Table~\ref{tab:inconsistency_reliability}).
+It is also increasing in severity for age inconsistencies, while the severity
+gradient is much smaller for education (Table~\ref{tab:inconsistency_extent}).

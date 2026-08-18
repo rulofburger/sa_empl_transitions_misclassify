@@ -203,27 +203,27 @@ additional violations residual to the type structure are attributed to $\pi$.
 
 \subsubsection{Inconsistency-augmented misclassification}\label{subsubsec:inconsistency}
 
-If misclassification is driven by survey response error, respondents who make
-other types of survey errors should also have higher misclassification rates.
-We test this prediction by allowing $\pi$ to depend on an indicator of survey
-unreliability. Specifically, we define:
+Employment-status misclassification may arise either because a respondent's
+status is recorded incorrectly or because observations belonging to different
+people are incorrectly linked across waves. Both mechanisms should be associated
+with inconsistencies in other characteristics of the linked record. We therefore
+allow $\pi$ to depend on wave-attributed indicators of record unreliability:
 \begin{itemize}
-  \item $A_i = 1$ if individual $i$ has an age inconsistency in any wave pair;
-  \item $E_i = 1$ if individual $i$ has an education inconsistency in any wave pair.
+  \item $A_{it}=1$ if an age inconsistency is attributed to wave $t$;
+  \item $E_{it}=1$ if an education inconsistency is attributed to wave $t$.
 \end{itemize}
 We then estimate the generalised model:
 \[
-  \pi_i = \mathrm{logit}^{-1}(\beta_0 + \beta_1 A_i + \beta_2 E_i),
+  \pi_{it} = \tfrac{1}{2}\mathrm{logit}^{-1}
+  (\delta_0 + \delta_1 A_{it} + \delta_2 E_{it}),
 \]
-where $\mathrm{logit}^{-1}(x) = e^x/(1+e^x)$ ensures that $\pi_i \in (0,1)$.
-The identifying variation comes from whether the inconsistency is attributed
-to the first, second, or third wave of the triad. We use a wave-attribution
-rule based on the sign of the change in the inconsistent variable to assign
-each inconsistency to the wave most likely responsible, and we then condition
-$\pi_i$ on the presence of a second-wave attribution (since a first-wave error
-in the first-wave status and a third-wave error in the third-wave status
-would be absorbed into the initial and terminal probabilities). The details of
-the attribution rule are described in Appendix~\ref{app:baseline}.
+where the factor one-half imposes $\pi_{it}<0.5$. Pairwise discrepancies are
+attributed to the first, middle, or final wave using the rule described in
+Appendix~\ref{app:baseline}. The main specification estimates the initial
+employment probability freely and reports the survey-weighted mean of
+$\pi_{it}$. As robustness checks, we allow the true transition process to differ
+between records with and without any inconsistency and distinguish mild from
+severe inconsistencies.
 
 \subsubsection{AR(2) extension}\label{subsubsec:ar2}
 
