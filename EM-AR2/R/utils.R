@@ -57,3 +57,37 @@
 #' @return lhs if !is.null(lhs), else rhs.
 #' @keywords internal
 `%||%` <- function(lhs, rhs) if (!is.null(lhs)) lhs else rhs
+
+#' Collapse a four-wave panel to its 16 observed histories
+#'
+#' The likelihood and EM responsibilities are identical for observations with
+#' the same four binary outcomes.  Collapsing therefore makes estimation on
+#' the full QLFS panel fast while retaining squared weights and counts needed
+#' for individual-level sandwich standard errors.
+collapse_ar2_cells <- function(df) {
+  required <- c("y1", "y2", "y3", "y4", "weight")
+  missing <- setdiff(required, names(df))
+  if (length(missing))
+    stop("collapse_ar2_cells: missing columns: ", paste(missing, collapse = ", "))
+  y <- as.matrix(df[, paste0("y", 1:4), drop = FALSE])
+  if (anyNA(y) || !all(y %in% 0:1))
+    stop("collapse_ar2_cells: y1-y4 must be non-missing binary values")
+  if (anyNA(df$weight) || any(!is.finite(df$weight)) || any(df$weight <= 0))
+    stop("collapse_ar2_cells: weights must be finite and strictly positive")
+
+  index <- 1L + y[, 1L] + 2L * y[, 2L] + 4L * y[, 3L] + 8L * y[, 4L]
+  histories <- as.data.frame(expand.grid(y1 = 0:1, y2 = 0:1,
+                                         y3 = 0:1, y4 = 0:1))
+  weight <- weight_sq <- numeric(16L)
+  count <- tabulate(index, nbins = 16L)
+  sw <- rowsum(df$weight, index, reorder = FALSE)
+  sw2 <- rowsum(df$weight^2, index, reorder = FALSE)
+  weight[as.integer(rownames(sw))] <- sw[, 1L]
+  weight_sq[as.integer(rownames(sw2))] <- sw2[, 1L]
+  cells <- cbind(histories, weight = weight,
+                 weight_sq = weight_sq, count = count)
+  cells <- cells[cells$count > 0L, , drop = FALSE]
+  attr(cells, "n_obs") <- nrow(df)
+  attr(cells, "weight_sum") <- sum(df$weight)
+  cells
+}

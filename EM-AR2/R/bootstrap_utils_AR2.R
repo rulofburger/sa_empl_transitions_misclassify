@@ -55,11 +55,12 @@
       pattern, results_dir
     ), "Run estimate_pipeline.R first to produce point estimates.")
   }
-  # Primary sort: file modification time (handles timestamp ties within a second).
-  # Secondary sort: basename descending (deterministic tiebreaker for identical mtimes).
-  mtimes  <- file.mtime(matches)
-  bases   <- basename(matches)
-  ordered <- matches[order(mtimes, bases, decreasing = TRUE)]
+  # Timestamped names are the audit trail; modification times may change when
+  # results are copied or restored and therefore cannot identify the latest run.
+  bases <- basename(matches)
+  stamp <- sub(sprintf("^em_ar2_%s_([0-9]{8}_[0-9]{6}).*$", model_key),
+               "\\1", bases)
+  ordered <- matches[order(stamp, bases, decreasing = TRUE)]
   ordered[[1L]]
 }
 

@@ -30,17 +30,21 @@
 #' @export
 init_params_ar2 <- function(df, pi_init = 0.05) {
   y <- as.matrix(df[, c("y1", "y2", "y3", "y4")])
+  w <- df$weight %||% rep(1, nrow(df))
+  transition_w <- rep(w, 3L)
 
   # Observed transition frequencies (crude moments, ignoring misclassification)
   # Job-finding: fraction of non-employed who become employed in the next wave
-  from0 <- which(y[, -4] == 0)
-  to1   <- which(y[, -1][from0] == 1)
-  theta0_init <- if (length(from0) > 0) length(to1) / length(from0) else 0.1
+  from0 <- as.vector(y[, -4, drop = FALSE] == 0)
+  to1 <- as.vector(y[, -1, drop = FALSE] == 1)
+  theta0_init <- if (any(from0))
+    weighted.mean(to1[from0], transition_w[from0]) else 0.1
 
   # Separation: fraction of employed who become non-employed in the next wave
-  from1 <- which(y[, -4] == 1)
-  to0   <- which(y[, -1][from1] == 0)
-  theta1_init <- if (length(from1) > 0) length(to0) / length(from1) else 0.1
+  from1 <- !from0
+  to0 <- !to1
+  theta1_init <- if (any(from1))
+    weighted.mean(to0[from1], transition_w[from1]) else 0.1
 
   theta0  <- .bound01(theta0_init, eps = 0.01)
   theta01 <- 0.05   # Start near zero: no duration-dependence by default
@@ -87,9 +91,9 @@ params_from_values <- function(theta0, theta01, theta1, theta10,
                                 pi = 0.05, pi0 = NULL, pi1 = NULL,
                                 alpha = NULL) {
   theta0  <- .bound01(theta0)
-  theta01 <- max(theta01, 1e-6)
+  theta01 <- max(theta01, 0)
   theta1  <- .bound01(theta1)
-  theta10 <- max(theta10, 1e-6)
+  theta10 <- max(theta10, 0)
 
   if (theta0 + theta01 >= 1) {
     stop("params_from_values: theta0 + theta01 must be < 1. ",
@@ -136,9 +140,13 @@ params_from_values <- function(theta0, theta01, theta1, theta10,
 #' @param max_iter Maximum EM iterations (default 500).
 #' @param tol Convergence tolerance on relative log-likelihood change
 #'   (default 1e-8).
+#' @param param_tol Convergence tolerance on the largest EM parameter update.
+#'   Requiring both criteria avoids premature convergence on a flat likelihood.
 #' @param pi_cap Maximum misclassification probability allowed (default 0.49).
 #' @param verbose Integer; 0=silent, 1=final summary, 2=every 10 iterations,
 #'   3=every iteration (default 1).
+#' @param collapse_cells Logical; collapse identical observed histories before
+#'   EM. This is likelihood-equivalent and strongly recommended for large data.
 #' @return Named list:
 #'   - params: final parameter estimates (named list)
 #'   - loglik: final observed-data log-likelihood
@@ -162,8 +170,10 @@ em_fit_ar2 <- function(df,
                         asymmetric   = FALSE,
                         max_iter     = 500L,
                         tol          = 1e-8,
+                        param_tol    = 1e-8,
                         pi_cap       = 0.49,
-                        verbose      = 1L) {
+                        verbose      = 1L,
+                        collapse_cells = TRUE) {
   # --- Validate inputs ---
   required_cols <- c("y1", "y2", "y3", "y4", "weight")
   missing_cols <- setdiff(required_cols, names(df))
@@ -171,9 +181,20 @@ em_fit_ar2 <- function(df,
     stop("em_fit_ar2: missing columns in df: ", paste(missing_cols, collapse = ", "))
   }
 
+  y_original <- as.matrix(df[, c("y1", "y2", "y3", "y4")])
+  if (any(is.na(y_original))) stop("em_fit_ar2: NA values in y1-y4 are not allowed.")
+  if (!all(y_original %in% c(0L, 1L)))
+    stop("em_fit_ar2: ymat must contain only 0/1 values.")
+  if (any(is.na(df$weight))) stop("em_fit_ar2: NA values in weights are not allowed.")
+  if (any(!is.finite(df$weight)) || any(df$weight <= 0))
+    stop("em_fit_ar2: all weights must be finite and positive.")
+
+  N_original <- nrow(df)
+  df_em <- if (isTRUE(collapse_cells)) collapse_ar2_cells(df) else df
+
   # Prepare matrices
-  ymat <- as.matrix(df[, c("y1", "y2", "y3", "y4")])
-  w    <- df$weight
+  ymat <- as.matrix(df_em[, c("y1", "y2", "y3", "y4")])
+  w    <- df_em$weight
   N    <- nrow(ymat)
 
   if (any(is.na(ymat)))             stop("em_fit_ar2: NA values in y1-y4 are not allowed.")
@@ -186,7 +207,7 @@ em_fit_ar2 <- function(df,
 
   # Initialise parameters
   if (is.null(params0)) {
-    params <- init_params_ar2(df)
+    params <- init_params_ar2(df_em)
   } else {
     params <- params0
   }
@@ -196,6 +217,12 @@ em_fit_ar2 <- function(df,
     params$pi <- fixed_pi
   }
 
+  if (asymmetric) {
+    params$pi0 <- params$pi0 %||% params$pi %||% 0.05
+    params$pi1 <- params$pi1 %||% params$pi %||% 0.05
+    params$pi <- NULL
+  }
+
   # Mark asymmetric flag inside params so e_step / m_step know which path
   params$asymmetric <- asymmetric
 
@@ -203,6 +230,7 @@ em_fit_ar2 <- function(df,
   loglik_prev <- -Inf
   history_rows <- vector("list", max_iter)
   gamma <- NULL
+  converged <- FALSE
 
   for (iter in seq_len(max_iter)) {
     # E-step
@@ -210,6 +238,22 @@ em_fit_ar2 <- function(df,
     loglik     <- estep_out$loglik
     gamma      <- estep_out$gamma
     ss         <- estep_out$sufficient_stats
+
+    # Form the next EM update before checking convergence. A flat likelihood
+    # alone is insufficient: weakly identified parameters may still be moving.
+    new_params <- m_step_ar2(ss,
+      estimate_pi = estimate_pi,
+      fixed_pi    = fixed_pi,
+      asymmetric  = asymmetric,
+      pi_cap      = pi_cap
+    )
+    new_params$asymmetric <- asymmetric
+    tracked <- intersect(c("theta0", "theta01", "theta1", "theta10",
+                           "pi", "pi0", "pi1"), names(new_params))
+    param_change <- max(c(
+      abs(unlist(new_params[tracked]) - unlist(params[tracked])),
+      abs(new_params$alpha - params$alpha)
+    ))
 
     # Convergence check (after first iteration)
     if (iter > 1) {
@@ -228,13 +272,14 @@ em_fit_ar2 <- function(df,
           "This may indicate a numerical issue.")
       }
 
-      if (rel_change < tol) {
+      if (rel_change < tol && param_change < param_tol) {
         if (verbose >= 1L) {
           cat(sprintf("EM-AR2: converged at iteration %d. LL = %.4f\n",
                       iter, loglik))
         }
         # Record final state and break
         history_rows[[iter]] <- .params_to_row(params, loglik, iter)
+        converged <- TRUE
         break
       }
     }
@@ -244,14 +289,6 @@ em_fit_ar2 <- function(df,
     # Record parameter history
     history_rows[[iter]] <- .params_to_row(params, loglik, iter)
 
-    # M-step
-    new_params <- m_step_ar2(ss,
-      estimate_pi = estimate_pi,
-      fixed_pi    = fixed_pi,
-      asymmetric  = asymmetric,
-      pi_cap      = pi_cap
-    )
-    new_params$asymmetric <- asymmetric
     params <- new_params
 
     if (iter == max_iter) {
@@ -261,7 +298,6 @@ em_fit_ar2 <- function(df,
     }
   }
 
-  converged  <- iter < max_iter
   iterations <- iter
 
   # Use gamma and loglik from the final EM loop iteration (already saved)
@@ -289,7 +325,11 @@ em_fit_ar2 <- function(df,
     history    = history,
     converged  = converged,
     iterations = iterations,
-    gamma      = gamma
+    gamma      = gamma,
+    cells      = df_em,
+    n_obs      = N_original,
+    estimator  = "collapsed_cell_em",
+    diagnostics = list(fixed_point_error = param_change)
   )
 }
 

@@ -6,7 +6,20 @@
 #   source("EM-AR2/R/source_all.R")
 # ==============================================================================
 
-.em_ar2_root <- here::here("EM-AR2")
+.em_ar2_cursor <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+.em_ar2_project <- NULL
+repeat {
+  if (file.exists(file.path(.em_ar2_cursor, "EM-AR2", "R", "utils.R"))) {
+    .em_ar2_project <- .em_ar2_cursor
+    break
+  }
+  .em_ar2_parent <- dirname(.em_ar2_cursor)
+  if (identical(.em_ar2_parent, .em_ar2_cursor)) break
+  .em_ar2_cursor <- .em_ar2_parent
+}
+if (is.null(.em_ar2_project))
+  stop("Cannot locate the project root containing EM-AR2/R/utils.R.")
+.em_ar2_root <- file.path(.em_ar2_project, "EM-AR2")
 .em_ar2_r    <- file.path(.em_ar2_root, "R")
 
 # Source in dependency order:
@@ -22,14 +35,15 @@ source(file.path(.em_ar2_r, "estep.R"),              local = FALSE)
 source(file.path(.em_ar2_r, "mstep.R"),              local = FALSE)
 source(file.path(.em_ar2_r, "em_driver.R"),              local = FALSE)
 source(file.path(.em_ar2_r, "inference.R"),              local = FALSE)
+source(file.path(.em_ar2_r, "analytical_se_AR2.R"),      local = FALSE)
 # implied_quantities_AR2 depends on: latent_histories (stationary_ar2), utils (%||%)
 source(file.path(.em_ar2_r, "implied_quantities_AR2.R"), local = FALSE)
-# bootstrap_utils_AR2 depends on: em_driver (em_fit_ar2), implied_quantities_AR2
-# (implied_ar2), and EM-baseline::bootstrap_resample [external — must be
-# sourced before this file: source("EM-baseline/R/source_all.R") first].
-if (!exists("bootstrap_resample", mode = "function"))
-  stop("EM-AR2/R/source_all.R: bootstrap_resample() not found. ",
-       "Source EM-baseline/R/source_all.R before EM-AR2/R/source_all.R.")
-source(file.path(.em_ar2_r, "bootstrap_utils_AR2.R"),    local = FALSE)
+# Bootstrap helpers are optional. The core estimator and analytical inference
+# must remain independently sourceable; bootstrap_pipeline_AR2.R sources the
+# baseline resampling helper before requesting these functions.
+if (exists("bootstrap_resample", mode = "function")) {
+  source(file.path(.em_ar2_r, "bootstrap_utils_AR2.R"), local = FALSE)
+}
 
-rm(.em_ar2_root, .em_ar2_r)
+rm(list = intersect(c(".em_ar2_cursor", ".em_ar2_parent", ".em_ar2_project",
+                      ".em_ar2_root", ".em_ar2_r"), ls()))

@@ -108,10 +108,10 @@ if (!exists("df_qlfs") || !is.data.frame(df_qlfs))
   stop("ingest_data_4waves_SA.R did not produce a 'df_qlfs' data frame. ",
        "Check the ingestion script for errors.")
 
-df_raw <- df_qlfs[df_qlfs$period1 >= 30 & df_qlfs$period1 <= 32, , drop = FALSE]
+df_raw <- df_qlfs
 
 if (nrow(df_raw) == 0L)
-  stop("No observations match period1 in [30, 32]. Check data vintage or filter bounds.")
+  stop("The complete four-wave estimation sample is empty. Check the input panel.")
 if (anyNA(df_raw$weight))
   stop(sprintf("weight column contains %d NA(s). Check ingestion script.",
                sum(is.na(df_raw$weight))))

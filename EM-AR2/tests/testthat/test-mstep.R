@@ -114,3 +114,15 @@ test_that("m_step_ar2 asymmetric mode returns pi0 and pi1", {
   expect_equal(out$pi0, 30 / 400, tolerance = 1e-8)
   expect_equal(out$pi1, 20 / 600, tolerance = 1e-8)
 })
+
+test_that("m_step_ar2 uses the exact order-restricted update", {
+  ss <- .make_perfect_ss(0.1, 0.15, 0.08, 0.12)
+  # Reverse both required orderings: p10 < p00 and p11 < p01.
+  ss$T1 <- matrix(c(80, 20, 90, 50), nrow = 2, ncol = 2)
+  ss$D[,] <- 100
+  out <- m_step_ar2(ss)
+  expect_equal(out$theta01, 0, tolerance = 1e-12)
+  expect_equal(out$theta10, 0, tolerance = 1e-12)
+  expect_equal(out$.p_00_1, out$.p_10_1, tolerance = 1e-12)
+  expect_equal(out$.p_01_1, out$.p_11_1, tolerance = 1e-12)
+})

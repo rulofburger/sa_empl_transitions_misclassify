@@ -90,13 +90,27 @@ m_step_ar2 <- function(ss,
   p_01_1 <- safe_div(T1[1, 2], D[1, 2])  # P(h_t=1 | h_{t-2}=0, h_{t-1}=1)
   p_11_1 <- safe_div(T1[2, 2], D[2, 2])  # P(h_t=1 | h_{t-2}=1, h_{t-1}=1)
 
-  # Clamp to (0,1)
+  # Clamp the four unrestricted binomial estimates to (0,1).
   p_00_1 <- .bound01(p_00_1, eps = theta_eps)
   p_10_1 <- .bound01(p_10_1, eps = theta_eps)
   p_01_1 <- .bound01(p_01_1, eps = theta_eps)
   p_11_1 <- .bound01(p_11_1, eps = theta_eps)
 
-  # --- Recover AR(2) parameters from p_{jk->1} ---
+  # Enforce the paper's duration-dependence restrictions with the exact
+  # order-restricted binomial MLE.  Simple clamping is not an M-step and can
+  # decrease the observed-data likelihood.  If an ordered pair is violated,
+  # the pooled-adjacent-violators solution sets both probabilities to their
+  # exposure-weighted pooled rate.
+  if (p_10_1 < p_00_1) {
+    pooled <- safe_div(T1[1, 1] + T1[2, 1], D[1, 1] + D[2, 1])
+    p_00_1 <- p_10_1 <- .bound01(pooled, eps = theta_eps)
+  }
+  if (p_11_1 < p_01_1) {
+    pooled <- safe_div(T1[1, 2] + T1[2, 2], D[1, 2] + D[2, 2])
+    p_01_1 <- p_11_1 <- .bound01(pooled, eps = theta_eps)
+  }
+
+  # --- Recover AR(2) parameters from the constrained probabilities ---
   # theta0  = p_{00->1}
   # theta01 = p_{10->1} - p_{00->1}
   # theta1  = 1 - p_{11->1}
@@ -106,22 +120,10 @@ m_step_ar2 <- function(ss,
   theta1  <- 1 - p_11_1
   theta10 <- p_11_1 - p_01_1
 
-  # Validate recovered parameters
-  # theta01 and theta10 can in principle be negative if the transition matrix
-  # estimate is inconsistent; clamp with a small negative floor and warn.
-  if (theta01 < -0.01) {
-    warning("M-step: theta01 = ", round(theta01, 4), " < 0. ",
-            "Clamping to theta_eps. Consider checking initialisation.")
-  }
-  if (theta10 < -0.01) {
-    warning("M-step: theta10 = ", round(theta10, 4), " < 0. ",
-            "Clamping to theta_eps. Consider checking initialisation.")
-  }
-
   theta0  <- .bound01(theta0,  eps = theta_eps)
-  theta01 <- max(theta01,  theta_eps)
+  theta01 <- max(theta01,  0)
   theta1  <- .bound01(theta1,  eps = theta_eps)
-  theta10 <- max(theta10, theta_eps)
+  theta10 <- max(theta10, 0)
 
   # --- Misclassification update ---
   if (asymmetric) {
