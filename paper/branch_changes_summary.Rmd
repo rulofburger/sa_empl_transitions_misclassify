@@ -1,0 +1,219 @@
+---
+title: "Covariate-model revisions on `codex/rulof_new_work`"
+subtitle: "Changes relative to the `efficient` branch"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+geometry: margin=1in
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{amsmath}
+  - \usepackage{float}
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+project_root <- normalizePath("..", winslash = "/", mustWork = TRUE)
+
+include_tex_table <- function(relative_path, tabular_scale = NULL) {
+  path <- file.path(project_root, relative_path)
+  if (!file.exists(path)) {
+    stop("Missing generated table: ", path,
+         ". Run Rscript build_tables.R from the project root first.")
+  }
+  lines <- readLines(path, warn = FALSE)
+  if (!is.null(tabular_scale)) {
+    begin_tabular <- grep("^\\\\begin\\{tabular\\}", lines)
+    end_tabular <- grep("^\\\\end\\{tabular\\}", lines)
+    if (length(begin_tabular) != 1L || length(end_tabular) != 1L)
+      stop("Expected exactly one tabular environment in ", path)
+    lines <- append(lines, "}", after = end_tabular)
+    lines <- append(
+      lines,
+      sprintf("\\scalebox{%s}{%%", tabular_scale),
+      after = begin_tabular - 1L
+    )
+  }
+  cat(lines, sep = "\n")
+}
+```
+
+# Purpose and scope
+
+This note records the changes made on `codex/rulof_new_work` relative to the
+`efficient` branch. It concentrates on the observable-covariate extension and
+the revised version of Table 4. The baseline, finite-mixture, inconsistency,
+AR(2), and tenure specifications are not reinterpreted here because the work on
+this branch did not substantively change their economic specification.
+
+The central objective was to replace numerically unreliable covariate-model
+solutions with valid maximum-likelihood estimates, handle contract type without
+discarding non-employed respondents, add informal-sector status to Set 3, and
+report heterogeneous transition risks in a way that remains comparable with
+the paper's earlier tables.
+
+# Changes to the code and estimation approach
+
+## Numerical optimisation
+
+The covariate model is estimated by a Generalised EM algorithm. The earlier
+M-step used separate probit IRLS updates. That approach did not maximise the
+correct joint expected complete-data likelihood when the initial-state term
+coupled the entry and persistence equations, and it could return a solution
+whose likelihood was below that of the nested no-misclassification model.
+
+The revised estimator:
+
+1. normalises survey weights during optimisation to improve numerical
+   conditioning, while restoring the original likelihood scale in saved output;
+2. updates the entry and persistence coefficient blocks jointly with limited
+   BFGS steps;
+3. backtracks until both the complete-data objective and observed-data
+   likelihood are non-decreasing;
+4. uses several starting values and initializes each symmetric-error model from
+   its corresponding no-error estimate;
+5. explicitly checks that the symmetric model's maximised likelihood is no
+   lower than that of its nested no-error model; and
+6. requires both a small likelihood improvement and a small parameter change
+   before declaring convergence.
+
+These safeguards address the invalid-MLE problem directly: they alter how the
+model is estimated, rather than merely changing how its results are displayed.
+
+## Contract type and informal-sector status
+
+Contract type is structurally undefined when a respondent is not employed.
+The adopted treatment is therefore to include it only in the
+employment-persistence equation. Its coefficient in the job-entry equation is
+fixed at zero, so non-employed observations are retained instead of being
+dropped or assigned an economically artificial contract category.
+
+Set 3 now also includes an informal-sector indicator, defined from the QLFS
+sector classification and including informal agricultural employment. Like
+contract type, it enters only the persistence/exit equation. Rural or urban
+residence is not included, avoiding the sample loss caused by missing residence
+information.
+
+Both employment characteristics are measured at the origin of each transition:
+wave 1 values are used for the wave 1--2 transition and wave 2 values for the
+wave 2--3 transition. They can consequently change between waves. Employment
+is still represented by a single latent state; formal and informal employment
+are not modelled as separate states.
+
+## Initial conditions and reported transition rates
+
+Because the Set 3 transition probabilities can vary between the two transition
+periods, the main comparison no longer imposes a time-homogeneous stationary
+initial distribution. All six columns of the revised Table 4 estimate the
+initial employment probability freely.
+
+Average entry and exit rates are computed using the survey weights and the
+posterior probability that each observation belongs to the appropriate latent
+origin-state risk set. This makes the averages conditional hazards: entry is
+averaged over latent non-employment exposure and exit over latent employment
+exposure. The table also reports the posterior employed risk share and total
+employment churn. The separate entry-flow and exit-flow rows have been removed
+to keep the presentation close to the earlier implied-probability tables.
+
+## Analytical standard errors
+
+Pending a full bootstrap, inference for the covariate models uses an
+individual-level survey-weighted sandwich estimator. The observed-information
+``bread'' is obtained by numerically differentiating the analytic observed-data
+score, while the ``meat'' is the outer product of weighted individual scores.
+The delta method propagates this covariance matrix to average transition rates,
+total churn, and Set 3 discrete effects. The linearisation also includes direct
+sampling variation from averaging predicted quantities over the observed
+covariate and posterior-risk distribution.
+
+These are approximate analytical standard errors. They use survey weights but
+do not incorporate stratification or PSU clustering because those identifiers
+are unavailable in the estimation extract. A person-level bootstrap remains a
+useful robustness exercise.
+
+## Output and reproducibility
+
+The extension pipeline saves fitted model objects and convergence diagnostics.
+`EM-baseline-ext/estimate_analytical_se_table4.R` produces the analytical
+covariance estimates, and `build_tables.R` creates the LaTeX results below.
+Generated model objects and tables remain excluded from version control and can
+be rebuilt locally from the underlying confidential QLFS files.
+
+# New and revised tables
+
+The following are the two tables introduced by this branch: the revised main
+Table 4 and its new coefficient/distribution appendix. Unchanged tables already
+present on `efficient` are not duplicated.
+
+## Revised Table 4
+
+```{r revised-table-4, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex")
+```
+
+The no-error specifications imply quarterly entry and exit rates of about
+8.14% and 8.58%, almost invariant to the three covariate sets. Allowing for
+symmetric reporting error lowers these rates to 3.62--3.99% and 3.71--4.16%,
+respectively. The estimated per-wave misclassification probability remains
+narrowly between 2.39% and 2.58%. Observable characteristics therefore explain
+substantial heterogeneity across workers, but they do not explain away the
+measurement-error signal. Ignoring misclassification still approximately
+doubles the estimated average transition hazards and total churn.
+
+The exit rate is only modestly higher than the entry rate in the symmetric
+models. In Set 3 the difference is about 0.17 percentage points, compared with
+roughly 0.44 percentage points in the no-error specification. This is more
+consistent with the approximately stable employment share than a comparison of
+the two conditional hazards alone might initially suggest.
+
+## Coefficients, hazard distributions, and Set 3 discrete effects
+
+```{r coefficient-appendix, results='asis'}
+include_tex_table(
+  "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
+  tabular_scale = 0.62
+)
+```
+
+The appendix demonstrates why a single mean hazard is incomplete. In symmetric
+Set 3, the risk-weighted 10th--90th percentile range is approximately
+1.07--7.97% for entry and 0.46--9.61% for exit. Thus workers with different
+observed characteristics face markedly different transition risks even though
+the population-average entry and exit rates are similar.
+
+The economically clearest Set 3 results concern employment stability. Holding
+the other covariates at their observed values, a permanent contract lowers the
+average quarterly exit probability by about 3.38 percentage points in the
+symmetric-error model. Informal-sector employment raises it by about 1.80
+percentage points. The corresponding no-error effects are larger in magnitude
+(-4.69 and +2.65 percentage points), showing that some observed instability is
+otherwise attributed to genuine labour-market transitions rather than reporting
+error.
+
+# Interpretation for the paper
+
+The revisions strengthen the paper's core result. The earlier numerical problem
+could have made the misclassification specification appear to fit worse than a
+model it mathematically nests. Once the likelihood is optimised with appropriate
+monotonicity and nesting checks, a small but precisely estimated reporting-error
+rate continues to produce a large reduction in inferred employment turnover.
+
+At the same time, the new Set 3 results sharpen the economic interpretation.
+Misclassification and genuine heterogeneity are not competing explanations in
+which only one survives: contract security and informal employment strongly
+predict true exit risk, while a separate reporting-error component remains.
+The paper should therefore distinguish clearly between variation in transition
+risk across workers and the upward bias in observed transitions caused by
+classification error.
+
+# Remaining checks
+
+Before final submission, the analytical standard errors should ideally be
+compared with a person-level bootstrap. If the survey extract can be augmented
+with strata and PSU identifiers, design-based clustered inference would also be
+preferable. The main qualitative conclusions should be assessed against those
+two alternatives, while retaining the current analytical estimates as a fast
+and reproducible diagnostic.

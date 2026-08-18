@@ -68,6 +68,13 @@ dir.create(tables_ext_dir,      recursive = TRUE, showWarnings = FALSE)
 # Load data and compute sample sizes
 source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
+sector_source_path <- here::here("data", "raw", "QLFSmerged_mapped.rds")
+if (!file.exists(sector_source_path))
+  stop("Missing sector source: data/raw/QLFSmerged_mapped.rds")
+sector_source <- readRDS(sector_source_path)
+df_qlfs <- attach_transition_informal_sector(df_qlfs, sector_source)
+rm(sector_source)
+
 # Baseline sample: y1, y2, y3, weight valid
 keep_baseline <- !is.na(df_qlfs$y1) & !is.na(df_qlfs$y2) & !is.na(df_qlfs$y3) &
                  !is.na(df_qlfs$weight) & df_qlfs$weight > 0
@@ -82,15 +89,16 @@ df_ext$y1     <- as.integer(df_ext$y1)
 df_ext$y2     <- as.integer(df_ext$y2)
 df_ext$y3     <- as.integer(df_ext$y3)
 df_ext$weight <- as.numeric(df_ext$weight)
-df_ext$contracttype1 <- ifelse(is.na(df_ext$contracttype1), 0L,
-                               as.integer(df_ext$contracttype1))
+for (nm in c("contracttype1", "contracttype2"))
+  df_ext[[nm]] <- ifelse(is.na(df_ext[[nm]]), 0L, as.integer(df_ext[[nm]]))
 df_ext <- as.data.frame(df_ext)
 N_ext  <- nrow(df_ext)
 
 cv_set1 <- prepare_covariate_matrix(df_ext, covariate_set = 1L)
 cv_set2 <- prepare_covariate_matrix(df_ext, covariate_set = 2L)
 cv_set3 <- prepare_covariate_matrix(df_ext, covariate_set = 3L)
-X_list  <- list(X1 = cv_set1$X, X2 = cv_set2$X, X3 = cv_set3$X)
+X_list  <- list(X1 = cv_set1$X, X2 = cv_set2$X,
+                X3 = cv_set3$X_transition)
 rm(df_qlfs)
 
 cat(sprintf("N_baseline = %s, N_ext = %s\n",
@@ -120,13 +128,13 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 
 #' Common formatter: scale by factor, format to digits d.p., append stars
 .fmt_estimate <- function(est, se, factor = 1, digits = 4L) {
-  if (is.na(est)) return(c("---", "(---)"))
+  if (is.na(est)) return(c("---", ""))
   star    <- .stars(est, se)
   est_str <- paste0(formatC(est * factor, format = "f", digits = digits), star)
   se_str  <- if (!is.na(se)) {
     sprintf("(%s)", formatC(se * factor, format = "f", digits = digits))
   } else {
-    "(---)"
+    ""
   }
   c(est_str, se_str)
 }
@@ -136,6 +144,11 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 
 #' Format a probability as percentage (×100, 2 d.p.) with stars + SE row
 .fmt_pct   <- function(est, se, digits = 2L) .fmt_estimate(est, se, factor = 100, digits = digits)
+.fmt_pct_plain <- function(est, se, digits = 2L) {
+  if (is.na(est)) return(c("---", ""))
+  c(formatC(est * 100, format = "f", digits = digits),
+    if (is.na(se)) "" else sprintf("(%s)", formatC(se * 100, format = "f", digits = digits)))
+}
 
 #' Format a marginal effect as percentage points (×100, 2 d.p.) with stars
 .fmt_pp    <- function(est, se, digits = 2L) .fmt_pct(est, se, digits)
@@ -186,20 +199,22 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
       est_row <- row[["est"]]
       se_row  <- row[["se"]]
       push(paste(est_row, collapse = " & "))
-      # Only add SE row if it has content
-      if (length(se_row) > 0 && !all(se_row == ""))
-        push(paste(c(se_row[1], se_row[-1]), collapse = " & "))
       push("\\\\")
+      # Only add SE row if it has content
+      if (length(se_row) > 0 && !all(se_row == "")) {
+        push(paste(c(se_row[1], se_row[-1]), collapse = " & "))
+        push("\\\\")
+      }
     }
   }
 
   push("\\bottomrule")
-
-  if (!is.null(note))
-    push(sprintf("\\multicolumn{%d}{l}{\\footnotesize \\textit{Note:} %s} \\\\",
-                 n_cols, note))
-
   push("\\end{tabular}")
+  if (!is.null(note)) {
+    push("\\begin{minipage}{0.98\\linewidth}")
+    push(sprintf("\\footnotesize \\textit{Note:} %s", note))
+    push("\\end{minipage}")
+  }
   push("\\end{table}")
 
   cat(paste(unlist(buf[seq_len(i)]), collapse = "\n"), "\n", file = path)
@@ -227,6 +242,16 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   obj
 }
 
+.load_analytic <- function(label) {
+  path <- here::here("EM-baseline-ext", "output", "results",
+                     sprintf("analytical_se_%s.rds", label))
+  if (!file.exists(path)) return(NULL)
+  obj <- readRDS(path)
+  if (!is.list(obj) || !is.data.frame(obj$summary))
+    stop(sprintf(".load_analytic: '%s' has an invalid schema.", basename(path)))
+  obj
+}
+
 #' Look up SE for a quantity from a bootstrap summary (data.frame or named vector).
 .get_se <- function(summary_or_map, quantity) {
   if (is.null(summary_or_map)) return(NA_real_)
@@ -235,8 +260,10 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
     if (length(idx) == 0L) NA_real_ else summary_or_map$se[idx[1L]]
   } else {
     # Named numeric vector (pre-indexed se_map)
-    v <- summary_or_map[[quantity]]
-    if (is.null(v)) NA_real_ else v
+    if (is.null(names(summary_or_map)) || !quantity %in% names(summary_or_map))
+      NA_real_
+    else
+      unname(summary_or_map[[quantity]])
   }
 }
 
@@ -257,7 +284,8 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   race_3         = "Race: Indian",
   race_4         = "Race: White",
   female         = "Female",
-  contracttype_1 = "Permanent contract"
+  contracttype_1 = "Permanent contract",
+  informal_sector = "Informal sector"
 )
 
 # ------------------------------------------------------------------------------
@@ -401,11 +429,10 @@ implied_rows_bl <- list(
 
 cat("\n--- Building covariate tables ---\n")
 
-# Panel order: No-misclassification first within each panel
-# Panel A (Stationary): S1 None, S2 None, S3 None, S1 Sym, S2 Sym, S3 Sym
-# Panel B (Free alpha): same structure
-cov_labels_stat <- c("cov_s1_non_stat", "cov_s2_non_stat", "cov_s3_non_stat",
-                     "cov_s1_sym_stat", "cov_s2_sym_stat", "cov_s3_sym_stat")
+# Set 3 has transition-varying contract and sector measures, so stationarity is
+# not imposed on it. The main table consistently compares free-alpha models.
+cov_labels_stat <- c("cov_s1_non_stat", "cov_s2_non_stat",
+                     "cov_s1_sym_stat", "cov_s2_sym_stat")
 cov_labels_free <- c("cov_s1_non_free", "cov_s2_non_free", "cov_s3_non_free",
                      "cov_s1_sym_free", "cov_s2_sym_free", "cov_s3_sym_free")
 cov_labels_all  <- unique(c(cov_labels_stat, cov_labels_free))
@@ -425,7 +452,14 @@ names(cov_fits) <- cov_labels_all
 
 cov_boots <- lapply(cov_labels_all, function(lbl) .load_boot(lbl, boot_ext_dir))
 names(cov_boots) <- cov_labels_all
-cov_se    <- lapply(cov_boots, .se_map)  # named SE vectors for O(1) lookup
+cov_analytic <- lapply(cov_labels_all, .load_analytic)
+names(cov_analytic) <- cov_labels_all
+cov_se <- lapply(cov_labels_all, function(lbl) {
+  # Prefer bootstrap inference when it exists; otherwise use the analytical
+  # individual-level sandwich/delta approximation.
+  .se_map(cov_boots[[lbl]]) %||% .se_map(cov_analytic[[lbl]])
+})
+names(cov_se) <- cov_labels_all
 
 cov_mt <- c(
   cov_s1_sym_stat = "symmetric", cov_s1_sym_free = "symmetric",
@@ -448,7 +482,9 @@ cov_implied <- lapply(cov_labels_all, function(lbl) {
   fit <- cov_fits[[lbl]]
   if (is.null(fit)) return(NULL)
   X <- X_list[[cov_xmat[[lbl]]]]
-  tryCatch(implied_covariates(fit$params, X, cov_mt[[lbl]]), error = function(e) NULL)
+  tryCatch(implied_covariates(fit$params, X, cov_mt[[lbl]],
+                              df = df_ext, gamma = fit$gamma),
+           error = function(e) NULL)
 })
 names(cov_implied) <- cov_labels_all
 
@@ -480,7 +516,7 @@ names(cov_implied) <- cov_labels_all
   # Indicator: Yes if set includes covariate group
   # Set 1: Age, Age^2, Educ
   # Set 2: Set 1 + Race, Gender
-  # Set 3: Set 2 + Contract type
+  # Set 3: Set 2 + contract type and informal sector in the exit equation
   make_row <- function(label, min_set) {
     cells <- ifelse(sets >= min_set, "Yes", "No")
     list(est = c(label, cells), se = rep("", length(panel_labels) + 1L))
@@ -488,7 +524,7 @@ names(cov_implied) <- cov_labels_all
   list(
     make_row("Age, Age$^2$, Educ.", 1L),
     make_row("+ Race, Gender", 2L),
-    make_row("+ Contract type (exit only)", 3L)
+    make_row("+ Contract type, informal sector (exit only)", 3L)
   )
 }
 
@@ -528,10 +564,144 @@ names(cov_implied) <- cov_labels_all
   )
 }
 
-.build_cov_implied_panel(cov_labels_stat, "Stationary", "stat",
-                         "stationary $\\alpha$")
 .build_cov_implied_panel(cov_labels_free, "Free alpha", "free",
                          "free $\\alpha$")
+
+# ---- Main Table 4: risk-set and survey-weighted transition summaries --------
+
+.cov_plain_row <- function(qty_name, row_label, panel_labels, formatter = .fmt_pct) {
+  cells <- lapply(panel_labels, function(lbl) {
+    imp <- cov_implied[[lbl]]
+    v <- if (!is.null(imp)) imp[[qty_name]] else NA_real_
+    if (is.null(v)) v <- NA_real_
+    formatter(v, .get_se(cov_se[[lbl]], qty_name))
+  })
+  list(est = c(row_label, vapply(cells, `[[`, character(1L), 1L)),
+       se  = c("", vapply(cells, `[[`, character(1L), 2L)))
+}
+
+main_table4_rows <- list(
+  list(header = "Risk-set weighted transition probabilities", rows = list(
+    .cov_plain_row("mean_entry_rate", "Entry rate", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("mean_exit_rate", "Exit rate", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("mean_employment_rate", "Posterior employed risk share", cov_labels_free, .fmt_pct_plain)
+  )),
+  list(header = "Employment turnover", rows = list(
+    .cov_plain_row("total_churn_flow", "Total employment churn", cov_labels_free, .fmt_pct_plain)
+  )),
+  list(header = "Other model quantities", rows = list(
+    .cov_plain_row("pi", "Misclassification probability $\\pi$", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("alpha", "Initial employment probability $\\alpha$", cov_labels_free, .fmt_pct_plain),
+    list(est = c("Log-likelihood", vapply(cov_labels_free, function(lbl) {
+      fit <- cov_fits[[lbl]]
+      if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
+    }, character(1L))), se = rep("", 7L)),
+    list(est = c("$N$", rep(.fmt_n(N_ext), 6L)), se = rep("", 7L))
+  )),
+  list(header = "Covariates included", rows = .cov_indicator_rows(cov_labels_free))
+)
+
+.write_latex_table(
+  col_headers = cov_col_headers_panel,
+  row_data = main_table4_rows,
+  caption = "Risk-set and survey-weighted quarterly employment transitions",
+  label = "tab:cov_risk_weighted",
+  path = file.path(tables_ext_dir, "table_cov_risk_weighted.tex"),
+  sub_headers = cov_sub_headers_panel,
+  note = paste0("All specifications estimate the initial employment probability freely. ",
+                "Rates average predicted hazards using survey weights and posterior ",
+                "probabilities of belonging to the relevant origin-state risk set. ",
+                "Total churn is the expected number of entry and exit transitions per ",
+                "person-quarter. ",
+                "SE are bootstrap estimates when available and otherwise use ",
+                "an individual-level survey-weighted sandwich/delta approximation. ",
+                "The approximation does not incorporate strata or PSU clustering.")
+)
+
+# ---- Appendix: raw probit coefficients and distributional summaries --------
+
+.raw_parameter_row <- function(block, index, row_label) {
+  cells <- lapply(cov_labels_free, function(lbl) {
+    fit <- cov_fits[[lbl]]
+    if (is.null(fit)) return(c("---", ""))
+    xnames <- colnames(.as_transition_design(X_list[[cov_xmat[[lbl]]]])$X12)
+    j <- match(index, xnames)
+    if (is.na(j)) return(c("---", ""))
+    active <- attr(.as_transition_design(X_list[[cov_xmat[[lbl]]]])$X12,
+                   "entry_active")
+    if (is.null(active)) active <- rep(TRUE, length(xnames))
+    if (block == "beta0" && !active[j]) return(c("0.0000", "[fixed]"))
+    value <- fit$params[[block]][j]
+    .fmt_param(value, .get_se(cov_se[[lbl]], paste0(block, "_", index)))
+  })
+  list(est = c(row_label, vapply(cells, `[[`, character(1L), 1L)),
+       se = c("", vapply(cells, `[[`, character(1L), 2L)))
+}
+
+all_coef_names <- unique(unlist(lapply(cov_labels_free, function(lbl) {
+  colnames(.as_transition_design(X_list[[cov_xmat[[lbl]]]])$X12)
+})))
+coef_labels <- function(nm) if (nm %in% names(.cov_label_map)) .cov_label_map[[nm]] else nm
+
+appendix_rows <- list(
+  list(header = "Entry equation: $\\Phi(X_{it}\\beta_0)$", rows =
+         lapply(all_coef_names, function(nm) .raw_parameter_row("beta0", nm, coef_labels(nm)))),
+  list(header = "Employment-persistence equation: $\\Phi(X_{it}\\beta_1)$", rows =
+         lapply(all_coef_names, function(nm) .raw_parameter_row("beta1", nm, coef_labels(nm)))),
+  list(header = "Distribution of predicted entry hazards", rows = list(
+    .cov_plain_row("entry_p10", "10th percentile", cov_labels_free),
+    .cov_plain_row("entry_median", "Median", cov_labels_free),
+    .cov_plain_row("entry_p90", "90th percentile", cov_labels_free)
+  )),
+  list(header = "Distribution of predicted exit hazards", rows = list(
+    .cov_plain_row("exit_p10", "10th percentile", cov_labels_free),
+    .cov_plain_row("exit_median", "Median", cov_labels_free),
+    .cov_plain_row("exit_p90", "90th percentile", cov_labels_free)
+  )),
+  list(header = "Set 3 discrete effects on the exit probability", rows = list(
+    .cov_plain_row("contract_exit_effect", "Permanent contract", cov_labels_free),
+    .cov_plain_row("informal_exit_effect", "Informal sector", cov_labels_free)
+  ))
+)
+
+.write_latex_table(
+  col_headers = cov_col_headers_panel,
+  row_data = appendix_rows,
+  caption = "Covariate-model coefficients and predicted-hazard distributions",
+  label = "tab:cov_coefficients_appendix",
+  path = file.path(tables_ext_dir, "table_cov_coefficients_appendix.tex"),
+  sub_headers = cov_sub_headers_panel,
+  note = paste0("Raw probit coefficients are reported. Contract type and sector are ",
+                "origin-wave characteristics and may change between transitions; their ",
+                "entry coefficients are fixed at zero because these attributes are not ",
+                "defined for non-employed origin states. Hazard percentiles use survey ",
+                "and posterior risk-set weights. SE are bootstrap estimates when ",
+                "available and otherwise use an individual-level survey-weighted ",
+                "sandwich/delta approximation; quantile SE are omitted.")
+)
+
+cat("\n--- Main Table 4 (point estimates, percent) ---\n")
+screen_table4 <- data.frame(
+  model = cov_labels_free,
+  entry = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "mean_entry_rate"),
+  exit = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "mean_exit_rate"),
+  employed_risk_share = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "mean_employment_rate"),
+  total_churn = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "total_churn_flow"),
+  pi = 100 * vapply(cov_implied[cov_labels_free], function(x) x$pi, numeric(1L))
+)
+print(screen_table4, row.names = FALSE, digits = 4)
+
+cat("\n--- Appendix hazard distribution (percent) ---\n")
+screen_hazards <- data.frame(
+  model = cov_labels_free,
+  entry_p10 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "entry_p10"),
+  entry_p50 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "entry_median"),
+  entry_p90 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "entry_p90"),
+  exit_p10 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "exit_p10"),
+  exit_p50 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "exit_median"),
+  exit_p90 = 100 * vapply(cov_implied[cov_labels_free], `[[`, numeric(1L), "exit_p90")
+)
+print(screen_hazards, row.names = FALSE, digits = 4)
 
 # ------------------------------------------------------------------------------
 # 4. Table: AMEs — percentage points, proper labels, stars

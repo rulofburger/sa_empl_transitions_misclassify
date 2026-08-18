@@ -11,7 +11,10 @@
     educ1        = sample(1:5,   n, replace = TRUE),
     race1        = sample(1:4,   n, replace = TRUE),
     female1      = sample(0:1,   n, replace = TRUE),
-    contracttype1 = sample(1:3,  n, replace = TRUE)
+    contracttype1 = sample(1:3,  n, replace = TRUE),
+    contracttype2 = sample(1:3,  n, replace = TRUE),
+    informal_sector1 = sample(0:1, n, replace = TRUE),
+    informal_sector2 = sample(0:1, n, replace = TRUE)
   )
 }
 
@@ -35,18 +38,21 @@ test_that("set 2 includes race dummies and female on top of set 1", {
   expect_true(any(grepl("^race_", colnames(out2$X))))
 })
 
-test_that("set 3 includes contract type dummies on top of set 2", {
+test_that("set 3 includes exit-only contract type and informal sector", {
   df  <- .make_cov_df()
   out2 <- prepare_covariate_matrix(df, covariate_set = 2L)
   out3 <- prepare_covariate_matrix(df, covariate_set = 3L)
   expect_true(ncol(out3$X) > ncol(out2$X))
   expect_true(any(grepl("^contracttype_", colnames(out3$X))))
-  contract_cols <- grepl("^contracttype_", colnames(out3$X))
-  expect_true(all(!out3$entry_active[contract_cols]))
-  expect_true(all(out3$entry_active[!contract_cols]))
+  expect_true("informal_sector" %in% colnames(out3$X))
+  expect_false(identical(out3$X_transition$X12[, "informal_sector"],
+                         out3$X_transition$X23[, "informal_sector"]))
+  exit_only <- grepl("^(contracttype_|informal_sector$)", colnames(out3$X))
+  expect_true(all(!out3$entry_active[exit_only]))
+  expect_true(all(out3$entry_active[!exit_only]))
 })
 
-test_that("set 3 contract coefficients remain zero in the entry equation", {
+test_that("set 3 state-dependent coefficients remain zero in the entry equation", {
   set.seed(12L)
   n <- 250L
   cov_df <- .make_cov_df(n)
@@ -59,8 +65,22 @@ test_that("set 3 contract coefficients remain zero in the entry equation", {
   )
   fit <- em_fit_covariates(panel, prep$X, model_type = "symmetric",
                            max_iter = 100L, verbose = 0L)
-  contract_cols <- grepl("^contracttype_", colnames(prep$X))
-  expect_equal(fit$params$beta0[contract_cols], rep(0, sum(contract_cols)))
+  exit_only <- grepl("^(contracttype_|informal_sector$)", colnames(prep$X))
+  expect_equal(unname(fit$params$beta0[exit_only]), rep(0, sum(exit_only)))
+})
+
+test_that("wave-1 informal sector is merged and coded from sector2", {
+  panel <- data.frame(
+    hhnr = c(10, 11, 12), pnr = c(1, 1, 2), period1 = c(5, 5, 6),
+    y1 = c(1L, 1L, 0L)
+  )
+  upstream <- data.frame(
+    hhnr = c(10, 11, 12), pnr_methodA = c(1, 1, 2), wave = c(5, 5, 6),
+    sector2 = c(1, 2, NA)
+  )
+  out <- attach_wave1_informal_sector(panel, upstream)
+  expect_equal(out$informal_sector1, c(0L, 1L, 0L))
+  expect_equal(out$sector2_1[1:2], c(1, 2))
 })
 
 # ---- Intercept -------------------------------------------------------------

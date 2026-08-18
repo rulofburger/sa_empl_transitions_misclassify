@@ -23,7 +23,7 @@ design used here and are left for future work.
 ### Extension I: Observable heterogeneity (covariate model)
 
 Transition probabilities θ₀ᵢ and θ₁ᵢ are individual-specific via probit link
-functions: θ₁ᵢ = Φ(X₁ᵢ β₁), θ₀ᵢ = Φ(X₀ᵢ β₀). Under stationarity, the initial
+functions: θ₁ᵢₜ = Φ(X₁ᵢₜ β₁), θ₀ᵢₜ = Φ(X₀ᵢₜ β₀). Under stationarity, the initial
 employment term couples β₀ and β₁. The M-step therefore applies limited joint
 BFGS updates to the full Q-function, with Q-function and observed-likelihood
 backtracking safeguards.
@@ -34,9 +34,11 @@ Three covariate sets:
 |-----|-----------|---|
 | 1 | intercept, age (std), age² (std), educ (std) | 4 |
 | 2 | Set 1 + race dummies + female | 4 + r |
-| 3 | Set 2 + contracttype dummies in persistence/exit only | 4 + r + c |
+| 3 | Set 2 + origin-wave contract type + informal-sector dummy in persistence/exit only | 5 + r + c |
 
-For each set: symmetric and no-error model × stationary and free α → **12 models**.
+Sets 1 and 2 use symmetric and no-error models under stationary and free
+initial conditions. Set 3 uses free α only because its contract and sector
+covariates change between transitions → **10 models** in total.
 
 ### Extension III: 2-type finite mixture model (FMM)
 
@@ -64,6 +66,7 @@ Symmetric model only × stationary and free α → **2 models**.
 ```
 EM-baseline-ext/
 ├── estimate_extensions_pipeline.R   # Main estimation script
+├── estimate_analytical_se_table4.R  # Sandwich/delta SEs for Table 4
 ├── README.md                        # This file
 ├── R/
 │   ├── source_all.R                 # Sources all extension modules
@@ -73,6 +76,7 @@ EM-baseline-ext/
 │   ├── estep_covariates.R           # E-step: covariate extension
 │   ├── mstep_covariates.R           # M-step: joint monotone GEM for β
 │   ├── em_driver_covariates.R       # Driver + init + loglik: covariate
+│   ├── analytical_se_covariates.R   # Weighted sandwich + delta method
 │   ├── estep_fmm.R                  # E-step: 2-type FMM
 │   ├── mstep_fmm.R                  # M-step: closed form for FMM + label switch
 │   ├── em_driver_fmm.R              # Driver + init + loglik: FMM
@@ -179,8 +183,8 @@ Rscript build_tables.R
 ```
 
 Outputs (in `EM-baseline-ext/output/tables/`):
-- `table_cov_params.tex` — covariate model parameter estimates
-- `table_cov_implied.tex` — population-average implied probabilities
+- `table_cov_risk_weighted.tex` — main risk-set and survey-weighted transitions
+- `table_cov_coefficients_appendix.tex` — raw coefficients and hazard distributions
 - `table_cov_ame.tex` — Average Marginal Effects (all 3 sets side-by-side)
 - `table_fmm.tex` — FMM implied probabilities
 - `table_inconsistency.tex` — inconsistency model results
@@ -207,13 +211,14 @@ All model derivations are in `documents/EM baseline.tex`:
 ## Data Availability
 
 The pipeline requires `data/raw/df_qlfs_A.rds` (South Africa QLFS 3-wave balanced
-panel). This file is **not committed** to the repository as it contains
-confidential microdata. To obtain it:
+panel) and `data/raw/QLFSmerged_mapped.rds` (the upstream long-format file used
+to restore wave-1 sector). These files are **not committed** to the repository
+as they contain confidential microdata. To obtain them:
 
 1. Contact the DECDG team at the World Bank for access to the project data share.
-2. Place the file at `data/raw/df_qlfs_A.rds` relative to the project root.
+2. Place both files in `data/raw/` relative to the project root.
 3. The ingest script `scripts/ingest_data_3waves_SA.R` will be called automatically
    by the pipeline.
 
-Unit tests do **not** require this file — they use synthetic panel data generated
+Unit tests do **not** require these files — they use synthetic panel data generated
 by helper functions within each test file.

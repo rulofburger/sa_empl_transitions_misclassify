@@ -306,3 +306,34 @@ test_that("covariate model estimates non-zero slope on age-structured data", {
   expect_true(abs(fit$params$beta0[2L]) > 1e-4 || abs(fit$params$beta1[2L]) > 1e-4,
               label = "age slope should be non-zero on age-structured data")
 })
+
+test_that("time-varying transition designs require free alpha and fit", {
+  df <- .make_panel_cov(n = 120L, pi = 0)
+  z1 <- rep(c(0, 1), length.out = nrow(df))
+  z2 <- 1 - z1
+  X12 <- cbind(intercept = 1, origin_attribute = z1)
+  X23 <- cbind(intercept = 1, origin_attribute = z2)
+  design <- list(X12 = X12, X23 = X23)
+
+  expect_error(
+    em_fit_covariates(df, design, model_type = "none", stationary = TRUE,
+                      verbose = 0L),
+    "stationary=FALSE"
+  )
+  fit <- em_fit_covariates(df, design, model_type = "none",
+                           stationary = FALSE, verbose = 0L)
+  expect_true(is.finite(fit$loglik))
+  expect_equal(dim(fit$gamma), c(nrow(df), 8L))
+})
+
+test_that("analytical sandwich/delta SEs are finite on a free-alpha fit", {
+  df <- .make_panel_cov(n = 180L, pi = 0)
+  df$weight <- runif(nrow(df), 0.5, 2)
+  X <- cbind(intercept = 1, z = rnorm(nrow(df)))
+  fit <- em_fit_covariates(df, X, model_type = "none", stationary = FALSE,
+                           max_iter = 150L, verbose = 0L)
+  out <- analytical_se_covariates(df, X, fit, "none")
+  expect_true(all(is.finite(out$summary$se)))
+  expect_true(all(out$summary$se > 0))
+  expect_gt(out$diagnostics$min_bread_eigenvalue, 0)
+})

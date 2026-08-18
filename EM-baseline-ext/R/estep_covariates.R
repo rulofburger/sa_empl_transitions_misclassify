@@ -66,13 +66,17 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
   if (!model_type %in% c("symmetric", "none"))
     stop("e_step_covariates: model_type must be 'symmetric' or 'none'")
 
+  N <- nrow(df)
+  X_transition <- .as_transition_design(X, N)
+  if (stationary && !.transition_design_is_time_invariant(X_transition))
+    stop("e_step_covariates: stationarity is undefined with time-varying transition covariates; use stationary=FALSE")
+
   if (validate) {
     .validate_panel_df(df)
-    if (!is.matrix(X) || nrow(X) != nrow(df))
-      stop("e_step_covariates: X must be a matrix with nrow(X) == nrow(df)")
     if (is.null(params$beta0) || is.null(params$beta1))
       stop("e_step_covariates: params must contain 'beta0' and 'beta1'")
-    if (length(params$beta0) != ncol(X) || length(params$beta1) != ncol(X))
+    if (length(params$beta0) != ncol(X_transition$X12) ||
+        length(params$beta1) != ncol(X_transition$X12))
       stop("e_step_covariates: length(beta0) and length(beta1) must equal ncol(X)")
     for (.col in c("y1", "y2", "y3")) {
       if (!all(df[[.col]] %in% c(0, 1)))
@@ -80,9 +84,8 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
     }
   }
 
-  N  <- nrow(df)
   w  <- df$weight
-  p  <- ncol(X)
+  p  <- ncol(X_transition$X12)
   s1 <- as.integer(df$y1)
   s2 <- as.integer(df$y2)
   s3 <- as.integer(df$y3)
@@ -92,19 +95,15 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
   pi    <- params$pi %||% 0
 
   # ---- Individual-specific transition probabilities ------------------------
-  # theta1_i = Phi(X beta1), theta0_i = Phi(X beta0)
-  eta1     <- as.vector(X %*% beta1)   # N-vector
-  eta0     <- as.vector(X %*% beta0)
-  theta1_i <- pnorm(eta1)              # employment persistence per individual
-  theta0_i <- pnorm(eta0)              # job-finding rate per individual
-  # Clamp to open interval to avoid degenerate priors
-  theta1_i <- pmin(pmax(theta1_i, 1e-6), 1 - 1e-6)
-  theta0_i <- pmin(pmax(theta0_i, 1e-6), 1 - 1e-6)
+  theta0_12 <- pmin(pmax(pnorm(as.vector(X_transition$X12 %*% beta0)), 1e-6), 1 - 1e-6)
+  theta0_23 <- pmin(pmax(pnorm(as.vector(X_transition$X23 %*% beta0)), 1e-6), 1 - 1e-6)
+  theta1_12 <- pmin(pmax(pnorm(as.vector(X_transition$X12 %*% beta1)), 1e-6), 1 - 1e-6)
+  theta1_23 <- pmin(pmax(pnorm(as.vector(X_transition$X23 %*% beta1)), 1e-6), 1 - 1e-6)
 
   # Initial employment probability. Under stationarity it is implied by the
   # individual transition probabilities; otherwise alpha is a free scalar.
   alpha_i <- if (stationary) {
-    theta0_i / (theta0_i + 1 - theta1_i)
+    theta0_12 / (theta0_12 + 1 - theta1_12)
   } else {
     if (is.null(params$alpha) || !is.finite(params$alpha))
       stop("e_step_covariates: free-alpha model requires finite params$alpha")
@@ -130,8 +129,8 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
   log_p_h1[, h1 == 0L] <- log(1 - alpha_i)
 
   # Log transition 1->2 for each individual
-  log_p_12 <- .log_markov_trans_indiv(h1, h2, theta1_i, theta0_i)  # N x 8
-  log_p_23 <- .log_markov_trans_indiv(h2, h3, theta1_i, theta0_i)  # N x 8
+  log_p_12 <- .log_markov_trans_indiv(h1, h2, theta1_12, theta0_12)
+  log_p_23 <- .log_markov_trans_indiv(h2, h3, theta1_23, theta0_23)
 
   log_prior <- log_p_h1 + log_p_12 + log_p_23  # N x 8
 
@@ -181,13 +180,21 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
   to1_t3_1  <- as.integer(h2 == 1L & h3 == 1L)
   to1_t3_0  <- as.integer(h2 == 0L & h3 == 1L)
 
-  # Effective weights: N-vectors (summed over both transitions)
-  eff_w_1 <- as.vector(wg %*% (from1_t2 + from1_t3))  # N-vector: total weight from state 1
-  eff_w_0 <- as.vector(wg %*% (from0_t2 + from0_t3))  # N-vector: total weight from state 0
+  # Keep interval-specific sufficient statistics because origin-wave contract
+  # type and sector can differ between transitions.
+  eff_w_1_12  <- as.vector(wg %*% from1_t2)
+  eff_w_0_12  <- as.vector(wg %*% from0_t2)
+  eff_wy_1_12 <- as.vector(wg %*% to1_t2_1)
+  eff_wy_0_12 <- as.vector(wg %*% to1_t2_0)
+  eff_w_1_23  <- as.vector(wg %*% from1_t3)
+  eff_w_0_23  <- as.vector(wg %*% from0_t3)
+  eff_wy_1_23 <- as.vector(wg %*% to1_t3_1)
+  eff_wy_0_23 <- as.vector(wg %*% to1_t3_0)
 
-  # Effective numerator for fractional outcome
-  eff_wy_1 <- as.vector(wg %*% (to1_t2_1 + to1_t3_1))  # N-vector: weight*outcome from state 1
-  eff_wy_0 <- as.vector(wg %*% (to1_t2_0 + to1_t3_0))
+  eff_w_1 <- eff_w_1_12 + eff_w_1_23
+  eff_w_0 <- eff_w_0_12 + eff_w_0_23
+  eff_wy_1 <- eff_wy_1_12 + eff_wy_1_23
+  eff_wy_0 <- eff_wy_0_12 + eff_wy_0_23
 
   # Misclassification count M (for pi update)
   # mm_precomp = outer(s1,h1,"!=") + outer(s2,h2,"!=") + outer(s3,h3,"!=")
@@ -217,6 +224,12 @@ e_step_covariates <- function(df, X, params, model_type = "symmetric",
     eff_wy_1 = eff_wy_1,
     eff_w_0  = eff_w_0,
     eff_wy_0 = eff_wy_0,
+    transition = list(
+      X12 = list(eff_w_1 = eff_w_1_12, eff_wy_1 = eff_wy_1_12,
+                 eff_w_0 = eff_w_0_12, eff_wy_0 = eff_wy_0_12),
+      X23 = list(eff_w_1 = eff_w_1_23, eff_wy_1 = eff_wy_1_23,
+                 eff_w_0 = eff_w_0_23, eff_wy_0 = eff_wy_0_23)
+    ),
     M            = M,
     C1           = C1,
     C0           = C0,

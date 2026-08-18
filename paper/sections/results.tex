@@ -60,23 +60,29 @@ if these workers are a small share of the sample, their high transition rates
 could generate Markov violations when the average transition rate is treated as
 homogeneous.
 
-Table~\ref{tab:cov_implied_stat} reports the implied transition rates from the
+Table~\ref{tab:cov_risk_weighted} reports the implied transition rates from the
 observable heterogeneity extension. We consider three covariate sets of
 increasing richness: (1) age and education only; (2) additionally controlling
-for gender, race, and urban/rural status; (3) additionally controlling for
-contract type and sector. Allowing transition probabilities to vary with these
-characteristics substantially affects the composition of the entry and exit
-hazards---the average implied entry and exit rates shift as the model accounts
-for the composition of the sample across covariate cells. Nonetheless, the
-estimated misclassification probability remains economically and statistically
-significant in all three specifications, at 2.36\%, 2.23\%, and 1.17\%
-respectively. Even the most flexible covariate specification, which allows
-transition rates to differ by gender, race, age, education, urban status,
-contract type, and sector, cannot account for the Markov violations in the
-data without retaining a meaningful misclassification probability. The
-conclusion that conventional transition matrices overstate true transition rates
-by a factor of approximately two to three is robust to controlling for
-observable worker heterogeneity.
+for gender and race; and (3) additionally controlling for origin-wave contract
+type and informal-sector employment in the exit equation. Rural or urban
+residence is not used, so the sample is not restricted on its availability.
+All columns estimate the initial employment probability freely. Rates are
+averaged with survey weights and posterior probabilities of membership in the
+relevant origin-state risk set.
+
+In the no-error models, entry is 8.14\% and exit is 8.58\% per quarter in all
+three sets. With symmetric reporting error, the corresponding rates range from
+3.62--3.99\% and 3.71--4.16\%, while the estimated per-wave error probability
+declines only modestly from 2.58\% to 2.39\%. Expected entry and exit flows are
+nearly balanced in every specification; Table~\ref{tab:cov_risk_weighted}
+therefore reports their sum as total churn, rather than presenting the two
+component flows separately. The appendix shows substantial
+heterogeneity: in symmetric Set 3, the risk-weighted 10th--90th percentile
+ranges are 1.07--7.97\% for entry and 0.46--9.61\% for exit. A permanent
+contract raises employment persistence, whereas informal-sector employment
+lowers it. Thus observable heterogeneity changes who faces high transition
+risk, but does not eliminate the estimated reporting-error component; ignoring
+it continues to overstate average transition hazards by roughly a factor of two.
 
 \subsection{Unobserved worker heterogeneity}\label{subsec:results:fmm}
 

@@ -116,9 +116,17 @@ in closed form, so the algorithm requires no numerical optimisation and
 is guaranteed to converge to a local maximum of the observed-data
 log-likelihood \citep{dempster1977}.
 
-Standard errors are obtained by a parametric bootstrap with $B=200$
-repetitions, sampling from the multinomial distribution over the eight
-observed histories at the estimated cell probabilities.
+For the covariate specifications, the reported standard errors use an
+individual-level survey-weighted sandwich covariance matrix. We obtain the
+observed-information ``bread'' by differentiating the analytic observed-data
+score and use the outer product of weighted individual scores as the ``meat.''
+Standard errors for risk-set weighted rates, flows, and discrete effects are
+then obtained by the delta method, including both parameter uncertainty and
+direct sampling variation in the weighted empirical functionals. These are
+linearisation approximations and do not incorporate survey strata or PSU
+clustering, which are unavailable in the estimation extract. A nonparametric
+individual-level bootstrap that resamples complete three-wave histories and
+retains their survey weights and covariates is retained as a robustness option.
 
 \subsection{Extensions}\label{subsec:extensions}
 
@@ -128,17 +136,24 @@ for the extended parameter set.
 
 \subsubsection{Observable worker heterogeneity}\label{subsubsec:covariates}
 
-We allow transition probabilities to depend on individual characteristics
+We allow transition probabilities to depend on individual and origin-wave characteristics
 through probit link functions. Age, education, gender, and race enter both
 transition equations. Current contract type is defined only for employed
 respondents, so it enters the employment-persistence (exit-risk) equation only
-and is excluded from the job-entry equation:
+and is excluded from the job-entry equation. An indicator for informal-sector
+employment (including agriculture) is treated in the same way:
 \[
-  \theta_{0i} = \Phi(X_{0i} \beta_0), \qquad
-  \theta_{1i} = \Phi(X_{1i} \beta_1),
+  \theta_{0it} = \Phi(X_{0it} \beta_0), \qquad
+  \theta_{1it} = \Phi(X_{1it} \beta_1),
 \]
-where $X_{1i}$ additionally contains the contract-type indicators and
-$\Phi(\cdot)$ is the standard normal CDF. The misclassification parameter
+where $X_{1it}$ additionally contains contract type and the informal-sector
+indicator measured at the origin wave (wave 1 for the first transition and
+wave 2 for the second). These characteristics may therefore change between
+transitions. We do not split employment into formal and informal latent states.
+Because transition probabilities vary over time in Set 3, the main comparison
+estimates the initial employment probability freely rather than imposing a
+time-homogeneous stationary distribution. The function $\Phi(\cdot)$ is the
+standard normal CDF. The misclassification parameter
 $\pi$ is held common across individuals in the main specification; a variant
 allows $\pi$ to vary with observable reliability indicators (see
 Section~\ref{subsubsec:inconsistency}). Since the M-step for $\beta_0$ and

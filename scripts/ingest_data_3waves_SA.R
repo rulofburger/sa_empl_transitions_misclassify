@@ -7,7 +7,7 @@ df_qlfs <- readRDS(
   filter(!is.na(employed1)) %>%
   filter(!is.na(employed2)) %>%
   filter(!is.na(employed3)) %>%
-  select(contains(c("employed", "age", "educ", "race", "female", "weight", "tenure", "timegap", "formal", "period", "contracttype", "neverworked"))) %>%  # keep age, educ, empl status
+  select(hhnr, pnr, contains(c("employed", "age", "educ", "race", "female", "weight", "tenure", "timegap", "formal", "period", "contracttype", "neverworked"))) %>%  # retain panel IDs for upstream covariate joins
   select(-contains(c("4"))) %>% 
   rename(
     y1 = employed1,

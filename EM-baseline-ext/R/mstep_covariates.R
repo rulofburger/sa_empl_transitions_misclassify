@@ -9,47 +9,59 @@
 
 .covariate_q <- function(par, suff, X, entry_active, stationary,
                          gradient = FALSE) {
-  p <- ncol(X)
+  X_transition <- .as_transition_design(X)
+  p <- ncol(X_transition$X12)
   p0 <- sum(entry_active)
   beta0 <- numeric(p)
   beta0[entry_active] <- par[seq_len(p0)]
   beta1 <- par[p0 + seq_len(p)]
 
-  eta0 <- as.vector(X %*% beta0)
-  eta1 <- as.vector(X %*% beta1)
-  theta0 <- pmin(pmax(pnorm(eta0), 1e-10), 1 - 1e-10)
-  theta1 <- pmin(pmax(pnorm(eta1), 1e-10), 1 - 1e-10)
-
-  fail0 <- pmax(suff$eff_w_0 - suff$eff_wy_0, 0)
-  fail1 <- pmax(suff$eff_w_1 - suff$eff_wy_1, 0)
-  q <- sum(suff$eff_wy_0 * log(theta0) + fail0 * log1p(-theta0)) +
-       sum(suff$eff_wy_1 * log(theta1) + fail1 * log1p(-theta1))
-
-  score_eta0 <- dnorm(eta0) *
-    (suff$eff_wy_0 / theta0 - fail0 / (1 - theta0))
-  score_eta1 <- dnorm(eta1) *
-    (suff$eff_wy_1 / theta1 - fail1 / (1 - theta1))
+  q <- 0
+  grad0 <- numeric(p0)
+  grad1 <- numeric(p)
+  first <- NULL
+  for (nm in c("X12", "X23")) {
+    Xt <- X_transition[[nm]]
+    st <- suff$transition[[nm]]
+    eta0 <- as.vector(Xt %*% beta0)
+    eta1 <- as.vector(Xt %*% beta1)
+    theta0 <- pmin(pmax(pnorm(eta0), 1e-10), 1 - 1e-10)
+    theta1 <- pmin(pmax(pnorm(eta1), 1e-10), 1 - 1e-10)
+    fail0 <- pmax(st$eff_w_0 - st$eff_wy_0, 0)
+    fail1 <- pmax(st$eff_w_1 - st$eff_wy_1, 0)
+    q <- q + sum(st$eff_wy_0 * log(theta0) + fail0 * log1p(-theta0)) +
+      sum(st$eff_wy_1 * log(theta1) + fail1 * log1p(-theta1))
+    score_eta0 <- dnorm(eta0) *
+      (st$eff_wy_0 / theta0 - fail0 / (1 - theta0))
+    score_eta1 <- dnorm(eta1) *
+      (st$eff_wy_1 / theta1 - fail1 / (1 - theta1))
+    grad0 <- grad0 + as.vector(crossprod(Xt[, entry_active, drop = FALSE], score_eta0))
+    grad1 <- grad1 + as.vector(crossprod(Xt, score_eta1))
+    if (nm == "X12") first <- list(eta0 = eta0, eta1 = eta1,
+                                      theta0 = theta0, theta1 = theta1)
+  }
 
   if (stationary) {
-    denom <- theta0 + 1 - theta1
-    alpha <- pmin(pmax(theta0 / denom, 1e-10), 1 - 1e-10)
+    denom <- first$theta0 + 1 - first$theta1
+    alpha <- pmin(pmax(first$theta0 / denom, 1e-10), 1 - 1e-10)
     q <- q + sum(suff$init_w1 * log(alpha) +
                  suff$init_w0 * log1p(-alpha))
 
     score_alpha <- suff$init_w1 / alpha - suff$init_w0 / (1 - alpha)
-    score_eta0 <- score_eta0 + score_alpha *
-      ((1 - theta1) / denom^2) * dnorm(eta0)
-    score_eta1 <- score_eta1 + score_alpha *
-      (theta0 / denom^2) * dnorm(eta1)
+    score_eta0_init <- score_alpha * ((1 - first$theta1) / denom^2) *
+      dnorm(first$eta0)
+    score_eta1_init <- score_alpha * (first$theta0 / denom^2) *
+      dnorm(first$eta1)
+    grad0 <- grad0 + as.vector(crossprod(
+      X_transition$X12[, entry_active, drop = FALSE], score_eta0_init))
+    grad1 <- grad1 + as.vector(crossprod(X_transition$X12, score_eta1_init))
   }
 
   # Scaling leaves the maximizer unchanged and improves conditioning with
   # large survey weights.
-  scale <- max(suff$total_weight, 1)
-  if (!gradient) return(q / scale)
-
-  c(as.vector(crossprod(X[, entry_active, drop = FALSE], score_eta0)),
-    as.vector(crossprod(X, score_eta1))) / scale
+  q_scale <- max(suff$total_weight, 1)
+  if (!gradient) return(q / q_scale)
+  c(grad0, grad1) / q_scale
 }
 
 .interpolate_cov_params <- function(old, proposed, fraction, entry_active) {
@@ -86,7 +98,8 @@ m_step_covariates <- function(suff, X, params_old, model_type = "symmetric",
   if (!model_type %in% c("symmetric", "none"))
     stop("m_step_covariates: model_type must be 'symmetric' or 'none'")
 
-  p <- ncol(X)
+  X_transition <- .as_transition_design(X)
+  p <- ncol(X_transition$X12)
   if (is.null(entry_active)) entry_active <- rep(TRUE, p)
   if (!is.logical(entry_active) || length(entry_active) != p || !any(entry_active))
     stop("m_step_covariates: entry_active must be a logical vector of length ncol(X)")

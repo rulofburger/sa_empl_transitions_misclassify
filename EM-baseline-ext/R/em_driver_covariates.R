@@ -98,14 +98,19 @@ em_fit_covariates <- function(df,
   if (!model_type %in% c("symmetric", "none"))
     stop("em_fit_covariates: model_type must be 'symmetric' or 'none'")
   .validate_panel_df(df)
-  if (!is.matrix(X) || nrow(X) != nrow(df))
-    stop("em_fit_covariates: X must be a matrix with nrow(X) == nrow(df)")
+  X_transition <- .as_transition_design(X, nrow(df))
+  if (stationary && !.transition_design_is_time_invariant(X_transition))
+    stop("em_fit_covariates: use stationary=FALSE with time-varying covariates")
   if (!is.numeric(max_iter) || length(max_iter) != 1L || max_iter < 1L)
     stop("em_fit_covariates: max_iter must be a positive integer")
 
-  p      <- ncol(X)
+  p      <- ncol(X_transition$X12)
   params <- params0 %||% init_params_covariates(p, model_type = model_type)
-  entry_active <- attr(X, "entry_active")
+  coef_names <- colnames(X_transition$X12)
+  if (is.null(coef_names)) coef_names <- paste0("x", seq_len(p))
+  names(params$beta0) <- coef_names
+  names(params$beta1) <- coef_names
+  entry_active <- attr(X_transition$X12, "entry_active")
   if (is.null(entry_active)) entry_active <- rep(TRUE, p)
 
   # Validate required fields

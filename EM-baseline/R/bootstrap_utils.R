@@ -214,11 +214,24 @@ summarise_bootstrap <- function(boot_results, point_params, point_implied,
   ok_idx <- which(flags == "ok")
   n_ok   <- length(ok_idx)
 
-  # Flatten a named list to a scalar numeric vector, dropping non-scalars.
+  # Flatten scalar quantities and named coefficient vectors. Coefficient names
+  # such as beta1_informal_sector allow appendix tables to retrieve bootstrap
+  # uncertainty for raw model parameters without special-case code.
   .flatten_scalar <- function(lst) {
     if (is.null(lst)) return(NULL)
-    scalars <- Filter(function(x) is.numeric(x) && length(x) == 1L, lst)
-    unlist(scalars)
+    out <- numeric(0)
+    for (nm in names(lst)) {
+      x <- lst[[nm]]
+      if (!is.numeric(x)) next
+      if (length(x) == 1L) {
+        out[nm] <- x
+      } else if (!is.null(names(x)) && all(nzchar(names(x)))) {
+        vals <- as.numeric(x)
+        names(vals) <- paste0(nm, "_", names(x))
+        out <- c(out, vals)
+      }
+    }
+    out
   }
 
   boot_mat <- lapply(ok_idx, function(i) {
@@ -271,4 +284,3 @@ summarise_bootstrap <- function(boot_results, point_params, point_implied,
     row.names = NULL
   )
 }
-

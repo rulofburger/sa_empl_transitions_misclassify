@@ -2,9 +2,9 @@
 # Bootstrap inference pipeline for all EM models
 # Created: 2026-05-06
 #
-# Computes bootstrap standard errors for all 24 EM model configurations:
+# Computes bootstrap standard errors for all 22 EM model configurations:
 #   - 6  baseline models  (EM-baseline/output/results/fit_*.rds)
-#   - 18 extension models (EM-baseline-ext/output/results/fit_*.rds)
+#   - 16 extension models (EM-baseline-ext/output/results/fit_*.rds)
 #
 # For each model, runs B nonparametric bootstrap replicates, warm-started from
 # the point estimate (no multi-start). Uses parallel::mclapply for within-model
@@ -80,10 +80,10 @@ cat(sprintf("Bootstrap pipeline — B=%d | cores=%d | seed=%d\n",
             B, N_CORES, MASTER_SEED))
 cat(sprintf("Run timestamp: %s\n\n", run_ts))
 
-# Draw a B × 24 matrix of deterministic per-rep seeds (rows = reps, cols = models)
+# Draw a B × 22 matrix of deterministic per-rep seeds (rows = reps, cols = models)
 # so each model gets its own independent seed vector regardless of parallelism order.
 set.seed(MASTER_SEED)
-N_MODELS   <- 24L
+N_MODELS   <- 22L
 seed_matrix <- matrix(
   sample.int(.Machine$integer.max, B * N_MODELS, replace = FALSE),
   nrow = B, ncol = N_MODELS
@@ -94,6 +94,13 @@ seed_matrix <- matrix(
 # ------------------------------------------------------------------------------
 
 source(here::here("scripts", "ingest_data_3waves_SA.R"))  # loads df_qlfs
+
+sector_source_path <- here::here("data", "raw", "QLFSmerged_mapped.rds")
+if (!file.exists(sector_source_path))
+  stop("Missing sector source: data/raw/QLFSmerged_mapped.rds")
+sector_source <- readRDS(sector_source_path)
+df_qlfs <- attach_transition_informal_sector(df_qlfs, sector_source)
+rm(sector_source)
 
 # Guard: factor check
 for (y_col in c("y1", "y2", "y3")) {
@@ -122,8 +129,8 @@ df_ext$y1     <- as.integer(df_ext$y1)
 df_ext$y2     <- as.integer(df_ext$y2)
 df_ext$y3     <- as.integer(df_ext$y3)
 df_ext$weight <- as.numeric(df_ext$weight)
-df_ext$contracttype1 <- ifelse(is.na(df_ext$contracttype1), 0L,
-                               as.integer(df_ext$contracttype1))
+for (nm in c("contracttype1", "contracttype2"))
+  df_ext[[nm]] <- ifelse(is.na(df_ext[[nm]]), 0L, as.integer(df_ext[[nm]]))
 df_ext <- as.data.frame(df_ext)
 
 # Build covariate matrices and inconsistency matrix
@@ -132,7 +139,7 @@ cv_set2 <- prepare_covariate_matrix(df_ext, covariate_set = 2L)
 cv_set3 <- prepare_covariate_matrix(df_ext, covariate_set = 3L)
 X1 <- cv_set1$X
 X2 <- cv_set2$X
-X3 <- cv_set3$X
+X3 <- cv_set3$X_transition
 
 df_incons  <- compute_inconsistencies(df_ext)
 inc_mat    <- as.matrix(df_incons[, c("Y_age_1", "Y_age_2", "Y_age_3",
@@ -255,7 +262,7 @@ for (k in seq_along(baseline_configs)) {
 }
 
 # ------------------------------------------------------------------------------
-# 4. Bootstrap extension models (18 models)
+# 4. Bootstrap extension models (16 models)
 # ------------------------------------------------------------------------------
 
 cat("\n========== EXTENSION MODELS ==========\n")
@@ -299,9 +306,7 @@ ext_configs <- list(
   list(label="cov_s2_non_stat", family="cov", X=X2, model_type="none",      stationary=TRUE),
   list(label="cov_s2_non_free", family="cov", X=X2, model_type="none",      stationary=FALSE),
   # Covariate Set 3
-  list(label="cov_s3_sym_stat", family="cov", X=X3, model_type="symmetric", stationary=TRUE),
   list(label="cov_s3_sym_free", family="cov", X=X3, model_type="symmetric", stationary=FALSE),
-  list(label="cov_s3_non_stat", family="cov", X=X3, model_type="none",      stationary=TRUE),
   list(label="cov_s3_non_free", family="cov", X=X3, model_type="none",      stationary=FALSE),
   # FMM
   list(label="fmm_sym_stat", family="fmm", model_type="symmetric", stationary=TRUE),
@@ -340,7 +345,11 @@ for (k in seq_along(ext_configs)) {
   seeds_k      <- seed_matrix[, model_col]
 
   if (cfg$family == "cov") {
-    point_implied <- implied_covariates(point_params, cfg$X, cfg$model_type)
+    coef_names <- colnames(.as_transition_design(cfg$X)$X12)
+    names(point_params$beta0) <- coef_names
+    names(point_params$beta1) <- coef_names
+    point_implied <- implied_covariates(point_params, cfg$X, cfg$model_type,
+                                        df = df_ext, gamma = fit_pt$gamma)
     fit_fn <- .make_cov_fn(df_ext, cfg$X, cfg$model_type, cfg$stationary,
                             point_params, point_loglik, PI_CAP)
     save_ame <- TRUE
