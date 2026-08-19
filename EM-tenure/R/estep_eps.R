@@ -71,18 +71,22 @@ validate_df_eps <- function(df) {
   missing_cats <- setdiff(cat_cols, names(df))
   if (length(missing_cats) > 0)
     stop("e_step_eps requires columns: ", paste(missing_cats, collapse = ", "))
-  na_timegap <- is.na(df$timegap_cat1) | is.na(df$timegap_cat2) | is.na(df$timegap_cat3)
-  if (any(na_timegap))
-    stop(sprintf("e_step_eps: %d obs have NA in timegap_cat columns.", sum(na_timegap)))
-  bad_cats <- !all(df$timegap_cat1 %in% 1:7) || !all(df$timegap_cat2 %in% 1:7) ||
-              !all(df$timegap_cat3 %in% 1:7)
-  if (bad_cats) stop("e_step_eps: timegap_cat1/2/3 must contain only integers 1-7.")
   # Check y before tenure: NA in y would propagate through y == 1L comparisons.
   na_y <- is.na(df$y1) | is.na(df$y2) | is.na(df$y3)
   if (any(na_y))
     stop(sprintf("e_step_eps: %d obs have NA in y1/y2/y3.", sum(na_y)))
   bad_y <- !all(df$y1 %in% 0:1) || !all(df$y2 %in% 0:1) || !all(df$y3 %in% 0:1)
   if (bad_y) stop("e_step_eps: y1/y2/y3 must be binary (0 or 1).")
+  na_timegap_nonemp <- (df$y1 == 0L & is.na(df$timegap_cat1)) |
+                       (df$y2 == 0L & is.na(df$timegap_cat2)) |
+                       (df$y3 == 0L & is.na(df$timegap_cat3))
+  if (any(na_timegap_nonemp))
+    stop(sprintf("e_step_eps: %d obs have NA timegap at a nonemployed wave.",
+                 sum(na_timegap_nonemp)))
+  bad_cats <- any(!is.na(df$timegap_cat1) & !df$timegap_cat1 %in% 1:7) ||
+              any(!is.na(df$timegap_cat2) & !df$timegap_cat2 %in% 1:7) ||
+              any(!is.na(df$timegap_cat3) & !df$timegap_cat3 %in% 1:7)
+  if (bad_cats) stop("e_step_eps: observed timegap categories must be integers 1-7.")
   na_tenure_emp <- (df$y1 == 1L & is.na(df$tenure1)) |
                    (df$y2 == 1L & is.na(df$tenure2)) |
                    (df$y3 == 1L & is.na(df$tenure3))
@@ -103,7 +107,7 @@ validate_df_eps <- function(df) {
   invisible(NULL)
 }
 
-.log_duration_history_prior_eps <- function(hmat, alpha, g_list, c_list,
+.log_duration_history_prior_eps <- function(hmat, alpha, s_list, g_list, c_list,
                                              lambda_g, beta_g,
                                              lambda_d, beta_d) {
   N <- length(g_list[[1]])
@@ -111,15 +115,24 @@ validate_df_eps <- function(df) {
   out <- matrix(0, N, H)
   p_entry <- lapply(c_list[1:2], function(z)
     .duration_category_transition_probability(z, lambda_d, beta_d))
+  p_exit_missing <- .duration_marginal_transition_probability(
+    lambda_g, beta_g)
+  p_entry_missing <- .duration_marginal_transition_probability(
+    lambda_d, beta_d)
   for (j in seq_len(H)) {
     h <- hmat[j, ]
     out[, j] <- if (h[1] == 1L) log(alpha) else log1p(-alpha)
     for (t in 1:2) {
       if (h[t] == 1L) {
+        # Tenure is observed only when employment is reported.  Under a
+        # latent-employed/reported-nonemployed mismatch, integrate the
+        # unavailable spell age out rather than using an imputed clock.
         p_change <- .duration_transition_probability(
           g_list[[t]], lambda_g, beta_g)
+        p_change[s_list[[t]] == 0L | !is.finite(p_change)] <- p_exit_missing
       } else {
         p_change <- p_entry[[t]]
+        p_change[s_list[[t]] == 1L | !is.finite(p_change)] <- p_entry_missing
       }
       p_change <- pmin(pmax(p_change, 1e-12), 1 - 1e-12)
       out[, j] <- out[, j] + if (h[t + 1L] == h[t]) {
@@ -202,7 +215,8 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
 
   if (duration_dependent) {
     log_prior <- .log_duration_history_prior_eps(
-      hmat, alpha, g_list, c_list, lambda_g, beta_g, lambda_d, beta_d)
+      hmat, alpha, s_list, g_list, c_list,
+      lambda_g, beta_g, lambda_d, beta_d)
   } else {
     prior_h <- prior_over_histories(hmat, theta1, theta0, alpha)
     log_prior <- log(.bound01(prior_h))

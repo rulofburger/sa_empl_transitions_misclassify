@@ -207,29 +207,17 @@ The input data frame must have columns:
 | timegap_cat1, timegap_cat2, timegap_cat3 | Nonemployment category codes (1–7) | Always |
 | weight | Survey weight | Always |
 
-### Imputation of wrong-state durations
+### Missing wrong-state durations
 
-The EM-tenure model evaluates duration emissions for **both** states at each
-wave (the observed state and the hypothetical misclassified state). Raw data
-often contain zeros for wrong-state durations (e.g., timegap = 0 for employed
-waves). These structural zeros are imputed in the ingest script
-(`scripts/ingest_data_3waves_SA.R`) before estimation:
-
-**Timegap category imputation** (for employed waves, where the timegap code is
-set to 0 and maps to `NA` after code validation):
-- Look for the nearest wave with a valid category code (1–7) for the same individual.
-- "Nearest" means |t' − t| = 1 is preferred over |t' − t| = 2.
-- **Q6 assumption**: Only valid category codes 1–7 are eligible donors. Never-worked
-  waves have `timegap_cat = NA` and are excluded from the donor pool. If an
-  individual has no valid donor across all 3 waves (e.g., always employed), assign
-  category 1 (`[0, 3)` months) — the floor.
-- The never-worked filter in `estimate_pipeline.R` removes fully never-worked
-  individuals from estimation, so this floor assumption does not affect EM estimates
-  in practice.
-
-**Tenure imputation** (for nonemployed waves, where tenure is set to 0):
-- Look for the nearest wave with `tenure > 0` for the same individual.
-- If no valid donor: assign `.DURATION_FLOOR = 0.25/12 ≈ 0.021 years ≈ 1 week`.
+The shared ingest script historically fills durations belonging to the
+unreported state for compatibility with older estimators. The epsilon model no
+longer treats these constructed values as data. `prepare_eps_estimation_data()`
+sets tenure to missing at reported-nonemployment waves and timegap to missing
+at reported-employment waves. Emissions integrate these unavailable clocks out.
+In the duration-dependent transition prior, risk is averaged over the
+model-implied duration distribution whenever the latent state differs from the
+reported state. Actually observed tenure and timegap reports retain the exact
+clock-consistency restrictions.
 
 ## TeX references
 

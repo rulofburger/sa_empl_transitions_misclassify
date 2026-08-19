@@ -941,3 +941,44 @@ test_that("log_emission_spell_g: K=2 offset (0,1) and (1,2) give finite loglik",
                  info = sprintf("offset (%d,%d): wrong K", d1, d2))
   }
 })
+
+# ---------------------------------------------------------------------------
+# 40. Wrong-state durations are missing and integrated out
+# ---------------------------------------------------------------------------
+
+test_that("prepare_eps_estimation_data preserves wrong-state durations as missing", {
+  df <- .make_eps_data(n = 40L, seed = 401L)
+  prepared <- prepare_eps_estimation_data(df)
+  for (t in 1:3) {
+    expect_true(all(is.na(prepared[[paste0("tenure", t)]][prepared[[paste0("y", t)]] == 0L])))
+    expect_true(all(is.na(prepared[[paste0("timegap_cat", t)]][prepared[[paste0("y", t)]] == 1L])))
+  }
+  expect_silent(validate_df_eps(prepared))
+})
+
+test_that("wrong-state duration values cannot affect epsilon likelihood", {
+  legacy <- .make_eps_data(n = 80L, seed = 402L)
+  missing <- legacy
+  for (t in 1:3) {
+    y <- missing[[paste0("y", t)]]
+    missing[[paste0("tenure", t)]][y == 0L] <- NA_real_
+    missing[[paste0("timegap_cat", t)]][y == 1L] <- NA_integer_
+  }
+  params <- .make_eps_params()
+  params$beta_g <- -0.35
+  params$beta_d <- -0.60
+  a <- e_step_eps(legacy, params, suff_stats = FALSE)
+  b <- e_step_eps(missing, params, suff_stats = FALSE)
+  expect_equal(a$loglik, b$loglik, tolerance = 1e-10)
+  expect_equal(a$gamma, b$gamma, tolerance = 1e-10)
+})
+
+test_that("observed-state missing durations remain invalid", {
+  df <- .make_eps_data(n = 20L, seed = 403L)
+  df$tenure1[df$y1 == 1L][1] <- NA_real_
+  expect_error(validate_df_eps(df), "NA tenure at an employed wave")
+
+  df <- .make_eps_data(n = 20L, seed = 404L)
+  df$timegap_cat1[df$y1 == 0L][1] <- NA_integer_
+  expect_error(validate_df_eps(df), "NA timegap at a nonemployed wave")
+})

@@ -44,6 +44,7 @@ weighted_rates <- rbind(
         duration_weighted_transition_rates(df_fit,constant_direct)),
   cbind(model="Log-duration hazard",
         duration_weighted_transition_rates(df_fit,duration_fit)))
+missing_clock_shares <- duration_missing_risk_shares(df_fit,duration_fit)
 lr <- 2*(duration_fit$loglik-constant_direct$loglik)
 lr_table <- data.frame(LR=lr,df=2,p_value=pchisq(lr,df=2,lower.tail=FALSE),
   constant_EM_LL=constant_em$loglik,
@@ -59,6 +60,9 @@ print(profile,row.names=FALSE,digits=7)
 cat("\nPosterior-risk and survey-weighted transition probabilities\n")
 print(weighted_rates[,c("model","wave","exit_rate","entry_rate")],
       row.names=FALSE,digits=7)
+cat("\nPosterior risk-set shares with unavailable origin clocks\n")
+print(missing_clock_shares[,c("wave","exit_clock_missing","entry_clock_missing")],
+      row.names=FALSE,digits=7)
 cat("\nDuration-dependent multi-start diagnostics\n")
 print(duration_multi$summary,row.names=FALSE,digits=8)
 cat("\nNested-model and optimizer diagnostics\n")
@@ -69,6 +73,7 @@ dir.create(outdir,recursive=TRUE,showWarnings=FALSE)
 write.csv(summary_table,file.path(outdir,"model_comparison_latest.csv"),row.names=FALSE)
 write.csv(profile,file.path(outdir,"transition_profile_latest.csv"),row.names=FALSE)
 write.csv(weighted_rates,file.path(outdir,"weighted_rates_latest.csv"),row.names=FALSE)
+write.csv(missing_clock_shares,file.path(outdir,"missing_clock_shares_latest.csv"),row.names=FALSE)
 write.csv(lr_table,file.path(outdir,"diagnostics_latest.csv"),row.names=FALSE)
 constant_direct$objective_function <- NULL
 duration_fit$objective_function <- NULL

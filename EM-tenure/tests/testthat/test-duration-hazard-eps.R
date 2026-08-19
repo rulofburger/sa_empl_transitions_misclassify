@@ -30,7 +30,8 @@ test_that("beta zero history prior equals the constant linked prior", {
   theta1 <- exp(-lambda_g * .QUARTER_YEARS)
   theta0 <- 1 - exp(-lambda_d * .QUARTER_YEARS)
   lp <- .log_duration_history_prior_eps(
-    h, alpha, lapply(1:3, function(t) df[[paste0("tenure", t)]]),
+    h, alpha, lapply(1:3, function(t) df[[paste0("y", t)]]),
+    lapply(1:3, function(t) df[[paste0("tenure", t)]]),
     lapply(1:3, function(t) df[[paste0("timegap_cat", t)]]),
     lambda_g, 0, lambda_d, 0)
   target <- log(prior_over_histories(h, theta1, theta0, alpha))
@@ -55,6 +56,14 @@ test_that("negative beta produces declining quarterly transition rates", {
   p <- .duration_transition_probability(d, .2, -.5)
   expect_true(all(diff(p) < 0))
   expect_true(all(p > 0 & p < 1))
+})
+
+test_that("marginal missing-clock transition risk is finite and nests constant hazard", {
+  lambda <- .27
+  expect_equal(.duration_marginal_transition_probability(lambda, 0),
+    .duration_transition_probability(0, lambda, 0), tolerance=1e-12)
+  p <- .duration_marginal_transition_probability(lambda, -.75)
+  expect_true(is.finite(p) && p > 0 && p < 1)
 })
 
 test_that("category-integrated transition risks are finite for heavy tails", {

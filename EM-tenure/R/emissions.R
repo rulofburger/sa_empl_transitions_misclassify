@@ -254,6 +254,22 @@ log_emission_start_d <- function(d, sigma2_d) {
   -expm1(-inc)
 }
 
+# Average transition risk when current spell duration is unavailable.  The
+# integration is with respect to the model-implied duration distribution.  It
+# is used only for a latent state that differs from the reported state, where
+# the corresponding tenure/timegap clock was not collected.
+.duration_marginal_transition_probability <- function(lambda, beta = 0) {
+  if (beta == 0) return(.duration_transition_probability(0, lambda, 0))
+  integrate(function(u) {
+    y <- -log1p(-u)
+    d <- .duration_inverse_cumhaz(y, lambda, beta)
+    ans <- .duration_transition_probability(d, lambda, beta)
+    ans[is.infinite(d) & beta < 0] <- 0
+    ans[is.infinite(d) & beta > 0] <- 1
+    ans
+  }, 0, 1, rel.tol = 1e-8, subdivisions = 300L)$value
+}
+
 .duration_inverse_cumhaz <- function(y, lambda, beta = 0) {
   k <- beta + 1
   if (abs(k) < 1e-8) return(expm1(y / lambda))

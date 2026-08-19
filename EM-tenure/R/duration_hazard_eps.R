@@ -152,6 +152,10 @@ duration_weighted_transition_rates <- function(df, fit) {
     p_exit <- .duration_transition_probability(g, p$lambda_g, p$beta_g)
     p_entry <- .duration_category_transition_probability(
       cat_d, p$lambda_d, p$beta_d)
+    p_exit[!is.finite(p_exit)] <- .duration_marginal_transition_probability(
+      p$lambda_g, p$beta_g)
+    p_entry[!is.finite(p_entry)] <- .duration_marginal_transition_probability(
+      p$lambda_d, p$beta_d)
     data.frame(wave = t,
       exit_rate = weighted.mean(p_exit, df$weight * pr_emp),
       entry_rate = weighted.mean(p_entry, df$weight * pr_nonemp),
@@ -168,5 +172,33 @@ duration_weighted_transition_rates <- function(df, fit) {
     exit_denominator = sum(out$exit_denominator),
     entry_numerator = sum(out$entry_numerator),
     entry_denominator = sum(out$entry_denominator))
+  rbind(pooled, out)
+}
+
+duration_missing_risk_shares <- function(df, fit) {
+  h <- latent_histories()
+  gamma <- fit$gamma
+  rows <- lapply(1:2, function(t) {
+    pr_emp <- as.vector(gamma %*% h[, t])
+    pr_nonemp <- 1 - pr_emp
+    reported_emp <- df[[paste0("y", t)]] == 1L
+    data.frame(wave=t,
+      exit_clock_missing=sum(df$weight * pr_emp * !reported_emp) /
+        sum(df$weight * pr_emp),
+      entry_clock_missing=sum(df$weight * pr_nonemp * reported_emp) /
+        sum(df$weight * pr_nonemp),
+      exit_missing_numerator=sum(df$weight * pr_emp * !reported_emp),
+      exit_denominator=sum(df$weight * pr_emp),
+      entry_missing_numerator=sum(df$weight * pr_nonemp * reported_emp),
+      entry_denominator=sum(df$weight * pr_nonemp))
+  })
+  out <- do.call(rbind, rows)
+  pooled <- data.frame(wave=0,
+    exit_clock_missing=sum(out$exit_missing_numerator) / sum(out$exit_denominator),
+    entry_clock_missing=sum(out$entry_missing_numerator) / sum(out$entry_denominator),
+    exit_missing_numerator=sum(out$exit_missing_numerator),
+    exit_denominator=sum(out$exit_denominator),
+    entry_missing_numerator=sum(out$entry_missing_numerator),
+    entry_denominator=sum(out$entry_denominator))
   rbind(pooled, out)
 }

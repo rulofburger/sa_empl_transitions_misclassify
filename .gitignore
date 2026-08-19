@@ -43,6 +43,7 @@ output/results/*.csv
 # Generated output tables/figures — do not commit; regenerate from pipeline
 **/output/tables/
 **/output/figures/
+diagnostics/output/
 
 # Compound GPID local config (user-specific, never commit)
 compound-gpid.local.md

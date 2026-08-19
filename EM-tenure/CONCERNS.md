@@ -50,7 +50,12 @@ Survey weights enter both the log-likelihood and the sufficient statistics. The 
 
 ## 12. Missing duration data
 
-The current implementation requires all 6 duration columns to be non-NA. The ingest script drops rows with any NA tenure/timegap. This is conservative; a more sophisticated approach would handle partial missingness in the E-step.
+Wrong-state durations are now represented as missing in the epsilon-model
+preparation and integrated out. A tenure report is required only at a reported
+employment wave and a timegap category only at a reported nonemployment wave.
+The shared ingestion still drops observations whose duration is missing in the
+state in which it should have been reported; extending the emission likelihood
+to accommodate that genuine item nonresponse remains future work.
 
 ## 13. Log-likelihood decrease under the linked specification (GEM, not full EM)
 
@@ -126,4 +131,3 @@ In practice, the LL decrease is largest on the first 1–3 iterations when the i
 ### Current mitigation
 
 The monotonicity check in `em_driver.R` uses a threshold of −1e-4 × |LL|. Drops within this band are silently accepted. Drops exceeding this threshold trigger a warning. This prevents false alarms from the GEM behaviour while still catching genuine bugs (incorrect sufficient statistics, coding errors).
-
