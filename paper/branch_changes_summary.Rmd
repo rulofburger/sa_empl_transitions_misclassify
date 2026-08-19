@@ -517,6 +517,69 @@ estimates rise slightly. Log likelihoods from the old and corrected
 duration-dependent likelihoods should not be compared directly because they
 condition on different information.
 
+# Tail-safe piecewise duration hazards
+
+The corrected tenure-contamination likelihood was next estimated with
+piecewise-constant exit and entry hazards over five intervals: 0--3 months,
+3--12 months, 1--3 years, 3--5 years, and 5 years or more. Hazard levels are
+positive and the final level remains constant over the open tail. The model
+therefore retains flexible duration dependence while guaranteeing a proper
+spell distribution with a finite mean. Missing wrong-state clocks continue to
+be integrated out and all clean observed clocks retain the exact consistency
+restrictions.
+
+| Model | Parameters | Weighted log likelihood | AIC | Status error (%) | Tenure contamination (%) | Weighted exit (%) | Weighted entry (%) |
+|:--|--:|--:|--:|--:|--:|--:|--:|
+| Constant hazard | 5 | -2,510,430.3 | 5,020,870.7 | 10.21 | 24.79 | 4.26 | 4.08 |
+| Power-law hazard | 7 | -2,475,676.8 | 4,951,367.6 | 10.53 | 25.09 | 4.51 | 1.96 |
+| Piecewise hazard | 13 | -2,462,197.4 | 4,924,420.8 | 9.93 | 24.98 | 4.62 | 3.64 |
+
+The AIC values use the survey-weighted likelihood and are best interpreted as
+within-analysis fit diagnostics rather than conventional design-based model
+selection statistics. Even after charging for six additional parameters, the
+piecewise model improves AIC by about 26,947 relative to the power-law model.
+The status-error estimate falls modestly to 9.93%, while tenure contamination
+remains essentially unchanged at 24.98%.
+
+| Duration interval | Exit hazard | Exit probability per quarter (%) | Entry hazard | Entry probability per quarter (%) |
+|:--|--:|--:|--:|--:|
+| 0--3 months | 0.3420 | 8.35 | 0.5060 | 9.15 |
+| 3--12 months | 0.3558 | 8.51 | 0.2620 | 6.34 |
+| 1--3 years | 0.1757 | 4.30 | 0.1098 | 2.71 |
+| 3--5 years | 0.1522 | 3.73 | 0.1177 | 2.90 |
+| 5+ years | 0.1353 | 3.33 | 0.1425 | 3.50 |
+
+Annualized hazard levels are shown alongside exact model-implied quarterly
+probabilities. Exit risk is approximately flat during the first year and then
+falls sharply. Entry risk falls steeply through the first three years of
+nonemployment, but levels off and rises modestly in the longest-duration
+groups. The power law cannot represent this long-duration flattening and
+instead drives its slope towards the heavy-tail boundary.
+
+The piecewise model implies mean employment and nonemployment durations of
+67.0 and 76.7 months, with medians of 35.3 and 51.4 months. This eliminates the
+power-law model's implausible 1,257-month mean nonemployment duration without
+forcing entry to remain constant. The aggregate entry estimate correspondingly
+rises from 1.96% under the power law to 3.64%, much closer to the 4.08%
+constant-hazard estimate. The substantive conclusion is therefore that entry
+falls strongly at first but does not continue approaching zero indefinitely.
+
+Two non-flat starts reached the same solution to displayed precision; a flat
+start encountered a non-finite line search. A tighter BFGS refinement left all
+reported estimates unchanged. Direct likelihood profiles increase on either
+side of the solution. With a finite-difference step appropriate to the
+interval integrations, the maximum scaled gradient is $2.0\times10^{-4}$; a
+smaller step gives a spurious gradient because it falls below numerical
+integration precision. No hazard is close to its numerical bound. These checks
+support a stable point estimate, although standard errors or profile intervals
+are still required before treating the modest rebound in long-duration entry
+as precisely estimated.
+
+The reproducible runner is
+`EM-tenure/estimate_piecewise_hazard_tenure_contamination.R`; generated fit
+objects and CSV tables remain ignored by Git. No bootstrap errors have been
+estimated.
+
 # Transition-only no-error duration counterfactual
 
 As an out-of-likelihood diagnostic, conventional no-status-error AR(1) and

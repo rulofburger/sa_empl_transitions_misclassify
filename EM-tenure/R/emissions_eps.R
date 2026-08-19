@@ -147,8 +147,8 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
   if (!is.finite(tol) || tol <= 0) {
     stop(sprintf("log_emission_spell_g: tol must be > 0; got %.4g", tol))
   }
-  if (!is.finite(lambda_g) || lambda_g <= 0) {
-    stop(sprintf("log_emission_spell_g: lambda_g must be > 0; got %.4g", lambda_g))
+  if (any(!is.finite(lambda_g)) || any(lambda_g <= 0)) {
+    stop("log_emission_spell_g: all lambda_g hazards must be finite and positive")
   }
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("log_emission_spell_g: eps must be in (0, 1); got %.4g", eps))

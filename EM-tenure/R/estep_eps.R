@@ -164,8 +164,8 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("e_step_eps: params$eps must be in (0, 1); got %.4g", eps))
   }
-  if (!is.finite(lambda_g) || lambda_g <= 0) {
-    stop(sprintf("e_step_eps: params$lambda_g must be > 0; got %.4g", lambda_g))
+  if (any(!is.finite(lambda_g)) || any(lambda_g <= 0)) {
+    stop("e_step_eps: all params$lambda_g hazards must be finite and positive")
   }
   if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) {
     stop(sprintf("e_step_eps: params$alpha must be in (0, 1); got %.4g", alpha))
@@ -179,8 +179,8 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   if (!is.finite(pi_par) || pi_par < 0 || pi_par >= 1) {
     stop(sprintf("e_step_eps: params$pi must be in [0, 1); got %.4g", pi_par))
   }
-  if (!is.finite(lambda_d) || lambda_d <= 0) {
-    stop(sprintf("e_step_eps: params$lambda_d must be > 0; got %.4g", lambda_d))
+  if (any(!is.finite(lambda_d)) || any(lambda_d <= 0)) {
+    stop("e_step_eps: all params$lambda_d hazards must be finite and positive")
   }
   if (!all(is.finite(c(beta_g, beta_d))) || beta_g <= -1 || beta_d <= -1) {
     stop("e_step_eps: beta_g and beta_d must be finite and greater than -1")

@@ -227,15 +227,42 @@ log_emission_start_d <- function(d, sigma2_d) {
   out
 }
 
+.DURATION_PIECEWISE_KNOTS <- c(0, .25, 1, 3, 5, Inf)
+
+.is_piecewise_hazard <- function(lambda) length(lambda) > 1L
+
+.piecewise_duration_cumhaz <- function(x, hazards,
+                                       knots=.DURATION_PIECEWISE_KNOTS) {
+  if (length(hazards) != length(knots)-1L ||
+      any(!is.finite(hazards)) || any(hazards <= 0))
+    stop("piecewise hazards must be positive and match the duration intervals")
+  out <- numeric(length(x))
+  for (k in seq_along(hazards)) {
+    width <- pmax(pmin(x, knots[k+1L]) - knots[k], 0)
+    out <- out + hazards[k] * width
+  }
+  out
+}
+
+.piecewise_duration_hazard <- function(x, hazards,
+                                        knots=.DURATION_PIECEWISE_KNOTS) {
+  idx <- findInterval(x, knots, rightmost.closed=TRUE, all.inside=TRUE)
+  hazards[pmin(idx, length(hazards))]
+}
+
 .duration_cumhaz <- function(x, lambda, beta = 0) {
+  if (.is_piecewise_hazard(lambda))
+    return(.piecewise_duration_cumhaz(x, lambda))
   lambda * .duration_baseline_integral(x, beta)
 }
 
 .log_duration_density <- function(x, lambda, beta = 0) {
   out <- rep(-Inf, length(x))
   valid <- is.finite(x) & x > 0
-  out[valid] <- log(lambda) + beta * log1p(x[valid]) -
-    .duration_cumhaz(x[valid], lambda, beta)
+  hazard <- if (.is_piecewise_hazard(lambda))
+    .piecewise_duration_hazard(x[valid], lambda) else
+    lambda * (1 + x[valid])^beta
+  out[valid] <- log(hazard) - .duration_cumhaz(x[valid], lambda, beta)
   out
 }
 
@@ -259,18 +286,28 @@ log_emission_start_d <- function(d, sigma2_d) {
 # is used only for a latent state that differs from the reported state, where
 # the corresponding tenure/timegap clock was not collected.
 .duration_marginal_transition_probability <- function(lambda, beta = 0) {
-  if (beta == 0) return(.duration_transition_probability(0, lambda, 0))
+  if (length(lambda) == 1L && beta == 0)
+    return(.duration_transition_probability(0, lambda, 0))
   integrate(function(u) {
     y <- -log1p(-u)
     d <- .duration_inverse_cumhaz(y, lambda, beta)
     ans <- .duration_transition_probability(d, lambda, beta)
-    ans[is.infinite(d) & beta < 0] <- 0
-    ans[is.infinite(d) & beta > 0] <- 1
+    ans[is.infinite(d)] <- if (.is_piecewise_hazard(lambda))
+      .duration_transition_probability(1e8, lambda, beta) else
+      if (beta < 0) 0 else 1
     ans
   }, 0, 1, rel.tol = 1e-8, subdivisions = 300L)$value
 }
 
 .duration_inverse_cumhaz <- function(y, lambda, beta = 0) {
+  if (.is_piecewise_hazard(lambda)) {
+    knots <- .DURATION_PIECEWISE_KNOTS
+    finite_widths <- diff(knots[-length(knots)])
+    Hbreaks <- c(0, cumsum(lambda[-length(lambda)] * finite_widths))
+    idx <- pmin(findInterval(y,Hbreaks,rightmost.closed=TRUE),length(lambda))
+    idx <- pmax(idx,1L)
+    return(knots[idx] + (y - Hbreaks[idx]) / lambda[idx])
+  }
   k <- beta + 1
   if (abs(k) < 1e-8) return(expm1(y / lambda))
   lx <- log1p(k * y / lambda) / k
@@ -278,7 +315,7 @@ log_emission_start_d <- function(d, sigma2_d) {
 }
 
 .duration_category_transition_probability <- function(cat, lambda, beta = 0) {
-  if (beta == 0) {
+  if (length(lambda) == 1L && beta == 0) {
     return(rep(.duration_transition_probability(0, lambda, 0), length(cat)))
   }
   lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
@@ -292,8 +329,9 @@ log_emission_start_d <- function(d, sigma2_d) {
       y <- -log(survival)
       d <- .duration_inverse_cumhaz(y, lambda, beta)
       ans <- .duration_transition_probability(d, lambda, beta)
-      ans[is.infinite(d) & beta < 0] <- 0
-      ans[is.infinite(d) & beta > 0] <- 1
+      ans[is.infinite(d)] <- if (.is_piecewise_hazard(lambda))
+        .duration_transition_probability(1e8, lambda, beta) else
+        if (beta < 0) 0 else 1
       ans
     }, 0, 1, rel.tol = 1e-7, subdivisions = 200L)$value
   }, numeric(1))

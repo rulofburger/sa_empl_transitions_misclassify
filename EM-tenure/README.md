@@ -184,6 +184,13 @@ compares the constant-hazard linked epsilon model with the nested hazards
 risk over interval-censored timegap categories, prints duration-specific and
 posterior-risk-weighted rates, and does not run the bootstrap.
 
+The follow-on runner `estimate_piecewise_hazard_tenure_contamination.R`
+estimates positive piecewise-constant entry and exit hazards over 0--3 months,
+3--12 months, 1--3 years, 3--5 years, and 5+ years. The final positive hazard
+is maintained over the open tail, guaranteeing a proper distribution and a
+finite mean duration. It reuses the corrected constant and power-law fits,
+runs multiple starts plus a tighter refinement, and does not bootstrap.
+
 ### Key arguments to `em_fit_tenure_eps()`
 
 | Argument | Default | Description |
