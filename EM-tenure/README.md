@@ -154,6 +154,10 @@ fit$params
 source("EM-tenure/estimate_pipeline.R")
 ```
 
+For epsilon point estimates only (three starts per specification, exact-cell
+collapsing, weights normalized to the original sample size, and no bootstrap),
+run `EM-tenure/estimate_point_tenure_contamination.R`.
+
 This runs all model variants (base EM-tenure × 4 variants, epsilon × 4 variants), saves each fit as a timestamped `.rds` in `output/results/`, appends a summary row to `output/results/run_summary.csv`, and performs LR tests.
 
 ### Running tests

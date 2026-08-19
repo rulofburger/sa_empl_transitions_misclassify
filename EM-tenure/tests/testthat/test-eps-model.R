@@ -465,7 +465,8 @@ test_that("em_fit_tenure_eps returns expected output fields", {
   df  <- .make_eps_data(n = 100L)
   fit <- em_fit_tenure_eps(df, max_iter = 5L, verbose = 0L)
 
-  expect_named(fit, c("params", "loglik", "history", "converged", "iterations", "gamma"))
+  expect_named(fit, c("params", "loglik", "history", "converged", "status",
+                      "iterations", "gamma", "diagnostics"))
   expect_equal(dim(fit$gamma), c(100L, 8L))
   expect_true(is.finite(fit$loglik))
   expect_true(is.logical(fit$converged))
@@ -473,6 +474,40 @@ test_that("em_fit_tenure_eps returns expected output fields", {
   expect_true(is.data.frame(fit$history))
   expect_true("eps" %in% names(fit$params))
   expect_null(fit$params$sigma2_g)
+})
+
+test_that("stationary epsilon M-step increases the constrained Q block", {
+  df <- .make_eps_data(n=400L, seed=912L)
+  old <- .make_eps_params()
+  old$alpha <- old$theta0/(old$theta0+1-old$theta1)
+  estep <- e_step_eps(df,old)
+  for (linked in c(FALSE,TRUE)) {
+    new <- m_step_eps(estep$suff,sum(df$weight),stationary=TRUE,linked=linked)
+    q_old <- .q_theta_stationary_eps(old$theta0,old$theta1,estep$suff,linked)
+    q_new <- .q_theta_stationary_eps(new$theta0,new$theta1,estep$suff,linked)
+    expect_gte(q_new+1e-7,q_old)
+    expect_equal(new$alpha,new$theta0/(new$theta0+1-new$theta1),tolerance=1e-12)
+  }
+})
+
+test_that("epsilon driver reports a small residual after genuine convergence", {
+  df <- .make_eps_data(n=500L,seed=441L)
+  fit <- em_fit_tenure_eps(df,stationary=TRUE,linked=TRUE,
+    max_iter=500L,tol=1e-9,param_tol=1e-6,verbose=0L)
+  if (fit$converged) {
+    expect_identical(fit$status,"converged")
+    expect_lt(fit$diagnostics$fixedpoint_residual,2e-6)
+  } else {
+    expect_false(fit$status == "converged")
+  }
+})
+
+test_that("collapsing epsilon cells preserves normalized total weight", {
+  df <- .make_eps_data(n=300L,seed=337L)
+  collapsed <- collapse_eps_cells(df)
+  expect_equal(sum(collapsed$weight),nrow(df),tolerance=1e-10)
+  expect_equal(attr(collapsed,"n_original"),nrow(df))
+  expect_lte(nrow(collapsed),nrow(df))
 })
 
 # ---------------------------------------------------------------------------

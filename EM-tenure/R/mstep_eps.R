@@ -5,6 +5,63 @@
 #
 # Internal helper
 .clip_param <- function(x, lo, hi) max(lo, min(x, hi))
+
+# Joint stationary theta block. Once alpha is constrained to the ergodic
+# distribution, the initial-state part of Q depends on both transition
+# probabilities. They therefore cannot be updated separately from transition
+# counts. Under the CTMC link, the duration-emission terms also belong to this
+# same two-dimensional block.
+.q_theta_stationary_eps <- function(theta0, theta1, suff, linked = FALSE) {
+  alpha <- theta0 / (theta0 + 1 - theta1)
+  q <- suff$C1 * log(alpha) + suff$C0 * log1p(-alpha) +
+    suff$T01 * log(theta0) + (suff$D0 - suff$T01) * log1p(-theta0) +
+    suff$T11 * log(theta1) + (suff$D1 - suff$T11) * log1p(-theta1)
+  if (!linked) return(q)
+
+  lambda_g <- ctmc_lambda_from_persistence(theta1)
+  lambda_d <- ctmc_lambda_from_transition(theta0)
+  q <- q + suff$Lg_count * log(lambda_g) - lambda_g * suff$Lg_xsum
+  if (length(suff$cat_d_marginal_c)) {
+    use <- suff$cat_d_marginal_w > 0
+    q <- q + sum(suff$cat_d_marginal_w[use] *
+      log_emission_interval_d(suff$cat_d_marginal_c[use], lambda_d))
+  }
+  if (length(suff$cat_d_trans_curr)) {
+    use <- suff$cat_d_trans_w > 0
+    q <- q + sum(suff$cat_d_trans_w[use] * log_emission_transition_d(
+      suff$cat_d_trans_curr[use], suff$cat_d_trans_prev[use], lambda_d))
+  }
+  q
+}
+
+.m_step_theta_stationary_eps <- function(suff, linked = FALSE,
+                                          theta_cap = 0.999,
+                                          theta_floor = 1e-6) {
+  width <- theta_cap - 2 * theta_floor
+  unpack <- function(z) theta_floor + width * plogis(z)
+  pack <- function(x) qlogis((x - theta_floor) / width)
+  seed0 <- .clip_param(suff$T01 / suff$D0, theta_floor * 2,
+                       theta_cap - theta_floor * 2)
+  seed1 <- .clip_param(suff$T11 / suff$D1, theta_floor * 2,
+                       theta_cap - theta_floor * 2)
+  scale <- max(suff$C0 + suff$C1, 1)
+  objective <- function(z) {
+    th <- unpack(z)
+    -.q_theta_stationary_eps(th[1], th[2], suff, linked) / scale
+  }
+  starts <- list(c(seed0, seed1), c(0.05, 0.95), c(0.10, 0.90))
+  fits <- lapply(starts, function(s) tryCatch(
+    optim(pack(s), objective, method = "BFGS",
+          control = list(maxit = 500L, reltol = 1e-12)),
+    error = function(e) NULL))
+  fits <- Filter(Negate(is.null), fits)
+  if (!length(fits)) stop("stationary epsilon theta M-step failed from all starts")
+  best <- fits[[which.min(vapply(fits, `[[`, numeric(1), "value"))]]
+  theta <- unpack(best$par)
+  list(theta0 = unname(theta[1]), theta1 = unname(theta[2]),
+       optimizer_code = best$convergence,
+       q_value = .q_theta_stationary_eps(theta[1], theta[2], suff, linked))
+}
 #
 # Closed-form updates for: alpha, theta_0, theta_1 (free), pi, eps, lambda_g.
 # Brent solver for: theta_1 / theta_0 (linked via CTMC), lambda_d (mirroring base).
@@ -154,13 +211,19 @@ m_step_eps <- function(suff, total_weight,
   eps_hat <- if (suff$Eps_den > 0) suff$Eps_num / suff$Eps_den else eps_floor
   eps_hat <- .clip_param(eps_hat, eps_floor, eps_cap)
 
-  # --- theta1 ---
+  # --- theta transition block ---
   theta1_seed <- if (suff$D1 > 0) {
     .bound01(suff$T11 / suff$D1, eps = 1e-6)
   } else {
     0.9
   }
-  if (linked) {
+  stationary_theta <- NULL
+  if (stationary) {
+    stationary_theta <- .m_step_theta_stationary_eps(
+      suff, linked = linked, theta_cap = theta_cap)
+    theta0 <- stationary_theta$theta0
+    theta1 <- stationary_theta$theta1
+  } else if (linked) {
     theta1 <- .m_step_theta1_eps_brent(
       T11 = suff$T11, D1 = suff$D1,
       Lg_count = suff$Lg_count, Lg_xsum = suff$Lg_xsum,
@@ -170,13 +233,15 @@ m_step_eps <- function(suff, total_weight,
     theta1 <- .clip_param(theta1_seed, 1e-6, theta_cap)
   }
 
-  # --- theta0 ---
+  # --- theta0 (unless jointly updated under stationarity) ---
   theta0_seed <- if (suff$D0 > 0) {
     .bound01(suff$T01 / suff$D0, eps = 1e-6)
   } else {
     0.1
   }
-  if (linked) {
+  if (stationary) {
+    # Already updated jointly above.
+  } else if (linked) {
     theta0 <- .m_step_theta0_brent_discrete(
       T01      = suff$T01, D0 = suff$D0,
       cat_marg = suff$cat_d_marginal_c,
@@ -218,7 +283,7 @@ m_step_eps <- function(suff, total_weight,
     )
   }
 
-  list(
+  out <- list(
     alpha    = alpha,
     theta0   = theta0,
     theta1   = theta1,
@@ -227,4 +292,6 @@ m_step_eps <- function(suff, total_weight,
     lambda_g = lambda_g,
     lambda_d = lambda_d
   )
+  attr(out, "stationary_theta_diagnostics") <- stationary_theta
+  out
 }

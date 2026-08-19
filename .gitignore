@@ -34,6 +34,7 @@ data-use/
 output/results/*.rds
 output/results/*.csv
 **/output/results/*.csv
+**/output/results/**/*.csv
 # R data objects — both conventional cases (.rds lowercase and .Rds mixed-case
 # both appear in data-use/ from older serialization code)
 *.rds
