@@ -3,13 +3,18 @@ make_covinc_4w_test_data <- function(n=80L) {
   common <- cbind(age=rnorm(n),age_sq=rnorm(n),educ=rnorm(n),
     race_2=rbinom(n,1,.2),race_3=rbinom(n,1,.1),race_4=rbinom(n,1,.1),
     female=rbinom(n,1,.5))
-  X <- lapply(1:3,function(tt)cbind(common,permanent_contract=rbinom(n,1,.35),
-    informal_sector=rbinom(n,1,.25)))
+  X <- lapply(1:3,function(tt)cbind(common,log_tenure=rnorm(n),
+    log_time_since_work=rnorm(n),never_worked=rbinom(n,1,.1),
+    tenure_missing=rbinom(n,1,.01),timegap_missing=rbinom(n,1,.02),
+    permanent_contract=rbinom(n,1,.35),informal_sector=rbinom(n,1,.25)))
   Z <- lapply(1:4,function(tt)cbind(intercept=1,
     age_inconsistent=rbinom(n,1,.08),education_inconsistent=rbinom(n,1,.06)))
   list(y=matrix(rbinom(4*n,1,.5),n,4),weight=runif(n,.5,2),
     weight_sq=runif(n,.5,2)^2,X=X,Z=Z,
-    entry_active=!colnames(X[[1]])%in%c("permanent_contract","informal_sector"),
+    entry_active=!colnames(X[[1]])%in%
+      c("log_tenure","tenure_missing","permanent_contract","informal_sector"),
+    persistence_active=!colnames(X[[1]])%in%
+      c("log_time_since_work","never_worked","timegap_missing"),
     covariate_names=colnames(X[[1]]),n_original=n,n_cells=n)
 }
 
@@ -19,6 +24,15 @@ testthat::test_that("four-wave type and state posteriors are normalized", {
   testthat::expect_equal(rowSums(e$posterior_type),rep(1,nrow(d$y)),tolerance=1e-11)
   for(k in 1:2)for(tt in 1:4)
     testthat::expect_equal(rowSums(e$state[[k]][[tt]]),e$posterior_type[,k],tolerance=1e-11)
+})
+
+testthat::test_that("duration variables are active only in their relevant transition equation", {
+  d <- make_covinc_4w_test_data(); p <- .initial_fmm_covinc_4w(d)
+  testthat::expect_true("log_time_since_work" %in% names(p$beta0))
+  testthat::expect_true("never_worked" %in% names(p$beta0))
+  testthat::expect_false("log_tenure" %in% names(p$beta0))
+  testthat::expect_true("log_tenure" %in% names(p$beta1))
+  testthat::expect_false("log_time_since_work" %in% names(p$beta1))
 })
 
 testthat::test_that("analytical observed-likelihood score matches a direction derivative", {

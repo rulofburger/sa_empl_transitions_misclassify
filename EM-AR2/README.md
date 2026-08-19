@@ -59,6 +59,13 @@ EM-AR2/
 └── README.md
 ```
 
+The optional `estimate_duration_covariates_4w.R` runner estimates a one-type
+AR(2) specification in which origin-wave log time since work and never-worked
+status predict entry, while origin-wave log tenure predicts employment
+persistence. Missing-duration indicators retain the baseline four-wave sample.
+The second lag remains in both probit equations, and symmetric
+misclassification is estimated jointly by exact observed-likelihood MLE.
+
 ## Usage
 
 From the project root:

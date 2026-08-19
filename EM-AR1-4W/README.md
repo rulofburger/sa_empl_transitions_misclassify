@@ -19,8 +19,10 @@ test, and analytical sandwich/delta-method inference. Run it with
 The parsimonious controlled-heterogeneity specification is in
 `R/fmm_covariates_inconsistency_4w.R`. It retains two type-specific transition
 intercepts and free initial conditions, while constraining demographic and job
-covariate slopes to be common across types. Permanent contract and informal
-sector vary by transition and enter persistence only. Symmetric
+covariate slopes to be common across types. Origin-wave log tenure enters
+persistence only; log time since work and never-worked enter entry only.
+Permanent contract and informal sector vary by transition and enter
+persistence only. Symmetric
 misclassification varies with wave-attributed age and education
 inconsistencies. The estimator uses an EM warm start, exact observed-likelihood
 analytical scores, multiple starts, and survey-weighted sandwich/delta-method

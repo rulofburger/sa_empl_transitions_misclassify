@@ -49,8 +49,8 @@ inference used in Tables 2 and 3, together with the observable-covariate
 extension and revised Table 4. It also records the repaired four-wave AR(1)
 models, the two-type finite-mixture extensions, and the models combining
 observable transition heterogeneity with inconsistency-dependent
-misclassification. The AR(2) and tenure specifications are not reinterpreted
-here.
+misclassification. The AR(2) and structural endogenous-duration specifications
+are not reinterpreted here.
 
 The central objectives were to replace stale or numerically unreliable results
 with validated maximum-likelihood estimates, provide fast analytical inference,
@@ -271,7 +271,7 @@ misclassification materially inflates uncorrected transition rates.
 
 The new `EM-AR1-4W` module uses every complete four-wave history in the
 method-A panel. The controlled specifications contain 308,240 people, exactly
-collapsed to 105,257 likelihood cells. Initial employment probabilities are
+collapsed to 229,809 likelihood cells after adding observed durations. Initial employment probabilities are
 free rather than restricted to stationarity. Estimation combines an EM warm
 start with exact observed-likelihood analytical scores, dispersed starting
 values, label normalisation, and survey-weighted sandwich/delta-method
@@ -284,6 +284,9 @@ misclassification probabilities within two time-invariant latent classes. The
 controlled model instead gives the classes distinct transition intercepts but
 constrains all transition-covariate slopes to be common. Baseline age,
 age-squared, education, race, and sex enter both transition equations.
+Origin-wave log tenure enters persistence, while log time since work and a
+never-worked indicator enter entry. Missing-duration indicators retain the full
+sample without assigning a substantive zero duration.
 Origin-wave permanent-contract and informal-sector status can change over time
 and enter persistence only. Age and education inconsistencies predict
 misclassification without attempting to distinguish inconsistent respondent
@@ -293,23 +296,25 @@ reports from incorrect panel matches.
 |:--|--:|--:|--:|--:|
 | Uncontrolled: stable | 92.13 | 47.74 | 2.36 | 2.21 |
 | Uncontrolled: mobile | 7.87 | 47.95 | 42.16 | 47.04 |
-| Controlled, common misclassification: stable | 77.54 | 45.19 | 1.12 | 0.59 |
-| Controlled, common misclassification: mobile | 22.46 | 56.27 | 24.54 | 19.60 |
-| Controlled, type-specific misclassification: stable | 72.92 | 44.49 | 0.84 | 0.26 |
-| Controlled, type-specific misclassification: mobile | 27.08 | 56.58 | 21.28 | 16.72 |
+| Controlled with duration, common misclassification: stable | 89.63 | 47.38 | 3.20 | 3.01 |
+| Controlled with duration, common misclassification: mobile | 10.37 | 50.59 | 27.30 | 26.87 |
+| Controlled with duration, type-specific misclassification: stable | 58.17 | 44.61 | 1.33 | 0.75 |
+| Controlled with duration, type-specific misclassification: mobile | 41.83 | 52.33 | 11.98 | 11.18 |
 
 All entries are percentages. In the preferred type-specific-misclassification
-model, analytical standard errors are 1.23 percentage points for the class
-shares, 0.15 and 0.10 points for stable entry and exit, and 0.67 and 0.65 points
+model, analytical standard errors are 3.05 percentage points for the class
+shares, 0.15 and 0.20 points for stable entry and exit, and 0.64 and 0.65 points
 for mobile entry and exit. The class distinction remains economically large,
-but observable characteristics and heterogeneous reliability make the mobile
-class larger and substantially less extreme than in the uncontrolled model.
-This shows that the original latent classes combined residual mobility,
-observed heterogeneity, and heterogeneous misclassification.
+but observed duration and heterogeneous reliability make the mobile class
+larger and substantially less extreme than in the uncontrolled model. This
+shows that the original latent classes combined duration dependence, other
+observed heterogeneity, and heterogeneous misclassification with residual mobility.
 
-The common-slope estimates are economically coherent. Permanent contracts
-raise latent employment persistence (probit coefficient 0.584, SE 0.022),
-whereas informal-sector employment lowers it (-0.237, SE 0.021). Age effects
+The common-slope estimates are economically coherent. Log tenure raises latent
+employment persistence (probit coefficient 0.650, SE 0.015). Log time since
+work lowers entry (-0.325, SE 0.007), as does never having worked (-0.860, SE
+0.018). Permanent contracts raise persistence (0.399, SE 0.016), whereas
+informal-sector employment lowers it (-0.266, SE 0.016). Age effects
 are nonlinear: entry peaks at approximately age 38 and persistence at
 approximately age 53. Education raises persistence, while women have lower
 conditional entry and persistence probabilities. These are conditional
@@ -323,16 +328,16 @@ slopes common.
 
 | Response pattern | Stable type | Mobile type | Mobile minus stable |
 |:--|--:|--:|--:|
-| Consistent age and education | 0.46 (0.03) | 1.72 (0.10) | 1.26 |
-| Age inconsistency | 10.31 (0.38) | 24.95 (1.02) | 14.64 |
-| Education inconsistency | 2.29 (0.13) | 7.77 (0.48) | 5.48 |
-| Both inconsistencies | 28.65 (0.52) | 41.86 (0.63) | 13.21 |
+| Consistent age and education | 0.14 (0.04) | 2.37 (0.15) | 2.22 |
+| Age inconsistency | 6.28 (0.98) | 35.52 (1.05) | 29.25 |
+| Education inconsistency | 0.89 (0.21) | 11.83 (0.53) | 10.94 |
+| Both inconsistencies | 23.62 (1.97) | 46.93 (0.34) | 23.31 |
 
 Probabilities and analytical standard errors are percentages. The mobile
-class has about 3.7 times the baseline misclassification probability. The
-difference between the two transformed intercepts is 1.344 (SE 0.105), giving
-a robust Wald statistic of 12.79. The weighted log likelihood improves from
--435,310.33 to -435,207.29 with one additional parameter. Because the objective
+class has about 16 times the baseline misclassification probability. The
+difference between the transformed intercepts is 2.839 (SE 0.225), giving a
+sandwich Wald statistic of 12.64. The weighted log likelihood improves from
+-428,777.56 to -428,568.60 with one additional parameter. Because the objective
 uses survey weights, this likelihood gain should not be assigned the usual
 unweighted likelihood-ratio reference distribution; the sandwich Wald result
 provides separate evidence against a common intercept.
@@ -344,37 +349,18 @@ match quality, or other omitted characteristics.
 
 ## Observable characteristics and posterior class membership
 
-The mixture share is constant *a priori*, but posterior class probabilities can
-still be associated with observed characteristics through the transition and
-measurement likelihoods. Simple survey-weighted correlations between the
-posterior mobile probability and age, education, sex, and individual race
-indicators are small in absolute value (approximately 0.01--0.05). Mean mobile
-probability rises from 24.3% at ages 18--24 to 28.1% at ages 45--55, is 27.7%
-for men and 26.5% for women, and ranges only from 26.7% to 29.1% across race
-groups.
-
-The stronger simple correlations are with permanent-contract exposure (0.131),
-informal-sector exposure (0.084), age inconsistencies (0.061), and education
-inconsistencies (0.073). Conditional on observed employment, however, average
-mobile probabilities differ only modestly by permanent contract (31.3% versus
-32.2% without one) and by informal status (32.9% versus 31.3% outside the
-informal sector).
-
-Observable blocks explain little of the posterior variation. A survey-weighted
-linear projection on baseline demographics has an $R^2$ of 0.8%; adding the
-inconsistency measures raises it to 1.5%. Among people observed employed at
-least once in the first three waves, demographics and job characteristics
-explain 3.0%, rising to 3.8% after adding inconsistencies. The classes therefore
-are not merely demographic or sectoral labels; most posterior separation still
-comes from employment histories. These regressions are descriptive and should
-not be interpreted as a model of, or causal effects on, class membership.
+The earlier posterior-correlation calculations referred to the specification
+without observed duration and are therefore not reproduced as current results.
+They should be rerun before making claims about how much posterior class
+assignment is explained by the expanded observable covariate set.
 
 ## Four-wave diagnostics and reproducibility
 
-The preferred model has full information-matrix rank (27/27), a positive
-minimum eigenvalue of 0.000275, and condition number 913. All four refined
-starts agree within 0.001 log-likelihood units, and the maximum weighted score
-is $3.0\times10^{-6}$. The four-wave test suite contains 37 passing checks,
+The preferred model has full information-matrix rank (32/32), a positive
+minimum eigenvalue of 0.0000120, condition number 29,216, and maximum weighted
+score $3.2\times10^{-6}$. This duration-expanded run was refined from the
+previous preferred solution; dispersed-start replication remains a useful
+computational robustness check. The four-wave test suite includes checks
 including posterior normalisation and numerical verification of the analytical
 scores for both common and type-specific misclassification.
 
@@ -399,6 +385,56 @@ reporting-error component remains.
 The paper should therefore distinguish clearly between variation in transition
 risk across workers and the upward bias in observed transitions caused by
 classification error.
+
+# Four-wave one-type AR(2) with observed duration
+
+The single-type AR(2) model was re-estimated after adding the same observed-
+duration controls used in the three-wave covariate specifications. Log time
+since work, never-worked status, and a missing-timegap indicator enter the entry
+equation. Log tenure and a missing-tenure indicator enter employment
+persistence. The covariates change with the origin wave, while the second lag
+remains a latent employment state. The initial two-state distribution is free,
+and a common symmetric misclassification probability is estimated jointly.
+Exact collapsing reduces 317,437 observations to 37,031 likelihood cells
+without changing the weighted likelihood; summed squared weights preserve the
+individual-level analytical sandwich covariance.
+
+| Transition probability or parameter | Estimate | Analytical SE |
+|:--|--:|--:|
+| Entry, non-employed in both preceding waves | 4.51 | 0.07 |
+| Entry, employed two waves ago | 17.48 | 0.97 |
+| Exit, non-employed two waves ago | 19.16 | 0.81 |
+| Exit, employed in both preceding waves | 4.27 | 0.08 |
+| Symmetric misclassification probability | 1.49 | 0.08 |
+
+Transition probabilities are percentages and are survey-weighted averages
+within the observed origin-state risk set. The duration coefficients have the
+expected signs: a one-standard-deviation increase in log time since work lowers
+the entry probit index by 0.215 (SE 0.010), never having worked lowers it by
+0.831 (SE 0.028), and a one-standard-deviation increase in log tenure raises
+the persistence index by 0.431 (SE 0.015). The missing-tenure effect is very
+imprecise and has no substantive interpretation.
+
+Duration controls explain an important part, but not all, of the apparent
+second-order dependence. Relative to the earlier symmetric-error AR(2), the
+average probability of entry when employed two waves ago falls from 30.75% to
+17.48%, and exit when non-employed two waves ago falls from 31.60% to 19.16%.
+The corresponding long-spell probabilities barely change: entry after two
+non-employment waves is 4.51% rather than 4.60%, and exit after two employment
+waves is 4.27% rather than 4.38%. The remaining latent lag coefficients are
+large and precisely estimated (entry 0.811, SE 0.034; persistence 0.903, SE
+0.025), so coarse observed tenure and timegap do not eliminate AR(2)
+dependence. The estimated misclassification probability rises from 0.98% to
+1.49%; this comparison should be treated as a specification change rather than
+as evidence that duration causes misclassification.
+
+The fit converged at a maximum weighted score of $3.3\times10^{-6}$. The
+observed-information matrix has full rank (13/13) and a positive minimum
+eigenvalue, although its condition number of approximately 388,646 indicates
+that the initial-state and missing-duration parameters are less sharply scaled
+than the main transition effects. The reproducible runner is
+`EM-AR2/estimate_duration_covariates_4w.R`; generated estimates remain ignored
+by Git.
 
 # Remaining checks
 

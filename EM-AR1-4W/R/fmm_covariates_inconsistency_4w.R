@@ -1,5 +1,5 @@
-# Two-type four-wave AR(1) FMM with common covariate slopes and
-# inconsistency-dependent symmetric misclassification.
+# Two-type four-wave AR(1) FMM with common demographic, observed-duration,
+# and job-characteristic slopes plus inconsistency-dependent misclassification.
 
 .clamp_probability <- function(x, lo = 1e-9, hi = 1 - 1e-9)
   pmin(pmax(x, lo), hi)
@@ -29,7 +29,8 @@ prepare_fmm_covariates_inconsistency_4w <- function(
   panel <- readRDS(panel_path)
   required <- c("hhnr", "pnr", paste0("period", 1:4), paste0("employed", 1:4),
     paste0("age", 1:4), paste0("educ", 1:4), "race1", "female1",
-    paste0("contracttype", 1:3), paste0("weight", 1:4))
+    paste0("contracttype", 1:3), paste0("weight", 1:4),
+    paste0("tenure", 1:3), paste0("timegap", 1:3), paste0("neverworked", 1:3))
   missing <- setdiff(required, names(panel))
   if (length(missing)) stop("Four-wave panel is missing: ", paste(missing, collapse = ", "))
   keep <- panel$age1 > 17 & panel$age1 < 56 &
@@ -38,11 +39,39 @@ prepare_fmm_covariates_inconsistency_4w <- function(
   panel <- panel[keep, required, drop = FALSE]
   names(panel)[match(paste0("employed", 1:4), names(panel))] <- paste0("y", 1:4)
   for (nm in c(paste0("y", 1:4), paste0("age", 1:4), paste0("educ", 1:4),
-               "race1", "female1", paste0("contracttype", 1:3)))
+               "race1", "female1", paste0("contracttype", 1:3),
+               paste0("tenure", 1:3), paste0("timegap", 1:3),
+               paste0("neverworked", 1:3)))
     panel[[nm]] <- as.numeric(unclass(panel[[nm]]))
   panel$weight <- with(panel, (weight1 * weight2 * weight3 * weight4) ^ .25)
   if (any(!is.finite(panel$weight) | panel$weight <= 0)) stop("Invalid survey weights")
   panel$weight <- nrow(panel) * panel$weight / sum(panel$weight)
+
+  # Match the three-wave observed-duration specification. Values are retained
+  # only in the reported origin state; missingness indicators keep the full
+  # four-wave sample without interpreting missing durations as genuine zeros.
+  timegap_months <- c(`1`=1.5, `2`=4.5, `3`=7.5, `4`=10.5,
+                      `5`=24, `6`=48, `7`=90)
+  for (tt in 1:3) {
+    y <- panel[[paste0("y", tt)]]
+    tenure <- panel[[paste0("tenure", tt)]]
+    tenure[tenure < 0] <- NA_real_
+    tenure[y == 0] <- 0
+    gap_code <- panel[[paste0("timegap", tt)]]
+    gap <- unname(timegap_months[as.character(gap_code)])
+    gap[gap_code == 0] <- 0
+    gap[y == 1] <- 0
+    never <- panel[[paste0("neverworked", tt)]]
+    gap[y == 0 & never == 1] <- pmax(
+      panel[[paste0("age", tt)]][y == 0 & never == 1] -
+        panel[[paste0("educ", tt)]][y == 0 & never == 1] - 6, 0)
+    panel[[paste0("tenure_missing_cov", tt)]] <- as.integer(y == 1 & is.na(tenure))
+    panel[[paste0("timegap_missing_cov", tt)]] <- as.integer(y == 0 & is.na(gap))
+    panel[[paste0("tenure_cov", tt)]] <- ifelse(y == 1, ifelse(is.na(tenure), 0, tenure / 12), 0)
+    panel[[paste0("timegap_cov", tt)]] <- ifelse(y == 0, ifelse(is.na(gap), 0, gap / 12), 0)
+    panel[[paste0("neverworked_cov", tt)]] <- ifelse(
+      y == 0, ifelse(is.na(never), 0, never), 0)
+  }
 
   sector <- readRDS(sector_path)
   sector_required <- c("hhnr", "pnr_methodA", "wave", "sector2")
@@ -76,19 +105,44 @@ prepare_fmm_covariates_inconsistency_4w <- function(
   colnames(race_dummies) <- paste0("race_", races[-1])
   common <- cbind(age = age$value, age_sq = age_sq$value, educ = educ$value,
                   race_dummies, female = panel$female1)
+  duration_std <- function(prefix, transform = identity) {
+    values <- transform(unlist(panel[paste0(prefix, 1:3)], use.names = FALSE))
+    z <- std(values)
+    list(values = split(z$value, rep(1:3, each = nrow(panel))),
+         center = z$center, scale = z$scale)
+  }
+  log_tenure <- duration_std("tenure_cov", log1p)
+  log_timegap <- duration_std("timegap_cov", log1p)
   X <- lapply(1:3, function(tt) cbind(common,
+    log_tenure = log_tenure$values[[tt]],
+    log_time_since_work = log_timegap$values[[tt]],
+    never_worked = panel[[paste0("neverworked_cov", tt)]],
+    tenure_missing = panel[[paste0("tenure_missing_cov", tt)]],
+    timegap_missing = panel[[paste0("timegap_missing_cov", tt)]],
     permanent_contract = panel[[paste0("permanent", tt)]],
     informal_sector = panel[[paste0("informal", tt)]]))
-  entry_active <- !colnames(X[[1]]) %in% c("permanent_contract", "informal_sector")
+  # Drop a missingness indicator if the final sample has no such reports.
+  varying <- vapply(colnames(X[[1]]), function(nm)
+    any(vapply(X, function(x) any(x[, nm] != 0), logical(1))), logical(1))
+  optional_missing <- colnames(X[[1]]) %in% c("tenure_missing", "timegap_missing")
+  keep_x <- varying | !optional_missing
+  X <- lapply(X, function(x) x[, keep_x, drop = FALSE])
+  entry_active <- !colnames(X[[1]]) %in%
+    c("log_tenure", "tenure_missing", "permanent_contract", "informal_sector")
+  persistence_active <- !colnames(X[[1]]) %in%
+    c("log_time_since_work", "never_worked", "timegap_missing")
   inc <- compute_inconsistencies_4w(panel)
   Z <- lapply(1:4, function(tt) cbind(intercept = 1,
     age_inconsistent = inc[, paste0("Y_age_", tt)],
     education_inconsistent = inc[, paste0("Y_edu_", tt)]))
   out <- list(y = as.matrix(panel[paste0("y", 1:4)]), weight = panel$weight,
     weight_sq = panel$weight^2, X = X, Z = Z, entry_active = entry_active,
+    persistence_active = persistence_active,
     covariate_names = colnames(X[[1]]),
     scaling = list(age = age[c("center", "scale")],
-      age_sq = age_sq[c("center", "scale")], educ = educ[c("center", "scale")]),
+      age_sq = age_sq[c("center", "scale")], educ = educ[c("center", "scale")],
+      log_tenure = log_tenure[c("center", "scale")],
+      log_time_since_work = log_timegap[c("center", "scale")]),
     n_original = nrow(panel))
   if (!collapse) return(out)
   z_no_intercept <- do.call(cbind, lapply(Z, function(z) z[, -1, drop = FALSE]))
@@ -110,12 +164,30 @@ prepare_fmm_covariates_inconsistency_4w <- function(
   nms <- data$covariate_names
   b0 <- setNames(rep(0, 2 + sum(data$entry_active)),
     c("intercept_A", "intercept_B", nms[data$entry_active]))
-  b1 <- setNames(rep(0, 2 + length(nms)), c("intercept_A", "intercept_B", nms))
+  active1 <- data$persistence_active %||% rep(TRUE, length(nms))
+  b1 <- setNames(rep(0, 2 + sum(active1)),
+    c("intercept_A", "intercept_B", nms[active1]))
   b0[1:2] <- qnorm(c(base$theta0_A, base$theta0_B))
   b1[1:2] <- qnorm(c(base$theta1_A, base$theta1_B))
   list(alpha=c(A=base$alpha_A,B=base$alpha_B),phi=base$phi,beta0=b0,beta1=b1,
     delta=setNames(c(qlogis(2*base$pi),0,0),
       c("intercept","age_inconsistent","education_inconsistent")))
+}
+
+.expand_fmm_covinc_start_4w <- function(data, old_params) {
+  out <- .initial_fmm_covinc_4w(data)
+  out$alpha <- old_params$alpha
+  out$phi <- old_params$phi
+  for (block in c("beta0", "beta1", "delta")) {
+    common <- intersect(names(out[[block]]), names(old_params[[block]]))
+    out[[block]][common] <- old_params[[block]][common]
+  }
+  # Preserve a type-specific misclassification parameterization when supplied.
+  if (length(old_params$delta) == 4L) {
+    out$delta <- setNames(c(old_params$delta[1:2], old_params$delta[3:4]),
+      names(old_params$delta))
+  }
+  out
 }
 
 .fmm_covinc_pi <- function(Z, delta, type=1L) {
@@ -143,7 +215,9 @@ e_step_fmm_covinc_4w <- function(data, params, retain=TRUE) {
   for(k in 1:2) {
     q0[[k]] <- lapply(1:3,function(tt).fmm_covinc_transition(
       data$X[[tt]],params$beta0,k,data$entry_active))
-    q1[[k]] <- lapply(1:3,function(tt).fmm_covinc_transition(data$X[[tt]],params$beta1,k))
+    active1 <- data$persistence_active %||% rep(TRUE, length(data$entry_active))
+    q1[[k]] <- lapply(1:3,function(tt).fmm_covinc_transition(
+      data$X[[tt]],params$beta1,k,active1))
     forward[[k]] <- vector("list",4)
     initial <- matrix(c(1-params$alpha[k],params$alpha[k]),n,ncol=2,byrow=TRUE)
     forward[[k]][[1]] <- initial*emission[[k]][[1]]
@@ -178,7 +252,8 @@ e_step_fmm_covinc_4w <- function(data, params, retain=TRUE) {
 }
 
 .fit_fractional_probit <- function(data,suff,old_beta,entry) {
-  active <- if(entry)data$entry_active else rep(TRUE,length(data$entry_active))
+  active <- if(entry)data$entry_active else
+    (data$persistence_active %||% rep(TRUE,length(data$entry_active)))
   objective <- function(beta) {
     q <- 0
     for(k in 1:2)for(tt in 1:3) {
@@ -304,7 +379,9 @@ m_step_fmm_covinc_4w <- function(data,e,params) {
       r1 <- xi[,3]+xi[,4]; q1 <- e$q1[[k]][[tt]]
       sc1 <- data$weight*dnorm(qnorm(q1))*(xi[,4]/q1-(r1-xi[,4])/(1-q1))
       s1[k] <- s1[k]+sum(sc1)
-      s1[-(1:2)] <- s1[-(1:2)]+as.vector(crossprod(data$X[[tt]],sc1))
+      active1 <- data$persistence_active %||% rep(TRUE, length(data$entry_active))
+      s1[-(1:2)] <- s1[-(1:2)]+as.vector(crossprod(
+        data$X[[tt]][,active1,drop=FALSE],sc1))
     }
     score[3+seq_len(n0)] <- s0/W; score[3+n0+seq_len(n1)] <- s1/W
     nd <- length(p$delta); sd <- numeric(nd)
@@ -328,8 +405,10 @@ m_step_fmm_covinc_4w <- function(data,e,params) {
 }
 
 .normalize_fmm_covinc_labels <- function(p,data) {
+  active1 <- data$persistence_active %||% rep(TRUE, length(data$entry_active))
   avg <- sapply(1:2,function(k)mean(sapply(1:3,function(tt)
-    weighted.mean(.fmm_covinc_transition(data$X[[tt]],p$beta1,k),data$weight))))
+    weighted.mean(.fmm_covinc_transition(
+      data$X[[tt]],p$beta1,k,active1),data$weight))))
   if(avg[1]>=avg[2])return(p)
   p$alpha <- rev(p$alpha); p$phi <- 1-p$phi
   p$beta0[1:2] <- rev(p$beta0[1:2]); p$beta1[1:2] <- rev(p$beta1[1:2]); p
@@ -429,7 +508,9 @@ summarize_fmm_covariates_inconsistency_4w <- function(data,fit) {
     sc1 <- dnorm(qnorm(q1))*(xi[,4]/q1-(r1-xi[,4])/(1-q1))
     idx1 <- 3+n0+seq_len(n1)
     S[,idx1[k]] <- S[,idx1[k]]+sc1
-    S[,idx1[-(1:2)]] <- S[,idx1[-(1:2)],drop=FALSE]+data$X[[tt]]*sc1
+    active1 <- data$persistence_active %||% rep(TRUE, length(data$entry_active))
+    S[,idx1[-(1:2)]] <- S[,idx1[-(1:2)],drop=FALSE]+
+      data$X[[tt]][,active1,drop=FALSE]*sc1
   }
   idxd <- 3+n0+n1+seq_len(nd)
   for(k in 1:2)for(tt in 1:4) {
