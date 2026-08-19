@@ -215,6 +215,78 @@ log_emission_start_d <- function(d, sigma2_d) {
 
 # --- Helper: log interval probability of Exp(lambda) -------------------------
 
+# Shifted power hazard used by the duration-dependent extension:
+#   h(x) = lambda * (1 + x)^beta, x measured in years.
+# beta = 0 nests the exponential model. beta must exceed -1 for a proper
+# duration distribution (cumulative hazard diverges as x -> Inf).
+.duration_baseline_integral <- function(x, beta = 0) {
+  if (any(x < 0, na.rm = TRUE)) stop("duration must be non-negative")
+  k <- beta + 1
+  out <- if (abs(k) < 1e-8) log1p(x) else expm1(k * log1p(x)) / k
+  out[is.infinite(x)] <- if (k > 0) Inf else log1p(x[is.infinite(x)])
+  out
+}
+
+.duration_cumhaz <- function(x, lambda, beta = 0) {
+  lambda * .duration_baseline_integral(x, beta)
+}
+
+.log_duration_density <- function(x, lambda, beta = 0) {
+  out <- rep(-Inf, length(x))
+  valid <- is.finite(x) & x > 0
+  out[valid] <- log(lambda) + beta * log1p(x[valid]) -
+    .duration_cumhaz(x[valid], lambda, beta)
+  out
+}
+
+.log_duration_interval_prob <- function(a, b, lambda, beta = 0) {
+  Ha <- .duration_cumhaz(a, lambda, beta)
+  if (is.infinite(b)) return(-Ha)
+  span <- .duration_cumhaz(b, lambda, beta) - Ha
+  if (span > 700) return(-Ha)
+  -Ha + log1p(-exp(-span))
+}
+
+.duration_transition_probability <- function(duration, lambda, beta = 0,
+                                               delta = .QUARTER_YEARS) {
+  inc <- .duration_cumhaz(duration + delta, lambda, beta) -
+    .duration_cumhaz(duration, lambda, beta)
+  -expm1(-inc)
+}
+
+.duration_inverse_cumhaz <- function(y, lambda, beta = 0) {
+  k <- beta + 1
+  if (abs(k) < 1e-8) return(expm1(y / lambda))
+  lx <- log1p(k * y / lambda) / k
+  ifelse(lx > 700, Inf, expm1(lx))
+}
+
+.duration_category_transition_probability <- function(cat, lambda, beta = 0) {
+  if (beta == 0) {
+    return(rep(.duration_transition_probability(0, lambda, 0), length(cat)))
+  }
+  lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
+    iv <- .timegap_interval(k)
+    Ha <- .duration_cumhaz(iv[1], lambda, beta)
+    Hb <- if (is.infinite(iv[2])) Inf else
+      .duration_cumhaz(iv[2], lambda, beta)
+    Sa <- exp(-Ha); Sb <- if (is.infinite(Hb)) 0 else exp(-Hb)
+    integrate(function(u) {
+      survival <- Sa - u * (Sa - Sb)
+      y <- -log(survival)
+      d <- .duration_inverse_cumhaz(y, lambda, beta)
+      ans <- .duration_transition_probability(d, lambda, beta)
+      ans[is.infinite(d) & beta < 0] <- 0
+      ans[is.infinite(d) & beta > 0] <- 1
+      ans
+    }, 0, 1, rel.tol = 1e-7, subdivisions = 200L)$value
+  }, numeric(1))
+  out <- rep(NA_real_, length(cat))
+  valid <- !is.na(cat) & cat %in% seq_len(.N_TIMEGAP_CATS)
+  out[valid] <- lut[cat[valid]]
+  out
+}
+
 #' Log interval probability: log P(D in [a, b) | D ~ Exp(lambda))
 #'
 #' Numerically stable implementation:
@@ -267,11 +339,11 @@ log_emission_start_d <- function(d, sigma2_d) {
 #' @param lambda_d Exponential rate for nonemployment durations (> 0).
 #' @return Log-probability vector. -Inf for cat outside 1:7.
 #' @export
-log_emission_interval_d <- function(cat, lambda_d) {
+log_emission_interval_d <- function(cat, lambda_d, beta_d = 0) {
   # Build 7-element lookup table (only 7 distinct inputs possible)
   lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
     iv <- .timegap_interval(k)
-    .log_interval_prob(iv[1], iv[2], lambda_d)
+    .log_duration_interval_prob(iv[1], iv[2], lambda_d, beta_d)
   }, numeric(1))
   result        <- rep(-Inf, length(cat))
   valid         <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
@@ -305,7 +377,8 @@ log_emission_interval_d <- function(cat, lambda_d) {
 #' @param lambda_d Exponential rate for nonemployment durations (> 0).
 #' @return Log-probability vector. -Inf for invalid or unreachable transitions.
 #' @export
-log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
+log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
+                                      beta_d = 0) {
   n <- length(cat_curr)
   stopifnot(length(cat_prev) == n)
 
@@ -315,7 +388,7 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
   for (j in seq_len(K)) {
     iv_j <- .timegap_interval(j)
     a_j <- iv_j[1]; b_j <- iv_j[2]
-    log_denom <- .log_cat_mass(j, lambda_d)
+    log_denom <- .log_duration_interval_prob(a_j, b_j, lambda_d, beta_d)
     if (is.infinite(log_denom) && log_denom < 0) next
     for (k in seq_len(K)) {
       iv_k <- .timegap_interval(k)
@@ -323,7 +396,7 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
       L <- max(a_j, a_k - .QUARTER_YEARS)
       U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
       if (L >= U) next
-      tmat[j, k] <- .log_interval_prob(L, U, lambda_d) - log_denom
+      tmat[j, k] <- .log_duration_interval_prob(L, U, lambda_d, beta_d) - log_denom
     }
   }
 

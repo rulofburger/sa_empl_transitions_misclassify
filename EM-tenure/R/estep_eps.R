@@ -103,8 +103,37 @@ validate_df_eps <- function(df) {
   invisible(NULL)
 }
 
+.log_duration_history_prior_eps <- function(hmat, alpha, g_list, c_list,
+                                             lambda_g, beta_g,
+                                             lambda_d, beta_d) {
+  N <- length(g_list[[1]])
+  H <- nrow(hmat)
+  out <- matrix(0, N, H)
+  p_entry <- lapply(c_list[1:2], function(z)
+    .duration_category_transition_probability(z, lambda_d, beta_d))
+  for (j in seq_len(H)) {
+    h <- hmat[j, ]
+    out[, j] <- if (h[1] == 1L) log(alpha) else log1p(-alpha)
+    for (t in 1:2) {
+      if (h[t] == 1L) {
+        p_change <- .duration_transition_probability(
+          g_list[[t]], lambda_g, beta_g)
+      } else {
+        p_change <- p_entry[[t]]
+      }
+      p_change <- pmin(pmax(p_change, 1e-12), 1 - 1e-12)
+      out[, j] <- out[, j] + if (h[t + 1L] == h[t]) {
+        log1p(-p_change)
+      } else {
+        log(p_change)
+      }
+    }
+  }
+  out
+}
+
 #' @export
-e_step_eps <- function(df, params, check_df = TRUE) {
+e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   # --- Validate df inputs (skipped from the EM loop for efficiency) ---
   if (check_df) validate_df_eps(df)
   # --- Unpack parameters ---
@@ -115,6 +144,9 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   eps      <- params$eps
   lambda_g <- params$lambda_g
   lambda_d <- params$lambda_d
+  duration_dependent <- !is.null(params$beta_g) || !is.null(params$beta_d)
+  beta_g <- if (is.null(params$beta_g)) 0 else params$beta_g
+  beta_d <- if (is.null(params$beta_d)) 0 else params$beta_d
 
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("e_step_eps: params$eps must be in (0, 1); got %.4g", eps))
@@ -125,10 +157,10 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) {
     stop(sprintf("e_step_eps: params$alpha must be in (0, 1); got %.4g", alpha))
   }
-  if (!is.finite(theta0) || theta0 <= 0 || theta0 >= 1) {
+  if (!duration_dependent && (!is.finite(theta0) || theta0 <= 0 || theta0 >= 1)) {
     stop(sprintf("e_step_eps: params$theta0 must be in (0, 1); got %.4g", theta0))
   }
-  if (!is.finite(theta1) || theta1 <= 0 || theta1 >= 1) {
+  if (!duration_dependent && (!is.finite(theta1) || theta1 <= 0 || theta1 >= 1)) {
     stop(sprintf("e_step_eps: params$theta1 must be in (0, 1); got %.4g", theta1))
   }
   if (!is.finite(pi_par) || pi_par < 0 || pi_par >= 1) {
@@ -137,11 +169,12 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   if (!is.finite(lambda_d) || lambda_d <= 0) {
     stop(sprintf("e_step_eps: params$lambda_d must be > 0; got %.4g", lambda_d))
   }
+  if (!all(is.finite(c(beta_g, beta_d))) || beta_g <= -1 || beta_d <= -1) {
+    stop("e_step_eps: beta_g and beta_d must be finite and greater than -1")
+  }
 
   # --- Latent structure (H = 8) ---
   hmat      <- latent_histories()
-  prior_h   <- prior_over_histories(hmat, theta1, theta0, alpha)
-  log_prior <- log(.bound01(prior_h))
 
   N  <- nrow(df)
   H  <- nrow(hmat)
@@ -166,6 +199,14 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   s_list <- list(s1, s2, s3)
   g_list <- list(g1, g2, g3)
   c_list <- list(c1, c2, c3)
+
+  if (duration_dependent) {
+    log_prior <- .log_duration_history_prior_eps(
+      hmat, alpha, g_list, c_list, lambda_g, beta_g, lambda_d, beta_d)
+  } else {
+    prior_h <- prior_over_histories(hmat, theta1, theta0, alpha)
+    log_prior <- log(.bound01(prior_h))
+  }
 
   # --- Misclassification log-probability: N x H ---
   # Vectorised via n_mis_mat: no per-history loop or ifelse() allocation. [P1-1]
@@ -199,7 +240,8 @@ e_step_eps <- function(df, params, check_df = TRUE) {
       s_mat     <- s_full[, spell, drop = FALSE]
       t_offsets <- as.integer(spell - spell[1L])
 
-      out <- log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps)
+      out <- log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps,
+                                  beta_g = beta_g)
 
       ld[, j]               <- ld[, j]               + out$loglik
       lambda_count_mat[, j] <- lambda_count_mat[, j] + out$lambda_count
@@ -221,7 +263,8 @@ e_step_eps <- function(df, params, check_df = TRUE) {
         g_t  <- g_list[[t]]
         mask <- (s_t == 1L)
         if (any(mask)) {
-          ld[mask, j] <- ld[mask, j] + log(lambda_g) - lambda_g * g_t[mask]
+          ld[mask, j] <- ld[mask, j] +
+            .log_duration_density(g_t[mask], lambda_g, beta_g)
           lambda_count_mat[mask, j] <- lambda_count_mat[mask, j] + 1
           lambda_xsum_mat[mask, j]  <- lambda_xsum_mat[mask, j]  + g_t[mask]
         }
@@ -233,7 +276,7 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     mask_w1 <- (s1 == 0L)
     if (any(mask_w1)) {
       ld[mask_w1, j] <- ld[mask_w1, j] +
-        log_emission_interval_d(c1[mask_w1], lambda_d)
+        log_emission_interval_d(c1[mask_w1], lambda_d, beta_d)
     }
     # Waves 2 and 3: inlined timegap transitions (avoids 2× rep(0,N) alloc) [P2-9]
     # --- Transition (2 ← 1) ---
@@ -241,15 +284,15 @@ e_step_eps <- function(df, params, check_df = TRUE) {
       hp12 <- h_j[1L]; hc12 <- h_j[2L]
       if (hp12 == 0L && hc12 == 0L) {
         m12 <- (s2 == 0L) & (s1 == 0L)
-        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d(c2[m12], c1[m12], lambda_d)
+        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d(c2[m12], c1[m12], lambda_d, beta_d)
         m12m <- (s2 == 0L) & (s1 == 1L)
-        if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d)
+        if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d, beta_d)
       } else if (hp12 == 1L && hc12 == 0L) {
         m12 <- (s2 == 0L)
-        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d)
+        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d, beta_d)
       } else if (hc12 == 1L) {
         m12 <- (s2 == 0L)
-        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d)
+        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d, beta_d)
       }
     }
     # --- Transition (3 ← 2) ---
@@ -257,15 +300,15 @@ e_step_eps <- function(df, params, check_df = TRUE) {
       hp23 <- h_j[2L]; hc23 <- h_j[3L]
       if (hp23 == 0L && hc23 == 0L) {
         m23 <- (s3 == 0L) & (s2 == 0L)
-        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d(c3[m23], c2[m23], lambda_d)
+        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d(c3[m23], c2[m23], lambda_d, beta_d)
         m23m <- (s3 == 0L) & (s2 == 1L)
-        if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d)
+        if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d, beta_d)
       } else if (hp23 == 1L && hc23 == 0L) {
         m23 <- (s3 == 0L)
-        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d)
+        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d, beta_d)
       } else if (hc23 == 1L) {
         m23 <- (s3 == 0L)
-        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d)
+        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d, beta_d)
       }
     }
   }
@@ -277,10 +320,14 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     match_idx <- 1L + s1 + 2L * s2 + 4L * s3
     gamma_mat <- matrix(0, nrow = N, ncol = H)
     gamma_mat[cbind(seq_len(N), match_idx)] <- 1
-    log_lik_i <- log_prior[match_idx] + ld[cbind(seq_len(N), match_idx)]
+    lp_match <- if (is.matrix(log_prior)) {
+      log_prior[cbind(seq_len(N), match_idx)]
+    } else log_prior[match_idx]
+    log_lik_i <- lp_match + ld[cbind(seq_len(N), match_idx)]
     ll <- sum(wi * log_lik_i)
   } else {
-    log_kernel <- sweep(lq + ld, 2, log_prior, "+")
+    log_kernel <- if (is.matrix(log_prior)) lq + ld + log_prior else
+      sweep(lq + ld, 2, log_prior, "+")
     # log-sum-exp normalization (H=8 is fixed so explicit-column pmax avoids the
     # as.data.frame() copy overhead of do.call(pmax, ...))
     row_max   <- pmax(log_kernel[,1], log_kernel[,2], log_kernel[,3], log_kernel[,4],
@@ -288,6 +335,10 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
     gamma_mat <- exp(log_kernel - log_denom)
     ll        <- sum(wi * log_denom)
+  }
+
+  if (!suff_stats) {
+    return(list(gamma = gamma_mat, loglik = ll, suff = NULL))
   }
 
   # --- Sufficient statistics ---

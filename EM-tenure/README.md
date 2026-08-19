@@ -178,6 +178,12 @@ testthat::test_dir("EM-tenure/tests/testthat")
 | `m_step_eps()` | `mstep_eps.R` | M-step: closed-form ε, λ_g; Brent solver for linked θ |
 | `log_spell_emission_eps()` | `emissions_eps.R` | Spell-pair joint tenure emission (2^K enumeration) |
 
+The point-only runner `estimate_duration_hazard_tenure_contamination.R`
+compares the constant-hazard linked epsilon model with the nested hazards
+`h(x) = lambda * (1 + x)^beta`. It uses three starts, integrates transition
+risk over interval-censored timegap categories, prints duration-specific and
+posterior-risk-weighted rates, and does not run the bootstrap.
+
 ### Key arguments to `em_fit_tenure_eps()`
 
 | Argument | Default | Description |

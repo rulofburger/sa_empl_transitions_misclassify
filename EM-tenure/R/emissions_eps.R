@@ -127,7 +127,8 @@
 #' }
 #' @export
 log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
-                                 lambda_g, eps, tol = 1e-6) {
+                                 lambda_g, eps, tol = 1e-6,
+                                 beta_g = 0) {
   if (!is.matrix(g_mat) || !is.matrix(s_mat)) {
     stop("log_emission_spell_g: g_mat and s_mat must be matrices.")
   }
@@ -184,7 +185,6 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
   if (!is.finite(Delta) || Delta <= 0) {
     stop(sprintf("log_emission_spell_g: .QUARTER_YEARS is not a positive finite value; got %.4g", Delta))
   }
-  log_lam <- log(lambda_g)
   log_1me <- log1p(-eps)   # log(1 - eps)
   log_e   <- log(eps)
 
@@ -215,7 +215,7 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
 
     # --- K=1, t_1 = a (d=0): eps drops out, plain Exp ---
     if (any(at_start)) {
-      loglik[idx_at]       <- log_lam - lambda_g * g_obs[at_start]
+      loglik[idx_at]       <- .log_duration_density(g_obs[at_start], lambda_g, beta_g)
       lambda_count[idx_at] <- 1L
       lambda_xsum[idx_at]  <- g_obs[at_start]
       # tau_sum and eps_informative remain FALSE/0: no eps info from offset-0 singletons
@@ -230,8 +230,9 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
 
       # log-densities for the two patterns
       lp_clean  <- rep(-Inf, sum(!at_start))
-      if (any(v)) lp_clean[v]  <- log_1me + log_lam - lambda_g * T_g[v]
-      lp_contam <- log_e + log_lam - lambda_g * g1s   # always finite (g > 0)
+      if (any(v)) lp_clean[v]  <- log_1me +
+        .log_duration_density(T_g[v], lambda_g, beta_g)
+      lp_contam <- log_e + .log_duration_density(g1s, lambda_g, beta_g)
 
       # log-sum-exp (lp_contam is always finite, so lp_mx is always finite)
       lp_mx   <- pmax(lp_clean, lp_contam)
@@ -283,15 +284,22 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
     consistent_k2 <- abs(g2 - g1 - (d2 - d1) * Delta) < tol
     lp_cc <- rep(-Inf, n2)
     m_cc  <- v1 & consistent_k2
-    if (any(m_cc)) lp_cc[m_cc] <- 2 * log_1me + log_lam - lambda_g * T_from_j1[m_cc]
+    if (any(m_cc)) lp_cc[m_cc] <- 2 * log_1me +
+      .log_duration_density(T_from_j1[m_cc], lambda_g, beta_g)
     # CX: j1 clean, j2 contaminated
     lp_cx <- rep(-Inf, n2)
-    if (any(v1)) lp_cx[v1] <- log_1me + log_e + 2 * log_lam - lambda_g * (T_from_j1[v1] + g2[v1])
+    if (any(v1)) lp_cx[v1] <- log_1me + log_e +
+      .log_duration_density(T_from_j1[v1], lambda_g, beta_g) +
+      .log_duration_density(g2[v1], lambda_g, beta_g)
     # XC: j1 contaminated, j2 clean
     lp_xc <- rep(-Inf, n2)
-    if (any(v2)) lp_xc[v2] <- log_e + log_1me + 2 * log_lam - lambda_g * (g1[v2] + T_from_j2[v2])
+    if (any(v2)) lp_xc[v2] <- log_e + log_1me +
+      .log_duration_density(g1[v2], lambda_g, beta_g) +
+      .log_duration_density(T_from_j2[v2], lambda_g, beta_g)
     # XX: both contaminated (T_g integrated out) — always finite
-    lp_xx <- 2 * log_e + 2 * log_lam - lambda_g * (g1 + g2)
+    lp_xx <- 2 * log_e +
+      .log_duration_density(g1, lambda_g, beta_g) +
+      .log_duration_density(g2, lambda_g, beta_g)
 
     # Log-sum-exp over 4 patterns (XX is always finite, so mx2 is always finite)
     mx2 <- pmax(lp_cc, lp_cx, lp_xc, lp_xx)
@@ -361,9 +369,12 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
     # Pre-compute shared log-weight offsets
     l1 <- log_1me; l2 <- 2 * log_1me; l3 <- 3 * log_1me
     e1 <- log_e;   e2 <- 2 * log_e;   e3 <- 3 * log_e
-    ll3 <- 3 * log_lam   # 3 * log(lambda_g)
-    ll2 <- 2 * log_lam
-    ll1 <- log_lam
+    fg1 <- .log_duration_density(g1, lambda_g, beta_g)
+    fg2 <- .log_duration_density(g2, lambda_g, beta_g)
+    fg3 <- .log_duration_density(g3, lambda_g, beta_g)
+    fT1 <- .log_duration_density(T1, lambda_g, beta_g)
+    fT2 <- .log_duration_density(T2, lambda_g, beta_g)
+    fT3 <- .log_duration_density(T3, lambda_g, beta_g)
     sum123 <- g1 + g2 + g3
 
     # Full 8-pattern enumeration packed into an n3×8 matrix to reduce
@@ -372,16 +383,16 @@ log_emission_spell_g <- function(g_mat, s_mat, t_offsets,
     lp_mat <- matrix(-Inf, n3, 8L)
     # CCC=col1, CCX=col2, CXC=col3, CXX=col4, XCC=col5, XCX=col6, XXC=col7, XXX=col8
     m_CCC <- cons12 & cons13
-    if (any(m_CCC)) lp_mat[m_CCC, 1L] <- l3 + ll1 - lambda_g * T1[m_CCC]
-    if (any(cons12)) lp_mat[cons12, 2L] <- l2 + e1 + ll2 - lambda_g * (T1[cons12] + g3[cons12])
-    if (any(cons13)) lp_mat[cons13, 3L] <- l2 + e1 + ll2 - lambda_g * (T1[cons13] + g2[cons13])
+    if (any(m_CCC)) lp_mat[m_CCC, 1L] <- l3 + fT1[m_CCC]
+    if (any(cons12)) lp_mat[cons12, 2L] <- l2 + e1 + fT1[cons12] + fg3[cons12]
+    if (any(cons13)) lp_mat[cons13, 3L] <- l2 + e1 + fT1[cons13] + fg2[cons13]
     m_CXX <- T1 > 0
-    if (any(m_CXX)) lp_mat[m_CXX, 4L] <- l1 + e2 + ll3 - lambda_g * (T1[m_CXX] + g2[m_CXX] + g3[m_CXX])
+    if (any(m_CXX)) lp_mat[m_CXX, 4L] <- l1 + e2 + fT1[m_CXX] + fg2[m_CXX] + fg3[m_CXX]
     m_XCC <- v2 & cons23
-    if (any(m_XCC)) lp_mat[m_XCC, 5L] <- e1 + l2 + ll2 - lambda_g * (g1[m_XCC] + T2[m_XCC])
-    if (any(v2)) lp_mat[v2, 6L] <- e2 + l1 + ll3 - lambda_g * (g1[v2] + T2[v2] + g3[v2])
-    if (any(v3)) lp_mat[v3, 7L] <- e2 + l1 + ll3 - lambda_g * (g1[v3] + g2[v3] + T3[v3])
-    lp_mat[, 8L] <- e3 + ll3 - lambda_g * sum123  # XXX: always finite
+    if (any(m_XCC)) lp_mat[m_XCC, 5L] <- e1 + l2 + fg1[m_XCC] + fT2[m_XCC]
+    if (any(v2)) lp_mat[v2, 6L] <- e2 + l1 + fg1[v2] + fT2[v2] + fg3[v2]
+    if (any(v3)) lp_mat[v3, 7L] <- e2 + l1 + fg1[v3] + fg2[v3] + fT3[v3]
+    lp_mat[, 8L] <- e3 + fg1 + fg2 + fg3  # XXX: always finite
 
     # Log-sum-exp + normalise in one pass (XXX col finite ⇒ mx3 always finite)
     mx3   <- pmax(lp_mat[,1], lp_mat[,2], lp_mat[,3], lp_mat[,4],

@@ -436,6 +436,49 @@ than the main transition effects. The reproducible runner is
 `EM-AR2/estimate_duration_covariates_4w.R`; generated estimates remain ignored
 by Git.
 
+# Three-wave tenure-contamination model with duration-dependent hazards
+
+The nonstationary CTMC-linked tenure-contamination model was extended so that
+the continuous-time exit and entry hazards depend on log duration:
+$h_E(s)=\lambda_E(1+s)^{\beta_E}$ and
+$h_N(d)=\lambda_N(1+d)^{\beta_N}$. The same hazards determine both the
+duration likelihood and the quarterly probabilities of a latent transition;
+the existing clock-consistency and tenure-contamination rules are retained.
+For interval-censored time since employment, entry probabilities are integrated
+over the model-implied duration distribution within each reported category,
+including the open-ended five-years-or-more category.
+
+| Parameter or probability | Constant hazard | Log-duration hazard |
+|:--|--:|--:|
+| Log-duration exit slope $\beta_E$ | 0 | -0.4413 |
+| Log-duration entry slope $\beta_N$ | 0 | -0.9148 |
+| Initial employment | 54.98 | 55.78 |
+| Status misclassification | 10.21 | 10.35 |
+| Tenure contamination | 24.79 | 24.81 |
+| Risk- and survey-weighted quarterly exit | 4.26 | 4.91 |
+| Risk- and survey-weighted quarterly entry | 4.08 | 2.08 |
+
+Probabilities are percentages. The weighted log likelihood improves from
+-2,510,430.34 to -2,466,217.50. All three starts converge to the same optimum.
+Exit declines from 8.05% at zero tenure to 3.00% at ten years; entry declines
+from 8.74% at zero duration to 1.11% at ten years. Thus duration dependence is
+substantively large but leaves the misclassification and tenure-contamination
+estimates almost unchanged.
+
+The entry slope is close to the proper-distribution boundary $\beta_N=-1$.
+Consequently, extrapolation beyond the observed range produces an implausible
+unconditional mean nonemployment duration of about 3,800 months. The fitted
+transition probabilities over the observed range remain interpretable, but
+this shifted-power functional form should be treated as a diagnostic rather
+than a preferred final specification. A more controlled tail specification,
+such as a restricted spline or piecewise hazard, is required before using
+unconditional mean durations. No bootstrap or analytical standard errors have
+yet been produced for this extension.
+
+The reproducible point-estimation runner is
+`EM-tenure/estimate_duration_hazard_tenure_contamination.R`; generated fit
+objects and tables remain ignored by Git.
+
 # Remaining checks
 
 Before final submission, the analytical standard errors should ideally be
