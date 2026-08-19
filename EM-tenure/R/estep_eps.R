@@ -155,6 +155,7 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   theta1   <- params$theta1
   pi_par   <- params$pi
   eps      <- params$eps
+  eps_d    <- if (is.null(params$eps_d)) 0 else params$eps_d
   lambda_g <- params$lambda_g
   lambda_d <- params$lambda_d
   duration_dependent <- !is.null(params$beta_g) || !is.null(params$beta_d)
@@ -163,6 +164,9 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
 
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("e_step_eps: params$eps must be in (0, 1); got %.4g", eps))
+  }
+  if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1) {
+    stop(sprintf("e_step_eps: params$eps_d must be in [0, 1); got %.4g", eps_d))
   }
   if (any(!is.finite(lambda_g)) || any(lambda_g <= 0)) {
     stop("e_step_eps: all params$lambda_g hazards must be finite and positive")
@@ -298,7 +302,7 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
       hp12 <- h_j[1L]; hc12 <- h_j[2L]
       if (hp12 == 0L && hc12 == 0L) {
         m12 <- (s2 == 0L) & (s1 == 0L)
-        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d(c2[m12], c1[m12], lambda_d, beta_d)
+        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d_contaminated(c2[m12], c1[m12], lambda_d, beta_d, eps_d)
         m12m <- (s2 == 0L) & (s1 == 1L)
         if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d, beta_d)
       } else if (hp12 == 1L && hc12 == 0L) {
@@ -314,7 +318,7 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
       hp23 <- h_j[2L]; hc23 <- h_j[3L]
       if (hp23 == 0L && hc23 == 0L) {
         m23 <- (s3 == 0L) & (s2 == 0L)
-        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d(c3[m23], c2[m23], lambda_d, beta_d)
+        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d_contaminated(c3[m23], c2[m23], lambda_d, beta_d, eps_d)
         m23m <- (s3 == 0L) & (s2 == 1L)
         if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d, beta_d)
       } else if (hp23 == 1L && hc23 == 0L) {

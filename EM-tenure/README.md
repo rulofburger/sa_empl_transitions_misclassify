@@ -191,6 +191,16 @@ is maintained over the open tail, guaranteeing a proper distribution and a
 finite mean duration. It reuses the corrected constant and power-law fits,
 runs multiple starts plus a tighter refinement, and does not bootstrap.
 
+`estimate_timegap_contamination.R` adds a parsimonious error mechanism for
+follow-up timegap categories to that piecewise model. During a latent
+nonemployment continuation, the new report follows the clock-consistent
+category transition with probability `1 - eps_d`; with probability `eps_d` it
+is an independent draw from the model-implied duration-category distribution.
+The extension exactly nests the timegap-error-free model at `eps_d = 0`.
+Marginal and isolated timegap reports do not identify `eps_d`. The runner uses
+three starts, BFGS refinement, a conditional likelihood slice, and a numerical
+observed-information diagnostic; it does not bootstrap.
+
 ### Key arguments to `em_fit_tenure_eps()`
 
 | Argument | Default | Description |

@@ -1,27 +1,40 @@
 # Tail-safe piecewise-constant duration hazards for the epsilon model.
 
 .piecewise_eps_unpack <- function(z, pi_cap=.49, eps_floor=1e-4,
-                                  eps_cap=.95) {
+                                  eps_cap=.95, timegap_contamination=FALSE,
+                                  eps_d_floor=1e-6, eps_d_cap=.95) {
   hg <- exp(unname(z[paste0("log_hg",1:5)]))
   hd <- exp(unname(z[paste0("log_hd",1:5)]))
   p_exit0 <- .duration_transition_probability(0,hg,0)
   p_entry0 <- .duration_transition_probability(0,hd,0)
-  list(alpha=plogis(unname(z["alpha"])),theta0=p_entry0,
+  out <- list(alpha=plogis(unname(z["alpha"])),theta0=p_entry0,
     theta1=1-p_exit0,pi=pi_cap*plogis(unname(z["pi"])),
     eps=eps_floor+(eps_cap-eps_floor)*plogis(unname(z["eps"])),
     lambda_g=hg,beta_g=0,lambda_d=hd,beta_d=0,
     hazard_model="piecewise")
+  if (timegap_contamination)
+    out$eps_d <- eps_d_floor + (eps_d_cap-eps_d_floor) *
+      plogis(unname(z["eps_d"]))
+  out
 }
 
 .piecewise_eps_pack <- function(params, pi_cap=.49, eps_floor=1e-4,
-                                eps_cap=.95) {
+                                eps_cap=.95, timegap_contamination=FALSE,
+                                eps_d_floor=1e-6, eps_d_cap=.95) {
   if (length(params$lambda_g)==1L) params$lambda_g <- rep(params$lambda_g,5L)
   if (length(params$lambda_d)==1L) params$lambda_d <- rep(params$lambda_d,5L)
-  c(alpha=qlogis(.bound01(params$alpha)),
+  out <- c(alpha=qlogis(.bound01(params$alpha)),
     pi=qlogis(.bound01(params$pi/pi_cap)),
     eps=qlogis(.bound01((params$eps-eps_floor)/(eps_cap-eps_floor))),
     setNames(log(params$lambda_g),paste0("log_hg",1:5)),
     setNames(log(params$lambda_d),paste0("log_hd",1:5)))
+  if (timegap_contamination) {
+    eps_d <- if (is.null(params$eps_d)) .05 else params$eps_d
+    out <- append(out,setNames(
+      qlogis(.bound01((eps_d-eps_d_floor)/(eps_d_cap-eps_d_floor))),
+      "eps_d"),after=3L)
+  }
+  out
 }
 
 piecewise_start_from_power <- function(params,
@@ -37,16 +50,19 @@ piecewise_start_from_power <- function(params,
 
 fit_eps_piecewise_hazard <- function(df,start,maxit=500L,reltol=1e-9,
                                      pgtol=1e-7,method="L-BFGS-B",
-                                     verbose=0L) {
+                                     verbose=0L,
+                                     timegap_contamination=FALSE) {
   validate_df_eps(df)
-  z0 <- .piecewise_eps_pack(start)
+  z0 <- .piecewise_eps_pack(start,
+    timegap_contamination=timegap_contamination)
   lower <- rep(-Inf,length(z0)); upper <- rep(Inf,length(z0))
   names(lower) <- names(upper) <- names(z0)
   hz <- c(paste0("log_hg",1:5),paste0("log_hd",1:5))
   lower[hz] <- log(1e-4); upper[hz] <- log(20)
   total_weight <- sum(df$weight)
   objective <- function(z) {
-    p <- .piecewise_eps_unpack(z)
+    p <- .piecewise_eps_unpack(z,
+      timegap_contamination=timegap_contamination)
     value <- tryCatch(e_step_eps(df,p,check_df=FALSE,suff_stats=FALSE)$loglik,
       error=function(e) NA_real_)
     if (!is.finite(value)) return(1e100)
@@ -62,13 +78,47 @@ fit_eps_piecewise_hazard <- function(df,start,maxit=500L,reltol=1e-9,
   } else {
     opt <- optim(z0,objective,method=method,control=control)
   }
-  params <- .piecewise_eps_unpack(opt$par)
+  params <- .piecewise_eps_unpack(opt$par,
+    timegap_contamination=timegap_contamination)
   estep <- e_step_eps(df,params,check_df=FALSE,suff_stats=FALSE)
   list(params=params,loglik=estep$loglik,gamma=estep$gamma,
     convergence=opt$convergence,message=opt$message,
     iterations=unname(opt$counts["function"]),objective=opt$value,
     gradient_max=NA_real_,par_unconstrained=opt$par,
     objective_function=objective)
+}
+
+timegap_contamination_diagnostics <- function(df, fit) {
+  eps_d <- fit$params$eps_d
+  if (is.null(eps_d)) stop("fit does not contain eps_d")
+  hmat <- latent_histories(); gamma <- fit$gamma; wi <- df$weight
+  rows <- lapply(1:2, function(t) {
+    s_prev <- df[[paste0("y",t)]]
+    s_curr <- df[[paste0("y",t+1L)]]
+    c_prev <- df[[paste0("timegap_cat",t)]]
+    c_curr <- df[[paste0("timegap_cat",t+1L)]]
+    observed <- s_prev==0L & s_curr==0L
+    numer <- denom <- impossible <- 0
+    for (j in seq_len(nrow(hmat))) {
+      if (hmat[j,t]!=0L || hmat[j,t+1L]!=0L) next
+      use <- observed
+      if (!any(use)) next
+      lc <- log_emission_transition_d(c_curr[use],c_prev[use],
+        fit$params$lambda_d,fit$params$beta_d)
+      lp <- log_emission_interval_d(c_curr[use],fit$params$lambda_d,
+        fit$params$beta_d)
+      omega <- .omega_rho(lc,lp,eps_d)
+      w <- wi[use]*gamma[use,j]
+      numer <- numer+sum(w*omega)
+      denom <- denom+sum(w)
+      impossible <- impossible+sum(w*is.infinite(lc))
+    }
+    data.frame(transition=paste0(t,"->",t+1L),
+      posterior_eligible_weight=denom,
+      posterior_contaminated_share=numer/denom,
+      clock_impossible_share=impossible/denom)
+  })
+  do.call(rbind,rows)
 }
 
 fit_eps_piecewise_multistart <- function(df, starts, ...) {

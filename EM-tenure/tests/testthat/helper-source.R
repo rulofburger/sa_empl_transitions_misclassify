@@ -33,6 +33,7 @@ source(file.path(.r_dir, "em_driver_eps.R"))
 source(file.path(.r_dir, "data_prep_eps.R"))
 source(file.path(.r_dir, "diagnostics_eps.R"))
 source(file.path(.r_dir, "duration_hazard_eps.R"))
+source(file.path(.r_dir, "piecewise_hazard_eps.R"))
 source(file.path(.r_dir, "simulate.R"))
 
 rm(.r_dir)

@@ -462,6 +462,28 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
   result
 }
 
+#' Contaminated conditional timegap-category emission
+#'
+#' During a latent nonemployment continuation, the follow-up report is
+#' clock-consistent with probability 1-eps_d.  With probability eps_d it is an
+#' independent draw from the model-implied cross-sectional duration-category
+#' distribution.  Setting eps_d=0 exactly recovers
+#' log_emission_transition_d().  Marginal and isolated timegap reports do not
+#' identify eps_d because the clean and contaminated distributions coincide.
+#'
+#' @keywords internal
+log_emission_transition_d_contaminated <- function(cat_curr, cat_prev,
+                                                    lambda_d, beta_d = 0,
+                                                    eps_d = 0) {
+  if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1)
+    stop("eps_d must be in [0, 1)")
+  log_clock <- log_emission_transition_d(cat_curr, cat_prev,
+                                         lambda_d, beta_d)
+  if (eps_d == 0) return(log_clock)
+  log_pop <- log_emission_interval_d(cat_curr, lambda_d, beta_d)
+  .log_mix_rho(log_clock, log_pop, eps_d)
+}
+
 #' Log emission for within-panel nonemployment start (discrete model)
 #'
 #' When t >= 2, h_{t-1} = 1, h_t = 0, s_t = 0: a new nonemployment spell
