@@ -87,3 +87,55 @@ test_that("piecewise likelihood with timegap contamination is finite", {
   expect_true(is.finite(out$loglik))
   expect_equal(rowSums(out$gamma),rep(1,n),tolerance=1e-10)
 })
+
+test_that("timegap decomposition separates reset-compatible contradictions", {
+  df <- data.frame(y1=c(0L,0L,0L),y2=c(0L,0L,0L),y3=c(1L,1L,1L),
+    tenure1=NA_real_,tenure2=NA_real_,tenure3=NA_real_,
+    timegap_cat1=c(2L,2L,2L),timegap_cat2=c(3L,1L,7L),
+    timegap_cat3=NA_integer_,weight=1)
+  p <- list(alpha=.5,theta0=.1,theta1=.9,pi=.05,eps=.2,eps_d=.25,
+    lambda_g=rep(.2,5),beta_g=0,lambda_d=rep(.3,5),beta_d=0)
+  fit <- list(params=p,gamma=matrix(1/8,nrow=3,ncol=8))
+  out <- timegap_contamination_decomposition(df,fit)$summary
+  expect_setequal(out$mechanism,
+    c("Clock-feasible","Reset-compatible","Not reset-compatible"))
+  expect_equal(sum(out$share_of_latent_continuations),1,tolerance=1e-12)
+})
+
+test_that("local timegap contamination is a proper conditional distribution", {
+  hd <- c(.5,.3,.2,.15,.1)
+  for (j in 1:7) {
+    lp <- .log_timegap_local_contamination(1:7,rep(j,7),hd,decay=1)
+    expect_equal(sum(exp(lp)),1,tolerance=1e-12)
+  }
+  expect_true(.log_timegap_local_contamination(7L,1L,hd,decay=1) <
+    .log_timegap_local_contamination(3L,1L,hd,decay=1))
+})
+
+test_that("joint timegap contamination nests a clean three-wave clock", {
+  hd <- c(.5,.3,.2,.15,.1)
+  c1 <- c(1L,5L,6L); c2 <- c(2L,5L,7L); c3 <- c(3L,6L,7L)
+  clean <- log_emission_interval_d(c1,hd)+
+    log_emission_transition_d(c2,c1,hd)+
+    log_emission_transition_d(c3,c2,hd)
+  joint <- log_emission_timegap_triplet_joint(c1,c2,c3,hd,eps_d=1e-9)
+  expect_equal(joint,clean,tolerance=1e-7)
+})
+
+test_that("local and joint timegap likelihoods are finite", {
+  set.seed(503); n <- 30L
+  df <- data.frame(y1=sample(0:1,n,TRUE),y2=sample(0:1,n,TRUE),
+    y3=sample(0:1,n,TRUE),tenure1=rexp(n,.3),tenure2=rexp(n,.3),
+    tenure3=rexp(n,.3),timegap_cat1=sample(1:7,n,TRUE),
+    timegap_cat2=sample(1:7,n,TRUE),timegap_cat3=sample(1:7,n,TRUE),weight=1)
+  df <- prepare_eps_estimation_data(df)
+  base <- list(alpha=.5,theta0=.1,theta1=.9,pi=.08,eps=.2,eps_d=.2,
+    lambda_g=c(.4,.3,.2,.15,.1),beta_g=0,
+    lambda_d=c(.5,.3,.2,.15,.1),beta_d=0)
+  for (model in c("local","joint_marginal")) {
+    p <- base; p$timegap_contamination_model <- model
+    out <- e_step_eps(df,p,suff_stats=FALSE)
+    expect_true(is.finite(out$loglik))
+    expect_equal(rowSums(out$gamma),rep(1,n),tolerance=1e-10)
+  }
+})

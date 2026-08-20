@@ -432,7 +432,7 @@ log_emission_interval_d <- function(cat, lambda_d, beta_d = 0) {
 #' @return Log-probability vector. -Inf for invalid or unreachable transitions.
 #' @export
 log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
-                                      beta_d = 0) {
+                                      beta_d = 0, delta = .QUARTER_YEARS) {
   n <- length(cat_curr)
   stopifnot(length(cat_prev) == n)
 
@@ -447,8 +447,8 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
     for (k in seq_len(K)) {
       iv_k <- .timegap_interval(k)
       a_k <- iv_k[1]; b_k <- iv_k[2]
-      L <- max(a_j, a_k - .QUARTER_YEARS)
-      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+      L <- max(a_j, a_k - delta)
+      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - delta)
       if (L >= U) next
       tmat[j, k] <- .log_duration_interval_prob(L, U, lambda_d, beta_d) - log_denom
     }
@@ -474,14 +474,82 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
 #' @keywords internal
 log_emission_transition_d_contaminated <- function(cat_curr, cat_prev,
                                                     lambda_d, beta_d = 0,
-                                                    eps_d = 0) {
+                                                    eps_d = 0,
+                                                    contamination_model = "marginal",
+                                                    local_decay = 1) {
   if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1)
     stop("eps_d must be in [0, 1)")
   log_clock <- log_emission_transition_d(cat_curr, cat_prev,
                                          lambda_d, beta_d)
   if (eps_d == 0) return(log_clock)
-  log_pop <- log_emission_interval_d(cat_curr, lambda_d, beta_d)
+  log_pop <- if (identical(contamination_model,"marginal")) {
+    log_emission_interval_d(cat_curr, lambda_d, beta_d)
+  } else if (identical(contamination_model,"local")) {
+    .log_timegap_local_contamination(cat_curr,cat_prev,lambda_d,beta_d,
+      local_decay)
+  } else stop("unknown conditional timegap contamination model")
   .log_mix_rho(log_clock, log_pop, eps_d)
+}
+
+.timegap_local_cache <- new.env(parent=emptyenv())
+
+.log_timegap_local_contamination <- function(cat_curr,cat_prev,lambda_d,
+                                              beta_d=0,decay=1) {
+  if (!is.finite(decay) || decay<=0) stop("local_decay must be positive")
+  K <- .N_TIMEGAP_CATS
+  key <- format(decay,digits=16,scientific=FALSE,trim=TRUE)
+  if (exists(key,envir=.timegap_local_cache,inherits=FALSE)) {
+    log_q <- get(key,envir=.timegap_local_cache,inherits=FALSE)
+  } else {
+    q <- matrix(0,K,K)
+    for (j in seq_len(K)) {
+      iv_j <- .timegap_interval(j)
+      reachable <- which(vapply(seq_len(K),function(k) {
+        iv_k <- .timegap_interval(k)
+        L <- max(iv_j[1],iv_k[1]-.QUARTER_YEARS)
+        U <- min(iv_j[2],if(is.infinite(iv_k[2])) Inf else
+          iv_k[2]-.QUARTER_YEARS)
+        L<U
+      },logical(1)))
+      distance <- vapply(seq_len(K),function(k) min(abs(k-reachable)),numeric(1))
+      raw <- exp(-decay*distance)
+      q[j,] <- raw/sum(raw)
+    }
+    log_q <- log(q)
+    assign(key,log_q,envir=.timegap_local_cache)
+  }
+  out <- rep(-Inf,length(cat_curr))
+  valid <- !is.na(cat_prev) & !is.na(cat_curr) & cat_prev %in% 1:K &
+    cat_curr %in% 1:K
+  out[valid] <- log_q[cbind(cat_prev[valid],cat_curr[valid])]
+  out
+}
+
+log_emission_timegap_triplet_joint <- function(cat1,cat2,cat3,lambda_d,
+                                                beta_d=0,eps_d) {
+  if (!is.finite(eps_d) || eps_d<=0 || eps_d>=1)
+    stop("eps_d must be in (0, 1) for joint timegap emission")
+  cats <- cbind(cat1,cat2,cat3); n <- nrow(cats)
+  terms <- matrix(-Inf,n,8L)
+  patterns <- as.matrix(expand.grid(z1=0:1,z2=0:1,z3=0:1))
+  marg <- lapply(1:3,function(t)
+    log_emission_interval_d(cats[,t],lambda_d,beta_d))
+  for (r in seq_len(nrow(patterns))) {
+    z <- patterns[r,]; clean <- which(z==0L)
+    val <- rep(sum(z)*log(eps_d)+(3L-sum(z))*log1p(-eps_d),n)
+    if (any(z==1L)) for (t in which(z==1L)) val <- val+marg[[t]]
+    if (length(clean)) {
+      val <- val+marg[[clean[1L]]]
+      if (length(clean)>1L) for (u in 2:length(clean)) {
+        curr <- clean[u]; prev <- clean[u-1L]
+        val <- val+log_emission_transition_d(cats[,curr],cats[,prev],
+          lambda_d,beta_d,delta=(curr-prev)*.QUARTER_YEARS)
+      }
+    }
+    terms[,r] <- val
+  }
+  mx <- do.call(pmax,as.data.frame(terms))
+  mx+log(rowSums(exp(terms-mx)))
 }
 
 #' Log emission for within-panel nonemployment start (discrete model)

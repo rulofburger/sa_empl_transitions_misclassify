@@ -51,7 +51,9 @@ piecewise_start_from_power <- function(params,
 fit_eps_piecewise_hazard <- function(df,start,maxit=500L,reltol=1e-9,
                                      pgtol=1e-7,method="L-BFGS-B",
                                      verbose=0L,
-                                     timegap_contamination=FALSE) {
+                                     timegap_contamination=FALSE,
+                                     timegap_contamination_model="marginal",
+                                     timegap_local_decay=1) {
   validate_df_eps(df)
   z0 <- .piecewise_eps_pack(start,
     timegap_contamination=timegap_contamination)
@@ -63,6 +65,10 @@ fit_eps_piecewise_hazard <- function(df,start,maxit=500L,reltol=1e-9,
   objective <- function(z) {
     p <- .piecewise_eps_unpack(z,
       timegap_contamination=timegap_contamination)
+    if (timegap_contamination) {
+      p$timegap_contamination_model <- timegap_contamination_model
+      p$timegap_local_decay <- timegap_local_decay
+    }
     value <- tryCatch(e_step_eps(df,p,check_df=FALSE,suff_stats=FALSE)$loglik,
       error=function(e) NA_real_)
     if (!is.finite(value)) return(1e100)
@@ -80,6 +86,10 @@ fit_eps_piecewise_hazard <- function(df,start,maxit=500L,reltol=1e-9,
   }
   params <- .piecewise_eps_unpack(opt$par,
     timegap_contamination=timegap_contamination)
+  if (timegap_contamination) {
+    params$timegap_contamination_model <- timegap_contamination_model
+    params$timegap_local_decay <- timegap_local_decay
+  }
   estep <- e_step_eps(df,params,check_df=FALSE,suff_stats=FALSE)
   list(params=params,loglik=estep$loglik,gamma=estep$gamma,
     convergence=opt$convergence,message=opt$message,
@@ -119,6 +129,59 @@ timegap_contamination_diagnostics <- function(df, fit) {
       clock_impossible_share=impossible/denom)
   })
   do.call(rbind,rows)
+}
+
+timegap_contamination_decomposition <- function(df, fit) {
+  eps_d <- fit$params$eps_d
+  if (is.null(eps_d)) stop("fit does not contain eps_d")
+  if (nrow(fit$gamma)!=nrow(df)) stop("fit and data have different row counts")
+  hmat <- latent_histories(); wi <- df$weight
+  detail <- lapply(1:2,function(t) {
+    observed <- df[[paste0("y",t)]]==0L & df[[paste0("y",t+1L)]]==0L
+    eligible_histories <- which(hmat[,t]==0L & hmat[,t+1L]==0L)
+    latent_weight <- wi*rowSums(fit$gamma[,eligible_histories,drop=FALSE])
+    prev <- df[[paste0("timegap_cat",t)]]
+    curr <- df[[paste0("timegap_cat",t+1L)]]
+    lc <- log_emission_transition_d(curr,prev,fit$params$lambda_d,
+      fit$params$beta_d)
+    lp <- log_emission_interval_d(curr,fit$params$lambda_d,
+      fit$params$beta_d)
+    omega <- .omega_rho(lc,lp,eps_d)
+    clock_feasible <- is.finite(lc)
+    mechanism <- ifelse(clock_feasible,"Clock-feasible",
+      ifelse(curr==1L,"Reset-compatible","Not reset-compatible"))
+    data.frame(transition=paste0(t,"->",t+1L),prev_category=prev,
+      curr_category=curr,mechanism=mechanism,posterior_contamination=omega,
+      posterior_weight=ifelse(observed,latent_weight,0))
+  })
+  detail <- do.call(rbind,detail)
+  use <- detail$posterior_weight>0
+  detail <- detail[use,,drop=FALSE]
+  groups <- split(seq_len(nrow(detail)),
+    interaction(detail$transition,detail$mechanism,drop=TRUE))
+  summary <- do.call(rbind,lapply(groups,function(idx) {
+    w <- detail$posterior_weight[idx]
+    data.frame(transition=detail$transition[idx[1]],
+      mechanism=detail$mechanism[idx[1]],posterior_weight=sum(w),
+      posterior_contamination_share=sum(w*detail$posterior_contamination[idx])/sum(w))
+  }))
+  totals <- aggregate(posterior_weight~transition,detail,sum)
+  names(totals)[2] <- "total_weight"
+  summary <- merge(summary,totals,by="transition",sort=FALSE)
+  summary$share_of_latent_continuations <- summary$posterior_weight/summary$total_weight
+  summary <- summary[order(summary$transition,
+    match(summary$mechanism,c("Clock-feasible","Reset-compatible",
+      "Not reset-compatible"))),]
+
+  cells <- aggregate(cbind(posterior_weight,
+    posterior_contamination_mass=posterior_weight*posterior_contamination)~
+      transition+prev_category+curr_category+mechanism,detail,sum)
+  cells$share_within_transition <- cells$posterior_weight/
+    ave(cells$posterior_weight,cells$transition,FUN=sum)
+  cells$posterior_contamination_share <-
+    cells$posterior_contamination_mass/cells$posterior_weight
+  cells <- cells[order(cells$transition,-cells$posterior_weight),]
+  list(summary=summary,cells=cells,detail=detail)
 }
 
 fit_eps_piecewise_multistart <- function(df, starts, ...) {

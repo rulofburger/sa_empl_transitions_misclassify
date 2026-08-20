@@ -156,6 +156,10 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   pi_par   <- params$pi
   eps      <- params$eps
   eps_d    <- if (is.null(params$eps_d)) 0 else params$eps_d
+  timegap_model <- if (is.null(params$timegap_contamination_model))
+    "marginal" else params$timegap_contamination_model
+  local_decay <- if (is.null(params$timegap_local_decay)) 1 else
+    params$timegap_local_decay
   lambda_g <- params$lambda_g
   lambda_d <- params$lambda_d
   duration_dependent <- !is.null(params$beta_g) || !is.null(params$beta_d)
@@ -168,6 +172,10 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1) {
     stop(sprintf("e_step_eps: params$eps_d must be in [0, 1); got %.4g", eps_d))
   }
+  if (!timegap_model %in% c("marginal","local","joint_marginal"))
+    stop("e_step_eps: unknown timegap contamination model")
+  if (!is.finite(local_decay) || local_decay<=0)
+    stop("e_step_eps: timegap_local_decay must be positive")
   if (any(!is.finite(lambda_g)) || any(lambda_g <= 0)) {
     stop("e_step_eps: all params$lambda_g hazards must be finite and positive")
   }
@@ -290,8 +298,21 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
     }
 
     # ---- (c) Timegap emissions: marginal + transition (mirror base model) ----
+    # The joint model differs only for a fully observed three-wave latent
+    # nonemployment spell. Two-wave blocks reduce to a conditional mixture with
+    # contamination probability 1-(1-eps_d)^2.
+    joint3 <- identical(timegap_model,"joint_marginal") && all(h_j==0L) &
+      eps_d>0
+    joint3_mask <- if (joint3) s1==0L & s2==0L & s3==0L else rep(FALSE,N)
+    if (any(joint3_mask)) ld[joint3_mask,j] <- ld[joint3_mask,j] +
+      log_emission_timegap_triplet_joint(c1[joint3_mask],c2[joint3_mask],
+        c3[joint3_mask],lambda_d,beta_d,eps_d)
+    pair_eps_d <- if (identical(timegap_model,"joint_marginal"))
+      1-(1-eps_d)^2 else eps_d
+    conditional_model <- if (identical(timegap_model,"local")) "local" else
+      "marginal"
     # Wave 1: marginal interval whenever s_1 = 0.
-    mask_w1 <- (s1 == 0L)
+    mask_w1 <- (s1 == 0L) & !joint3_mask
     if (any(mask_w1)) {
       ld[mask_w1, j] <- ld[mask_w1, j] +
         log_emission_interval_d(c1[mask_w1], lambda_d, beta_d)
@@ -301,8 +322,8 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
     {
       hp12 <- h_j[1L]; hc12 <- h_j[2L]
       if (hp12 == 0L && hc12 == 0L) {
-        m12 <- (s2 == 0L) & (s1 == 0L)
-        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d_contaminated(c2[m12], c1[m12], lambda_d, beta_d, eps_d)
+        m12 <- (s2 == 0L) & (s1 == 0L) & !joint3_mask
+        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d_contaminated(c2[m12], c1[m12], lambda_d, beta_d, pair_eps_d,conditional_model,local_decay)
         m12m <- (s2 == 0L) & (s1 == 1L)
         if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d, beta_d)
       } else if (hp12 == 1L && hc12 == 0L) {
@@ -317,8 +338,8 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
     {
       hp23 <- h_j[2L]; hc23 <- h_j[3L]
       if (hp23 == 0L && hc23 == 0L) {
-        m23 <- (s3 == 0L) & (s2 == 0L)
-        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d_contaminated(c3[m23], c2[m23], lambda_d, beta_d, eps_d)
+        m23 <- (s3 == 0L) & (s2 == 0L) & !joint3_mask
+        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d_contaminated(c3[m23], c2[m23], lambda_d, beta_d, pair_eps_d,conditional_model,local_decay)
         m23m <- (s3 == 0L) & (s2 == 1L)
         if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d, beta_d)
       } else if (hp23 == 1L && hc23 == 0L) {
