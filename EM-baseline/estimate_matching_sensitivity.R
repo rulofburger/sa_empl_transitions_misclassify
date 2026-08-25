@@ -183,9 +183,9 @@ headers <- paste0(ordered$panel, ": ", ordered$model)
 quantities <- list(
   c("entry", "entry_se", "Entry rate (\\%)"),
   c("exit", "exit_se", "Exit rate (\\%)"),
-  c("initial_employment", "initial_employment_se", "Initial employment $\\alpha$ (\\%)"),
-  c("long_run_employment", "long_run_employment_se", "Long-run employment (\\%)"),
-  c("pi", "pi_se", "Misclassification $\\pi$ (\\%)")
+  c("pi", "pi_se", "Misclassification rate (\\%)"),
+  c("initial_employment", "initial_employment_se", "Initial employment rate (\\%)"),
+  c("long_run_employment", "long_run_employment_se", "Employment rate (\\%)")
 )
 
 lines <- c(

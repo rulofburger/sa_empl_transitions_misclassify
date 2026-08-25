@@ -370,7 +370,7 @@ names(bl_implied) <- baseline_labels
   )
 }
 
-# Paper Table 3: baseline parameters
+# Paper Table 3: baseline likelihood parameters.
 param_rows_bl <- list(
   list(header = "Transition parameters", rows = list(
     .bl_param_row("theta0", "$\\theta_0$ (entry)"),
@@ -412,8 +412,8 @@ param_rows_bl <- list(
 )
 
 # Paper Table 2: baseline implied probabilities (as %)
-.bl_implied_row <- function(qty_name, row_label) {
-  cells <- lapply(baseline_labels, function(lbl) {
+.bl_implied_row <- function(qty_name, row_label, labels = baseline_labels) {
+  cells <- lapply(labels, function(lbl) {
     imp <- bl_implied[[lbl]]
     v   <- if (!is.null(imp)) imp[[qty_name]] else NA_real_
     if (is.null(v)) v <- NA_real_
@@ -428,34 +428,35 @@ param_rows_bl <- list(
 
 implied_rows_bl <- list(
   list(header = NULL, rows = list(
-    .bl_implied_row("entry_rate",      "Entry rate ($\\theta_0$)"),
-    .bl_implied_row("exit_rate",       "Exit rate ($1-\\theta_1$)"),
-    .bl_implied_row("employment_rate", "Employment rate ($\\alpha^*$)"),
-    .bl_implied_row("pi",              "$\\pi$ (misclassification)"),
-    .bl_implied_row("pi0",             "$\\pi_0$ (false positive)"),
-    .bl_implied_row("pi1",             "$\\pi_1$ (false negative)")
+    .bl_implied_row("entry_rate", "Entry rate (\\%)"),
+    .bl_implied_row("exit_rate", "Exit rate (\\%)"),
+    .bl_implied_row("pi", "Misclassification rate (\\%)"),
+    .bl_implied_row("pi0", "False-positive rate (\\%)"),
+    .bl_implied_row("pi1", "False-negative rate (\\%)"),
+    .bl_implied_row("employment_rate", "Employment rate (\\%)")
   )),
   list(header = NULL, rows = list(
-    list(
-      est = c("$N$", rep(.fmt_n(N_baseline), 6L)),
-      se  = rep("", 7L)
-    )
+    list(est = c("Log-likelihood", vapply(baseline_labels, function(lbl) {
+      fit <- bl_fits[[lbl]]
+      if (is.null(fit)) "---" else .fmt_ll(fit$loglik, digits = 3L)
+    }, character(1L))), se = rep("", 7L)),
+    list(est = c("$N$", rep(.fmt_n(N_baseline), 6L)), se = rep("", 7L))
   ))
 )
 
 .write_latex_table(
   col_headers = baseline_col_headers,
-  row_data    = implied_rows_bl,
-  caption     = "Baseline latent-state model: implied probabilities (\\%)",
-  label       = "tab:baseline_implied",
-  path        = file.path(tables_baseline_dir, "table_baseline_implied.tex"),
+  row_data = implied_rows_bl,
+  caption = "Baseline latent-state model: implied probabilities (\\%)",
+  label = "tab:baseline_implied",
+  path = file.path(tables_baseline_dir, "table_baseline_implied.tex"),
   sub_headers = baseline_sub_headers,
-  note        = paste0("Estimates in \\%. Analytical SE in parentheses use an ",
-                       "individual-level survey-weighted sandwich covariance matrix ",
-                       "and the delta method. Employment rate is steady-state ",
-                       "$\\alpha^* = \\theta_0 / (\\theta_0 + 1 - \\theta_1)$, ",
-                       "including in free-initial-probability columns. The calculation ",
-                       "does not incorporate strata or PSU clustering.")
+  note = paste0("Rates are percentages. Analytical SE in parentheses use an ",
+                "individual-level survey-weighted sandwich covariance matrix and ",
+                "the delta method. Employment is the model-implied steady-state ",
+                "share. The asymmetric specifications report false-positive and ",
+                "false-negative rates separately. The calculation does not ",
+                "incorporate strata or PSU clustering.")
 )
 
 # ------------------------------------------------------------------------------
@@ -621,17 +622,13 @@ names(cov_implied) <- cov_labels_all
 }
 
 main_table4_rows <- list(
-  list(header = "Risk-set weighted transition probabilities", rows = list(
-    .cov_plain_row("mean_entry_rate", "Entry rate", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("mean_exit_rate", "Exit rate", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("mean_employment_rate", "Posterior employed risk share", cov_labels_free, .fmt_pct_plain)
+  list(header = NULL, rows = list(
+    .cov_plain_row("mean_entry_rate", "Entry rate (\\%)", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("mean_exit_rate", "Exit rate (\\%)", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("pi", "Misclassification rate (\\%)", cov_labels_free, .fmt_pct_plain),
+    .cov_plain_row("mean_employment_rate", "Employment rate (\\%)", cov_labels_free, .fmt_pct_plain)
   )),
-  list(header = "Employment turnover", rows = list(
-    .cov_plain_row("total_churn_flow", "Total employment churn", cov_labels_free, .fmt_pct_plain)
-  )),
-  list(header = "Other model quantities", rows = list(
-    .cov_plain_row("pi", "Misclassification probability $\\pi$", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("alpha", "Initial employment probability $\\alpha$", cov_labels_free, .fmt_pct_plain),
+  list(header = NULL, rows = list(
     list(est = c("Log-likelihood", vapply(cov_labels_free, function(lbl) {
       fit <- cov_fits[[lbl]]
       if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
@@ -651,8 +648,7 @@ main_table4_rows <- list(
   note = paste0("All specifications estimate the initial employment probability freely. ",
                 "Rates average predicted hazards using survey weights and posterior ",
                 "probabilities of belonging to the relevant origin-state risk set. ",
-                "Total churn is the expected number of entry and exit transitions per ",
-                "person-quarter. ",
+                "Employment is the survey-weighted posterior employed share. ",
                 "SE are bootstrap estimates when available and otherwise use ",
                 "an individual-level survey-weighted sandwich/delta approximation. ",
                 "The approximation does not incorporate strata or PSU clustering.")
@@ -688,6 +684,10 @@ all_coef_names <- unique(unlist(lapply(cov_labels_free, function(lbl) {
 coef_labels <- function(nm) if (nm %in% names(.cov_label_map)) .cov_label_map[[nm]] else nm
 
 appendix_rows <- list(
+  list(header = "Other derived model quantities", rows = list(
+    .cov_plain_row("alpha", "Initial employment rate (\\%)", cov_labels_free),
+    .cov_plain_row("total_churn_flow", "Total employment churn (\\%)", cov_labels_free)
+  )),
   list(header = "Entry equation: $\\Phi(X_{it}\\beta_0)$", rows =
          lapply(all_coef_names, function(nm) .raw_parameter_row("beta0", nm, coef_labels(nm)))),
   list(header = "Employment-persistence equation: $\\Phi(X_{it}\\beta_1)$", rows =
@@ -938,42 +938,148 @@ incons_audit <- readRDS(audit_path)
 }
 
 main_tbl <- incons_audit$table
-.main_row <- function(quantity, label, probability = TRUE) {
-  .audit_row(main_tbl, quantity, label, probability,
-             "estimate_free", "std_error_free")
+increment_tbl <- incons_audit$extent_comparison_table
+matching_tbl <- incons_audit$matching_comparison_table
+.model_cell <- function(tbl, quantity, specification, probability = TRUE) {
+  x <- .audit_lookup(tbl, quantity,
+    paste0("estimate_", specification), paste0("std_error_", specification))
+  if (probability) .fmt_pct(x[1L], x[2L]) else .fmt_param(x[1L], x[2L])
 }
+.six_model_row <- function(basic_quantity, increment_quantity, label,
+                           probability = TRUE,
+                           basic_stationary_quantity = basic_quantity,
+                           matching_quantity = increment_quantity) {
+  cells <- list(
+    .model_cell(main_tbl, basic_stationary_quantity, "stationary", probability),
+    .model_cell(main_tbl, basic_quantity, "free", probability),
+    .model_cell(increment_tbl, increment_quantity, "stationary", probability),
+    .model_cell(increment_tbl, increment_quantity, "free", probability),
+    .model_cell(matching_tbl, matching_quantity, "stationary", probability),
+    .model_cell(matching_tbl, matching_quantity, "free", probability))
+  list(est = c(label, vapply(cells, `[[`, character(1L), 1L)),
+       se = c("", vapply(cells, `[[`, character(1L), 2L)))
+}
+.increment_effect_row <- function(quantity, label, probability = TRUE) {
+  stat <- .model_cell(increment_tbl, quantity, "stationary", probability)
+  free <- .model_cell(increment_tbl, quantity, "free", probability)
+  match_stat <- .model_cell(matching_tbl, quantity, "stationary", probability)
+  match_free <- .model_cell(matching_tbl, quantity, "free", probability)
+  list(est = c(label, "0.00", "0.00", stat[1L], free[1L],
+               match_stat[1L], match_free[1L]),
+       se = c("", "(fixed)", "(fixed)", stat[2L], free[2L],
+              match_stat[2L], match_free[2L]))
+}
+.matching_only_row <- function(quantity, label, probability = TRUE,
+                               omitted_value = "---",
+                               omitted_se = "") {
+  stat <- .model_cell(matching_tbl, quantity, "stationary", probability)
+  free <- .model_cell(matching_tbl, quantity, "free", probability)
+  list(est = c(label, rep(omitted_value, 4L), stat[1L], free[1L]),
+       se = c("", rep(omitted_se, 4L), stat[2L], free[2L]))
+}
+.stationarity_gap_row <- function() {
+  basic_free <- .model_cell(main_tbl, "stationarity_gap", "free")
+  increment_free <- .model_cell(increment_tbl, "stationarity_gap", "free")
+  matching_free <- .model_cell(matching_tbl, "stationarity_gap", "free")
+  list(est = c("Initial minus steady employment (p.p.)",
+               "0.00", basic_free[1L], "0.00", increment_free[1L],
+               "0.00", matching_free[1L]),
+       se = c("", "(fixed)", basic_free[2L], "(fixed)", increment_free[2L],
+              "(fixed)", matching_free[2L]))
+}
+table6_headers <- c("", paste0("(", 1:6, ")"))
+table6_sub_headers <- c(
+  " & \\multicolumn{2}{c}{Indicators only} & \\multicolumn{2}{c}{Indicators + large increments} & \\multicolumn{2}{c}{Plus matching indicators} \\\\ ",
+  "\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\\cmidrule(lr){6-7}",
+  paste(c("", rep(c("Stationary", "Free $\\alpha$"), 3L)),
+        collapse = " & ") %+% " \\\\ "
+)
+table6_fit_rows <- list(
+  list(est = c("Log-likelihood",
+               .fmt_ll(incons_audit$stationary$loglik, 3L),
+               .fmt_ll(incons_audit$free$loglik, 3L),
+               .fmt_ll(incons_audit$extent_stationary$loglik, 3L),
+               .fmt_ll(incons_audit$extent_free$loglik, 3L),
+               .fmt_ll(incons_audit$matching_stationary$loglik, 3L),
+               .fmt_ll(incons_audit$matching_free$loglik, 3L)),
+       se = rep("", 7L)),
+  list(est = c("$N$", rep(.fmt_n(N_ext), 6L)), se = rep("", 7L)),
+  list(est = c("Stationarity imposed", rep(c("Yes", "No"), 3L)),
+       se = rep("", 7L)),
+  list(est = c("Large-increment effects", "No", "No", rep("Yes", 4L)),
+       se = rep("", 7L)),
+  list(est = c("Matching-quality indicators", rep("No", 4L), "Yes", "Yes"),
+       se = rep("", 7L))
+)
+
 .write_latex_table(
-  col_headers = c("", "(1)"),
-  sub_headers = paste(c("", "Free $\\alpha$"), collapse = " & ") %+% " \\\\ ",
+  col_headers = table6_headers,
+  sub_headers = table6_sub_headers,
   row_data = list(
-    list(header = "Transition parameters", rows = list(
-      .main_row("entry_rate", "Entry rate $\\theta_0$ (\\%)"),
-      .main_row("exit_rate", "Exit rate $1-\\theta_1$ (\\%)"),
-      .main_row("initial_employment", "Initial employment $\\alpha$ (\\%)")
-    )),
-    list(header = "Misclassification probabilities", rows = list(
-      .main_row("pi_base", "No inconsistency (\\%)"),
-      .main_row("pi_age", "Age inconsistency (\\%)"),
-      .main_row("age_effect", "Age increment (p.p.)"),
-      .main_row("pi_education", "Education inconsistency (\\%)"),
-      .main_row("education_effect", "Education increment (p.p.)"),
-      .main_row("pi_both", "Both inconsistencies (\\%)"),
-      .main_row("mean_pi_survey_weighted", "Survey-weighted mean (\\%)")
-    )),
-    list(header = "Logistic-link coefficients", rows = list(
-      .main_row("delta0", "$\\delta_0$ (intercept)", FALSE),
-      .main_row("delta_age", "$\\delta_1$ (age inconsistency)", FALSE),
-      .main_row("delta_education", "$\\delta_2$ (education inconsistency)", FALSE)
-    )),
     list(header = NULL, rows = list(
-      list(est = c("Log-likelihood", .fmt_ll(incons_audit$free$loglik)), se = c("", "")),
-      list(est = c("$N$", .fmt_n(N_ext)), se = c("", ""))
-    ))
+      .six_model_row("entry_rate", "entry_rate", "Entry rate (\\%)"),
+      .six_model_row("exit_rate", "exit_rate", "Exit rate (\\%)"),
+      .six_model_row("mean_pi_survey_weighted", "mean_pi_survey_weighted",
+                      "Misclassification rate (\\%)"),
+      .six_model_row("initial_employment", "initial_employment",
+        "Initial employment rate (\\%)", basic_stationary_quantity = "steady_employment")
+    )),
+    list(header = NULL, rows = table6_fit_rows)
   ),
-  caption = "Inconsistency-augmented model with free initial employment probability",
+  caption = "Age- and education-inconsistency models",
   label = "tab:inconsistency",
   path = file.path(tables_ext_dir, "table_inconsistency.tex"),
-  note = "Probabilities and increments are in percent or percentage points. Analytical standard errors in parentheses use the survey-weighted sandwich covariance and delta method. An inconsistency indicates an unreliable linked record and may arise from response error or an incorrect panel match. Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$."
+  note = "Entry, exit, and mean misclassification probabilities are reported on a common percentage scale. Mean misclassification averages individual-wave predictions using survey weights. Columns (5)--(6) add person-wave indicators for observations included in matching panel B but not C and in panel A but not B, using the Table 2 sample-construction rules. Analytical standard errors in parentheses use the survey-weighted sandwich covariance and delta method. Under stationarity, initial and steady-state employment coincide. An inconsistency may arise from response error, matching error, or both."
+)
+
+.write_latex_table(
+  col_headers = table6_headers,
+  sub_headers = table6_sub_headers,
+  row_data = list(
+    list(header = "Employment-state transformations", rows = list(
+      .six_model_row("steady_employment", "steady_employment",
+                      "Steady-state employment (\\%)"),
+      .stationarity_gap_row()
+    )),
+    list(header = "Misclassification by inconsistency pattern", rows = list(
+      .six_model_row("pi_base", "pi_base", "No inconsistency (\\%)"),
+      .six_model_row("pi_age", "pi_age_mild", "Age inconsistency (\\%)"),
+      .six_model_row("pi_age", "pi_age_severe", "Age inconsistency, large (\\%)"),
+      .six_model_row("pi_education", "pi_education_mild", "Education inconsistency (\\%)"),
+      .six_model_row("pi_education", "pi_education_severe",
+                      "Education inconsistency, large (\\%)"),
+      .six_model_row("pi_both", "pi_both_mild", "Both inconsistencies (\\%)"),
+      .six_model_row("pi_both", "pi_both_both_severe",
+                      "Both inconsistencies, both large (\\%)"),
+      .matching_only_row("pi_B_not_C", "Panel B but not C, no inconsistency (\\%)"),
+      .matching_only_row("pi_A_not_B", "Panel A but not B, no inconsistency (\\%)")
+    )),
+    list(header = "Probability increments", rows = list(
+      .increment_effect_row("age_severity_effect", "Additional large age increment (p.p.)"),
+      .increment_effect_row("education_severity_effect",
+                            "Additional large education increment (p.p.)"),
+      .matching_only_row("B_not_C_effect", "Panel B-not-C increment (p.p.)"),
+      .matching_only_row("A_not_B_effect", "Panel A-not-B increment (p.p.)")
+    )),
+    list(header = "Logistic-link coefficients", rows = list(
+      .six_model_row("delta0", "delta0", "$\\delta_0$ (intercept)", FALSE),
+      .six_model_row("delta_age", "delta_age", "$\\delta_1$ (age inconsistency)", FALSE),
+      .six_model_row("delta_education", "delta_education",
+                      "$\\delta_2$ (education inconsistency)", FALSE),
+      .increment_effect_row("delta_age_severe", "$\\delta_3$ (large age increment)", FALSE),
+      .increment_effect_row("delta_education_severe",
+                            "$\\delta_4$ (large education increment)", FALSE),
+      .matching_only_row("delta_B_not_C", "$\\delta_5$ (panel B but not C)",
+                         FALSE, "0.000", "(fixed)"),
+      .matching_only_row("delta_A_not_B", "$\\delta_6$ (panel A but not B)",
+                         FALSE, "0.000", "(fixed)")
+    )),
+    list(header = NULL, rows = table6_fit_rows)
+  ),
+  caption = "Age- and education-inconsistency models: supplementary estimates",
+  label = "tab:inconsistency_appendix",
+  path = file.path(tables_ext_dir, "table_inconsistency_appendix.tex"),
+  note = "Probabilities and increments are percentages or percentage points; logit coefficients are untransformed. A large inconsistency lies at least two units beyond the admissible progression. Panel-membership probabilities set age and education inconsistencies to zero and vary one matching indicator at a time. Analytical standard errors use the survey-weighted sandwich covariance and delta method."
 )
 
 group_tbl <- incons_audit$reliability_group_table

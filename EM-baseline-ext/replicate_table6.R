@@ -302,13 +302,15 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
       (3 * cells$weight_sum))
 }
 
-.extent_eta_names <- c("theta0", "theta1", "alpha", "delta0", "delta_age",
-                       "delta_education", "delta_age_severe", "delta_education_severe")
+.extent_eta_names <- function(stationary) c("theta0", "theta1",
+  if (!stationary) "alpha", "delta0", "delta_age", "delta_education",
+  "delta_age_severe", "delta_education_severe")
 
-.unpack_extent <- function(eta) {
-  eta <- setNames(as.numeric(eta), .extent_eta_names)
-  list(theta0 = plogis(eta["theta0"]), theta1 = plogis(eta["theta1"]),
-       alpha = plogis(eta["alpha"]),
+.unpack_extent <- function(eta, stationary) {
+  eta <- setNames(as.numeric(eta), .extent_eta_names(stationary))
+  theta0 <- plogis(eta["theta0"]); theta1 <- plogis(eta["theta1"])
+  alpha <- if (stationary) stationary_alpha(theta0, theta1) else plogis(eta["alpha"])
+  list(theta0 = theta0, theta1 = theta1, alpha = alpha,
        delta = unname(eta[c("delta0", "delta_age", "delta_education",
                             "delta_age_severe", "delta_education_severe")]))
 }
@@ -335,8 +337,8 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   out
 }
 
-.extent_quantities <- function(eta, cells) {
-  p <- .unpack_extent(eta); d <- p$delta
+.extent_quantities <- function(eta, cells, stationary) {
+  p <- .unpack_extent(eta, stationary); d <- p$delta
   scenario_pi <- function(age, edu, age_extent, edu_extent)
     0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
                    d[4L] * age_extent + d[5L] * edu_extent)
@@ -346,8 +348,10 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   edu_extent <- as.matrix(cells$pattern[, paste0("severe_edu_", 1:3)])
   pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
                           d[4L] * age_extent + d[5L] * edu_extent)
+  steady <- stationary_alpha(p$theta0, p$theta1)
   c(entry_rate = unname(p$theta0), exit_rate = unname(1 - p$theta1),
-    initial_employment = unname(p$alpha),
+    initial_employment = unname(p$alpha), steady_employment = unname(steady),
+    stationarity_gap = unname(p$alpha - steady),
     delta0 = d[1L], delta_age = d[2L], delta_education = d[3L],
     delta_age_severe = d[4L], delta_education_severe = d[5L],
     pi_base = scenario_pi(0, 0, 0, 0),
@@ -357,6 +361,98 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
     pi_education_mild = scenario_pi(0, 1, 0, 0),
     pi_education_severe = scenario_pi(0, 1, 0, 1),
     education_severity_effect = scenario_pi(0, 1, 0, 1) - scenario_pi(0, 1, 0, 0),
+    pi_both_mild = scenario_pi(1, 1, 0, 0),
+    pi_both_age_severe = scenario_pi(1, 1, 1, 0),
+    pi_both_education_severe = scenario_pi(1, 1, 0, 1),
+    pi_both_both_severe = scenario_pi(1, 1, 1, 1),
+    mean_pi_survey_weighted = sum(cells$weight * rowSums(pi_mat)) /
+      (3 * cells$weight_sum))
+}
+
+.matching_eta_names <- function(stationary) c(
+  .extent_eta_names(stationary), "delta_B_not_C", "delta_A_not_B")
+
+.unpack_matching <- function(eta, stationary) {
+  eta <- setNames(as.numeric(eta), .matching_eta_names(stationary))
+  theta0 <- plogis(eta["theta0"]); theta1 <- plogis(eta["theta1"])
+  alpha <- if (stationary) stationary_alpha(theta0, theta1) else plogis(eta["alpha"])
+  list(theta0 = theta0, theta1 = theta1, alpha = alpha,
+       delta = unname(eta[c("delta0", "delta_age", "delta_education",
+                            "delta_age_severe", "delta_education_severe",
+                            "delta_B_not_C", "delta_A_not_B")]))
+}
+
+.matching_probabilities <- function(params, pattern) {
+  latent <- latent_histories()
+  prior <- prior_over_histories(latent, params$theta1, params$theta0, params$alpha)
+  y <- as.matrix(pattern[, c("y1", "y2", "y3")])
+  age <- as.matrix(pattern[, paste0("Y_age_", 1:3)])
+  edu <- as.matrix(pattern[, paste0("Y_edu_", 1:3)])
+  age_extent <- as.matrix(pattern[, paste0("severe_age_", 1:3)])
+  edu_extent <- as.matrix(pattern[, paste0("severe_edu_", 1:3)])
+  b_not_c <- as.matrix(pattern[, paste0("panel_B_not_C_", 1:3)])
+  a_not_b <- as.matrix(pattern[, paste0("panel_A_not_B_", 1:3)])
+  d <- params$delta
+  pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
+    d[4L] * age_extent + d[5L] * edu_extent +
+    d[6L] * b_not_c + d[7L] * a_not_b)
+  out <- numeric(nrow(pattern))
+  for (h in seq_len(nrow(latent))) {
+    emission <- matrix(1, nrow(pattern), 3L)
+    for (tt in 1:3)
+      emission[, tt] <- ifelse(y[, tt] == latent[h, tt],
+                               1 - pi_mat[, tt], pi_mat[, tt])
+    out <- out + prior[h] * apply(emission, 1L, prod)
+  }
+  out
+}
+
+.matching_quantities <- function(eta, cells, stationary) {
+  p <- .unpack_matching(eta, stationary); d <- p$delta
+  scenario_pi <- function(age = 0, edu = 0, age_extent = 0,
+                          edu_extent = 0, b_not_c = 0, a_not_b = 0)
+    0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
+      d[4L] * age_extent + d[5L] * edu_extent +
+      d[6L] * b_not_c + d[7L] * a_not_b)
+  age <- as.matrix(cells$pattern[, paste0("Y_age_", 1:3)])
+  edu <- as.matrix(cells$pattern[, paste0("Y_edu_", 1:3)])
+  age_extent <- as.matrix(cells$pattern[, paste0("severe_age_", 1:3)])
+  edu_extent <- as.matrix(cells$pattern[, paste0("severe_edu_", 1:3)])
+  b_not_c <- as.matrix(cells$pattern[, paste0("panel_B_not_C_", 1:3)])
+  a_not_b <- as.matrix(cells$pattern[, paste0("panel_A_not_B_", 1:3)])
+  pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
+    d[4L] * age_extent + d[5L] * edu_extent +
+    d[6L] * b_not_c + d[7L] * a_not_b)
+  steady <- stationary_alpha(p$theta0, p$theta1)
+  pi_base <- scenario_pi()
+  pi_age_mild <- scenario_pi(age = 1)
+  pi_age_severe <- scenario_pi(age = 1, age_extent = 1)
+  pi_education_mild <- scenario_pi(edu = 1)
+  pi_education_severe <- scenario_pi(edu = 1, edu_extent = 1)
+  pi_both_mild <- scenario_pi(age = 1, edu = 1)
+  pi_both_both_severe <- scenario_pi(age = 1, edu = 1,
+                                      age_extent = 1, edu_extent = 1)
+  pi_b_not_c <- scenario_pi(b_not_c = 1)
+  pi_a_not_b <- scenario_pi(a_not_b = 1)
+  c(entry_rate = unname(p$theta0), exit_rate = unname(1 - p$theta1),
+    initial_employment = unname(p$alpha), steady_employment = unname(steady),
+    stationarity_gap = unname(p$alpha - steady),
+    delta0 = d[1L], delta_age = d[2L], delta_education = d[3L],
+    delta_age_severe = d[4L], delta_education_severe = d[5L],
+    delta_B_not_C = d[6L], delta_A_not_B = d[7L],
+    pi_base = pi_base,
+    pi_age_mild = pi_age_mild,
+    pi_age_severe = pi_age_severe,
+    age_severity_effect = pi_age_severe - pi_age_mild,
+    pi_education_mild = pi_education_mild,
+    pi_education_severe = pi_education_severe,
+    education_severity_effect = pi_education_severe - pi_education_mild,
+    pi_both_mild = pi_both_mild,
+    pi_both_both_severe = pi_both_both_severe,
+    pi_B_not_C = pi_b_not_c,
+    B_not_C_effect = pi_b_not_c - pi_base,
+    pi_A_not_B = pi_a_not_b,
+    A_not_B_effect = pi_a_not_b - pi_base,
     mean_pi_survey_weighted = sum(cells$weight * rowSums(pi_mat)) /
       (3 * cells$weight_sum))
 }
@@ -367,6 +463,21 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   variance <- J %*% fit$vcov %*% t(J)
   data.frame(quantity = names(estimate), estimate = unname(estimate),
              std_error = sqrt(pmax(diag(variance), 0)), row.names = NULL)
+}
+
+.table2_person_wave_keys <- function(panel) {
+  raw <- readRDS(here::here("data", "raw", paste0("df_qlfs_", panel, ".rds")))
+  num <- function(x) as.numeric(unclass(x))
+  weight <- (num(raw$weight1) * num(raw$weight2) * num(raw$weight3))^(1 / 3)
+  keep <- num(raw$age1) > 17 & num(raw$age1) < 56 &
+    complete.cases(raw[paste0("employed", 1:3)]) &
+    is.finite(weight) & weight > 0
+  raw <- raw[keep, c("hhnr", "pnr", paste0("period", 1:3)), drop = FALSE]
+  keys <- unique(unlist(lapply(1:3, function(tt)
+    paste(raw$hhnr, raw$pnr, raw[[paste0("period", tt)]], sep = "|")),
+    use.names = FALSE))
+  rm(raw); gc(verbose = FALSE)
+  keys
 }
 
 # Match the legacy Table 6 analysis sample.
@@ -388,10 +499,42 @@ cells_extent <- .collapse_inc_cells(
   df, as.matrix(inc_df[, c(inc_names, severe_names)])
 )
 
+# Construct person-wave set differences using exactly the complete-panel and
+# weight filters used for Table 2. These are wave-varying measurement-quality
+# indicators, not person-level sample restrictions.
+panel_B_keys <- .table2_person_wave_keys("B")
+panel_C_keys <- .table2_person_wave_keys("C")
+panel_A_key_mat <- sapply(1:3, function(tt)
+  paste(df$hhnr, df$pnr, df[[paste0("period", tt)]], sep = "|"))
+in_B <- matrix(panel_A_key_mat %in% panel_B_keys, nrow(df), 3L)
+in_C <- matrix(panel_A_key_mat %in% panel_C_keys, nrow(df), 3L)
+panel_B_not_C <- 1L * (in_B & !in_C)
+panel_A_not_B <- 1L * !in_B
+colnames(panel_B_not_C) <- paste0("panel_B_not_C_", 1:3)
+colnames(panel_A_not_B) <- paste0("panel_A_not_B_", 1:3)
+stopifnot(sum(panel_B_not_C * panel_A_not_B) == 0L,
+          sum(panel_B_not_C) > 0L, sum(panel_A_not_B) > 0L)
+inc_df <- cbind(inc_df, as.data.frame(panel_B_not_C),
+                as.data.frame(panel_A_not_B))
+matching_names <- c(inc_names, severe_names,
+                    colnames(panel_B_not_C), colnames(panel_A_not_B))
+cells_matching <- .collapse_inc_cells(df, as.matrix(inc_df[, matching_names]))
+membership_summary <- data.frame(
+  indicator = c("Panel B but not C", "Panel A but not B"),
+  unweighted_percent = 100 * c(mean(panel_B_not_C), mean(panel_A_not_B)),
+  survey_weighted_percent = 100 * c(
+    sum(panel_B_not_C * df$weight) / (3 * sum(df$weight)),
+    sum(panel_A_not_B * df$weight) / (3 * sum(df$weight)))
+)
+rm(panel_B_keys, panel_C_keys, panel_A_key_mat, in_B, in_C)
+gc(verbose = FALSE)
+
 cat(sprintf("Table 6 sample: N=%s; %d collapsed likelihood cells\n",
             format(nrow(df), big.mark = ","), nrow(cells$pattern)))
 cat(sprintf("Severity robustness: %d collapsed likelihood cells\n",
             nrow(cells_extent$pattern)))
+cat(sprintf("Matching-quality extension: %d collapsed likelihood cells\n",
+            nrow(cells_matching$pattern)))
 flag_summary <- data.frame(
   indicator = c(inc_names, "any_age", "any_education", "any_inconsistency"),
   unweighted_percent = 100 * c(colMeans(inc_mat),
@@ -417,6 +560,8 @@ severity_summary <- data.frame(
 )
 cat("\nShare of attributed flags at least two units beyond the admissible range (%):\n")
 print(severity_summary, row.names = FALSE, digits = 4)
+cat("\nTable 2 matching-set indicators (% of person-wave observations):\n")
+print(membership_summary, row.names = FALSE, digits = 4)
 
 # Obtain nested homogeneous estimates for stable starts, then add dispersed
 # slope starts to guard against local optima.
@@ -470,16 +615,65 @@ inf_group <- .custom_inference(fit_group, .group_quantities, cells)
 
 # Robustness 2: add the distance from the admissible [0,1] age/education
 # change to test whether more severe inconsistencies imply larger error rates.
-extent_center <- c(fit_free$eta, delta_age_severe = 0,
-                   delta_education_severe = 0)
-extent_center <- extent_center[.extent_eta_names]
-extent_starts <- c(list(extent_center), lapply(1:11, function(i)
-  extent_center + rnorm(length(extent_center), 0,
-                        c(rep(.30, 3), .25, .75, .75, .25, .25))))
-fit_extent <- .fit_custom_inc(cells_extent, .extent_eta_names, .unpack_extent,
-                              .extent_probabilities, extent_starts,
-                              "Inconsistency-extent robustness")
-inf_extent <- .custom_inference(fit_extent, .extent_quantities, cells_extent)
+fit_extent_model <- function(stationary, base_fit, label) {
+  center <- c(base_fit$eta, delta_age_severe = 0,
+              delta_education_severe = 0)
+  names_eta <- .extent_eta_names(stationary)
+  center <- center[names_eta]
+  perturb_sd <- c(rep(.30, if (stationary) 2 else 3), .25, .75, .75, .25, .25)
+  starts <- c(list(center), lapply(1:11, function(i)
+    center + rnorm(length(center), 0, perturb_sd)))
+  .fit_custom_inc(cells_extent, names_eta,
+    function(z) .unpack_extent(z, stationary), .extent_probabilities,
+    starts, label)
+}
+fit_extent_stat <- fit_extent_model(TRUE, fit_stat,
+  "Stationary inconsistency-increment model")
+fit_extent_free <- fit_extent_model(FALSE, fit_free,
+  "Free-alpha inconsistency-increment model")
+inf_extent_stat <- .custom_inference(fit_extent_stat,
+  function(z, cc) .extent_quantities(z, cc, TRUE), cells_extent)
+inf_extent_free <- .custom_inference(fit_extent_free,
+  function(z, cc) .extent_quantities(z, cc, FALSE), cells_extent)
+extent_table <- merge(inf_extent_stat, inf_extent_free, by = "quantity",
+  all = TRUE, suffixes = c("_stationary", "_free"), sort = FALSE)
+extent_order <- names(.extent_quantities(fit_extent_stat$eta, cells_extent, TRUE))
+extent_table <- extent_table[match(extent_order, extent_table$quantity), ]
+
+# Main extension requested for Table 3: retain the age/education indicators and
+# severity increments, and add both Table 2 person-wave set-difference flags to
+# the misclassification equation.
+fit_matching_model <- function(stationary, base_fit, label) {
+  center <- c(base_fit$eta, delta_B_not_C = 0, delta_A_not_B = 0)
+  names_eta <- .matching_eta_names(stationary)
+  center <- center[names_eta]
+  perturb_sd <- c(rep(.30, if (stationary) 2 else 3),
+                  .25, .75, .75, .25, .25, .75, .75)
+  starts <- c(list(center), lapply(1:11, function(i)
+    center + rnorm(length(center), 0, perturb_sd)))
+  .fit_custom_inc(cells_matching, names_eta,
+    function(z) .unpack_matching(z, stationary), .matching_probabilities,
+    starts, label)
+}
+fit_matching_stat <- fit_matching_model(TRUE, fit_extent_stat,
+  "Stationary matching-quality inconsistency model")
+fit_matching_free <- fit_matching_model(FALSE, fit_extent_free,
+  "Free-alpha matching-quality inconsistency model")
+if (!fit_matching_stat$converged || !fit_matching_stat$identified ||
+    !fit_matching_free$converged || !fit_matching_free$identified)
+  stop("Matching-quality Table 3 specifications failed convergence or identification checks")
+if (fit_matching_stat$loglik < fit_extent_stat$loglik - 1e-4 ||
+    fit_matching_free$loglik < fit_extent_free$loglik - 1e-4)
+  stop("Matching-quality Table 3 likelihood does not dominate its nested model")
+inf_matching_stat <- .custom_inference(fit_matching_stat,
+  function(z, cc) .matching_quantities(z, cc, TRUE), cells_matching)
+inf_matching_free <- .custom_inference(fit_matching_free,
+  function(z, cc) .matching_quantities(z, cc, FALSE), cells_matching)
+matching_table <- merge(inf_matching_stat, inf_matching_free, by = "quantity",
+  all = TRUE, suffixes = c("_stationary", "_free"), sort = FALSE)
+matching_order <- names(.matching_quantities(
+  fit_matching_stat$eta, cells_matching, TRUE))
+matching_table <- matching_table[match(matching_order, matching_table$quantity), ]
 
 table6 <- merge(inf_stat, inf_free, by = "quantity", all = TRUE,
                 suffixes = c("_stationary", "_free"), sort = FALSE)
@@ -507,8 +701,15 @@ cat("\nRobustness: group-specific true transition rates:\n")
 print(inf_group, row.names = FALSE, digits = 6)
 cat(sprintf("Identified/converged: %s/%s\n", fit_group$identified, fit_group$converged))
 cat("\nRobustness: inconsistency extent:\n")
-print(inf_extent, row.names = FALSE, digits = 6)
-cat(sprintf("Identified/converged: %s/%s\n", fit_extent$identified, fit_extent$converged))
+print(extent_table, row.names = FALSE, digits = 6)
+cat(sprintf("Identified/converged: stationary %s/%s; free %s/%s\n",
+            fit_extent_stat$identified, fit_extent_stat$converged,
+            fit_extent_free$identified, fit_extent_free$converged))
+cat("\nTable 3 extension: matching-quality indicators in the error equation:\n")
+print(matching_table, row.names = FALSE, digits = 6)
+cat(sprintf("Identified/converged: stationary %s/%s; free %s/%s\n",
+            fit_matching_stat$identified, fit_matching_stat$converged,
+            fit_matching_free$identified, fit_matching_free$converged))
 
 out_dir <- here::here("EM-baseline-ext", "output", "results")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -516,9 +717,23 @@ write.csv(table6, file.path(out_dir, "table6_inconsistency_audit.csv"), row.name
 write.csv(flag_summary, file.path(out_dir, "table6_inconsistency_prevalence.csv"), row.names = FALSE)
 write.csv(severity_summary, file.path(out_dir, "table6_inconsistency_severity_prevalence.csv"), row.names = FALSE)
 write.csv(inf_group, file.path(out_dir, "table6_reliability_group_robustness.csv"), row.names = FALSE)
-write.csv(inf_extent, file.path(out_dir, "table6_inconsistency_extent.csv"), row.names = FALSE)
+write.csv(inf_extent_free, file.path(out_dir, "table6_inconsistency_extent.csv"), row.names = FALSE)
+write.csv(extent_table, file.path(out_dir, "table6_inconsistency_extent_audit.csv"),
+          row.names = FALSE)
+write.csv(membership_summary,
+          file.path(out_dir, "table6_matching_membership_prevalence.csv"),
+          row.names = FALSE)
+write.csv(matching_table,
+          file.path(out_dir, "table6_matching_quality_audit.csv"),
+          row.names = FALSE)
 saveRDS(list(stationary = fit_stat, free = fit_free, table = table6,
              reliability_group = fit_group, reliability_group_table = inf_group,
-             extent = fit_extent, extent_table = inf_extent,
+             extent = fit_extent_free, extent_table = inf_extent_free,
+             extent_stationary = fit_extent_stat, extent_free = fit_extent_free,
+             extent_comparison_table = extent_table,
+             matching_stationary = fit_matching_stat,
+             matching_free = fit_matching_free,
+             matching_comparison_table = matching_table,
+             matching_membership_prevalence = membership_summary,
              prevalence = flag_summary, severity_prevalence = severity_summary),
         file.path(out_dir, "fit_table6_inconsistency_audit.rds"))

@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Sensitivity to alternative panel-matching rules}
+\label{table_matching_implied}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{2}{c}{Baseline (A)} & \multicolumn{2}{c}{Stricter (B)} & \multicolumn{2}{c}{Strictest (C)}
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ & No error & Symmetric error & No error & Symmetric error & No error & Symmetric error
+\midrule
+Entry rate (\%) & 8.28 & 2.98 & 7.59 & 2.81 & 6.56 & 2.63
+ & (0.05) & (0.06) & (0.05) & (0.06) & (0.05) & (0.06)
+Exit rate (\%) & 8.54 & 2.91 & 7.55 & 2.48 & 6.03 & 1.93
+ & (0.05) & (0.06) & (0.05) & (0.06) & (0.05) & (0.06)
+Misclassification rate (\%) & --- & 2.99 & --- & 2.67 & --- & 2.15
+ &  & (0.03) &  & (0.03) &  & (0.03)
+Initial employment rate (\%) & 48.52 & 48.37 & 48.52 & 48.40 & 48.94 & 48.85
+ & (0.09) & (0.10) & (0.09) & (0.10) & (0.11) & (0.11)
+Employment rate (\%) & 49.23 & 50.57 & 50.11 & 53.10 & 52.13 & 57.64
+ & (0.18) & (0.53) & (0.20) & (0.58) & (0.25) & (0.70)
+Log-likelihood (millions) & -357.204 & -349.371 & -324.427 & -317.258 & -243.918 & -238.714
+$N$ & 402,923 & 402,923 & 377,132 & 377,132 & 300,200 & 300,200
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.98\linewidth}
+\footnotesize \textit{Note:} All models estimate the initial employment probability freely; stationarity is not imposed. Long-run employment is $\theta_0/(\theta_0+1-\theta_1)$. Parentheses contain individual-level survey-weighted sandwich/delta standard errors. Panels A, B, and C apply successively stricter matching rules and use otherwise identical sample filters.
+\end{minipage}
+\end{table}

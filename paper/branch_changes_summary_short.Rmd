@@ -1,0 +1,912 @@
+---
+title: "Short summary of estimation revisions"
+subtitle: "Changes on codex/rulof_new_work relative to efficient"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+geometry: margin=1in
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{amsmath}
+  - \usepackage{float}
+  - \usepackage{caption}
+  - \usepackage{needspace}
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+project_root <- normalizePath("..", winslash = "/", mustWork = TRUE)
+
+include_tex_table <- function(relative_path, tabular_scale = NULL,
+                              table_number = NULL, appendix_label = NULL) {
+  path <- file.path(project_root, relative_path)
+  if (!file.exists(path)) {
+    stop("Missing generated table: ", path,
+         ". Run Rscript build_tables.R from the project root first.")
+  }
+  lines <- readLines(path, warn = FALSE)
+  lines <- sub("^\\\\begin\\{table\\}\\[[^]]+\\]$", "\\\\begin{table}[H]", lines)
+  if (!is.null(table_number)) {
+    lines <- c(sprintf("\\setcounter{table}{%d}", as.integer(table_number) - 1L),
+               lines)
+  }
+  if (!is.null(appendix_label)) {
+    caption_line <- grep("^\\\\caption\\{", lines)
+    if (length(caption_line) != 1L)
+      stop("Expected exactly one caption in ", path)
+    caption_text <- sub("^\\\\caption\\{(.*)\\}$", "\\1", lines[caption_line])
+    lines[caption_line] <- sprintf("\\caption*{%s: %s}", appendix_label,
+                                   caption_text)
+  }
+  if (!is.null(tabular_scale)) {
+    begin_tabular <- grep("^\\\\begin\\{tabular\\}", lines)
+    end_tabular <- grep("^\\\\end\\{tabular\\}", lines)
+    if (length(begin_tabular) != 1L || length(end_tabular) != 1L)
+      stop("Expected exactly one tabular environment in ", path)
+    lines <- append(lines, "}", after = end_tabular)
+    lines <- append(lines, sprintf("\\scalebox{%s}{%%", tabular_scale),
+                    after = begin_tabular - 1L)
+  }
+  cat(lines, sep = "\n")
+}
+```
+
+# Scope
+
+This note summarises the paper-facing results produced on the branch. It is
+organised by the corresponding section and table in the paper. Technical
+implementation details are retained in the module READMEs and estimation
+scripts; this note focuses on changes that affect estimates or interpretation.
+Across the main tables, shared rates appear in the same order: entry, exit,
+misclassification, and employment or initial employment. Model-specific error
+or duration rates follow those common quantities.
+
+# 1. Baseline transition model: Table 1 and Appendix Table A1
+
+- Re-estimated the three-wave model using the exact eight-history likelihood.
+- Repaired stationarity; used 12 reproducible starts (including nested-model
+  starts); and required optimizer convergence, a small score, positive observed
+  information, and valid likelihood nesting before saving results.
+- Replaced stale inference with analytical survey-weighted sandwich and delta
+  standard errors.
+- Separated the free initial employment probability from the model-implied
+  long-run employment share.
+
+```{r baseline-implied, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_baseline_implied.tex",
+                  table_number = 1)
+```
+
+```{r baseline-parameters, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_baseline_params.tex",
+                  tabular_scale = 0.82, appendix_label = "Appendix Table A1")
+```
+
+## Interpretation
+
+- The no-error model implies quarterly entry and exit of about 8.2--8.6%.
+- Allowing symmetric error lowers both rates to about 3%, with a per-wave
+  misclassification probability of 2.99%.
+- False-positive and false-negative probabilities are very similar, so
+  asymmetry adds little to the substantive result.
+- The repaired likelihood strengthens the paper's central conclusion:
+  relatively infrequent classification error can create a large upward bias in
+  measured labour-market turnover.
+
+## To do
+
+- Report likelihood-ratio evidence for stationarity and asymmetric error, and
+  check whether transition probabilities vary across wave pairs.
+- Confirm the analytical inference with a person-level bootstrap or likelihood
+  profiles for the misclassification and transition rates.
+
+# 2. Panel-matching robustness: Table 2
+
+- Applied the same exact, non-stationary estimator, 12-start search, and
+  convergence and curvature checks to panels A, B, and C.
+- Held all sample filters fixed apart from progressively stricter matching.
+- Added consistent analytical standard errors to every panel comparison.
+
+```{r matching-sensitivity, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_matching_implied.tex",
+                  tabular_scale = 0.82, table_number = 2)
+```
+
+## Interpretation
+
+- Stricter matching lowers both observed and corrected transition rates.
+- The estimated misclassification probability declines from 2.99% in panel A
+  to 2.15% in panel C.
+- Corrected entry and exit remain much lower than no-error rates under every
+  matching rule.
+- Matching quality is therefore part of the inconsistency mechanism, but the
+  main correction is not driven solely by the baseline matching rule.
+
+## To do
+
+- Compare observable composition and attrition across panels A--C, not only
+  their parameter estimates.
+- Check whether the Table 4 and age/education-consistency results are also
+  stable under the stricter matching rules.
+
+# 3. Age and education consistency: Table 3 and Appendix Table A2
+
+- Re-estimated both the indicator-only model and the model with additional
+  effects for large age and education increments, under stationarity and with
+  a free initial employment probability.
+- Repaired the EM update, used multiple starts and likelihood checks, and added
+  analytical standard errors.
+- Interpreted age and education inconsistencies neutrally: they may arise from
+  response error, matching error, or both.
+- Added robustness allowing true transition rates to differ between records
+  with and without an inconsistency and allowing misclassification to depend on
+  inconsistency severity.
+- Added stationary and free-initial-employment specifications in which the
+  misclassification rate also depends on person-wave indicators for membership
+  in matching panel B but not C and panel A but not B, defined using the Table 2
+  sample-construction rules.
+
+```{r inconsistency-main, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_inconsistency.tex",
+                  tabular_scale = 0.86, table_number = 3)
+```
+
+```{r inconsistency-appendix, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_inconsistency_appendix.tex",
+                  tabular_scale = 0.68, appendix_label = "Appendix Table A2")
+```
+
+The additional reliability-group robustness table is generated as
+table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
+
+## Interpretation
+
+- Baseline misclassification is 2.26%, rising to 17.99% with an age
+  inconsistency, 6.49% with an education inconsistency, and 31.99% with both.
+- Stationarity materially changes the entry and exit decomposition but barely
+  changes the inconsistency-related misclassification probabilities. In the
+  free model, initial employment is 6.56 percentage points below its implied
+  steady-state rate.
+- Allowing additional large-increment effects substantially sharpens the age
+  gradient: predicted misclassification rises from about 7.76% for a mild age
+  inconsistency to 21.50% for a large one. The corresponding education increase
+  is only about 0.60 percentage points.
+- In the augmented free-initial-employment model, predicted misclassification
+  for a record with no age or education inconsistency is 1.98% when retained by
+  both stricter panels, 2.77% when retained by B but not C, and 4.34% when
+  retained by A but not B. Thus the matching-quality indicators capture a
+  strong reliability gradient.
+- Controlling for matching quality attenuates but does not eliminate the
+  age/education gradients: predicted error is 5.46% for a mild and 15.86% for a
+  large age inconsistency, and 4.47% and 4.83% for mild and large education
+  inconsistencies. The mean error rate changes little, from 3.36% to 3.38%, and
+  the free-model entry and exit rates move only from 2.60% and 2.19% to 2.57%
+  and 2.14%.
+- The relationship is not explained solely by different true transition rates
+  among records with age or education inconsistencies.
+- Larger age inconsistencies are much more informative than mild ones;
+  inconsistency severity matters less for education.
+- Age and education inconsistencies predict higher status misclassification,
+  without distinguishing response errors from incorrect panel matches.
+
+## To do
+
+- Check alternative nonlinear definitions of inconsistency extent and more
+  flexible inconsistency-group transition rates.
+- Bootstrap the age/education-inconsistency effects and repeat the analysis
+  under stricter panel matching.
+
+# 4. Observable transition heterogeneity: Table 4
+
+- Repaired the covariate-model optimiser so every specification maximises the
+  appropriate likelihood, uses five starts including a nested-model warm start,
+  and dominates its nested no-error model.
+- Added analytical standard errors and posterior risk-set and survey-weighted
+  transition rates.
+- Added tenure and time since work in Set 3.
+- Added time-varying contract type and informal-sector status in Set 4 without
+  restricting the sample to respondents observed in employment at every wave.
+- Moved raw coefficients, the initial-state parameter, total churn, and hazard
+  distributions to an appendix table.
+
+```{r revised-table-4, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex",
+                  tabular_scale = 0.72, table_number = 4)
+```
+
+```{r covariate-appendix, results='asis'}
+include_tex_table(
+  "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
+  tabular_scale = 0.55, appendix_label = "Appendix Table A3")
+```
+
+## Interpretation
+
+- No-error entry and exit remain close to 8.1% and 8.6% across covariate sets.
+- Symmetric-error estimates range from 3.62--4.87% for entry and 3.71--5.09%
+  for exit; estimated misclassification falls from 2.58% in Set 1 to 2.18% in
+  Set 4.
+- In symmetric Set 4, predicted risks are highly dispersed: the weighted
+  10th--90th percentile range is 1.00--13.82% for entry and 0.19--14.29% for
+  exit.
+- Observable heterogeneity therefore explains some differences in transition
+  risk but does not explain away the classification-error signal.
+- Duration is economically important: entry falls with time since work and exit
+  falls with tenure.
+- Permanent contracts reduce exit and informal employment raises it. These are
+  conditional associations, not causal estimates.
+- The paper should distinguish heterogeneous true transition risk from the
+  upward bias in observed transitions caused by classification error.
+
+## To do
+
+- Allow the initial employment probability to depend on baseline covariates and
+  check whether this changes the transition and error estimates.
+- Test more flexible duration functions and confirm the main inference with a
+  person-level bootstrap.
+
+# 5. Higher-order state dependence: Table 5
+
+- Added the comparable four-wave AR(1) benchmark with symmetric error and free
+  initial employment.
+- Added the same tenure and time-since-work controls used in Table 4.
+- Allowed duration covariates to change across origin waves.
+- Replaced approximate optimisation and inference with exact collapsed
+  likelihood estimation and analytical standard errors.
+
+\Needspace{15\baselineskip}
+
+```{r ar2-main-table, results='asis'}
+ar2_prob <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/ar2_duration_probabilities_latest.csv"))
+ar2_fit <- readRDS(file.path(project_root,
+  "EM-AR2/output/results/ar2_duration_covariates_4w_latest.rds"))
+ar2_runs <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/run_summary_latest.csv"))
+ar2_base_inf <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/analytical_se_latest.csv"))
+ar2_base_inf <- ar2_base_inf[ar2_base_inf$model == "sym", ]
+ar2_base_run <- ar2_runs[ar2_runs$model == "sym", ]
+ar1_inf <- read.csv(file.path(project_root,
+  "EM-AR1-4W/output/results/analytical_se_latest.csv"))
+ar1_inf <- ar1_inf[ar1_inf$model == "sym_free", ]
+ar1_runs <- read.csv(file.path(project_root,
+  "EM-AR1-4W/output/results/run_summary_latest.csv"))
+ar1_run <- ar1_runs[ar1_runs$model == "sym_free", ]
+ar2_rows <- c(
+  "Entry rate: nonemployed in both preceding waves" = "risk_weighted_entry_00",
+  "Entry rate: employed two waves ago" = "risk_weighted_entry_10",
+  "Exit rate: nonemployed two waves ago" = "risk_weighted_exit_01",
+  "Exit rate: employed in both preceding waves" = "risk_weighted_exit_11",
+  "Misclassification rate" = "pi")
+ar2_base_rows <- c(
+  "Entry rate: nonemployed in both preceding waves" = "p_00",
+  "Entry rate: employed two waves ago" = "p_10",
+  "Exit rate: nonemployed two waves ago" = "p_01",
+  "Exit rate: employed in both preceding waves" = "p_11",
+  "Misclassification rate" = "pi")
+ar1_rows <- c(
+  "Entry rate: nonemployed in both preceding waves" = "entry_rate",
+  "Entry rate: employed two waves ago" = "entry_rate",
+  "Exit rate: nonemployed two waves ago" = "exit_rate",
+  "Exit rate: employed in both preceding waves" = "exit_rate",
+  "Misclassification rate" = "pi")
+cat("\\setcounter{table}{4}\n\\begin{table}[H]\n\\centering\n",
+    "\\caption{Four-wave AR(1) and AR(2) estimates}\n",
+    "\\small\n\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
+    " & AR(1) & AR(2) & AR(2), duration controls \\\\\n\\midrule\n",
+    sep = "")
+for (label in names(ar2_rows)) {
+  ar1 <- ar1_inf[match(ar1_rows[[label]], ar1_inf$quantity), ]
+  current <- ar2_prob[match(ar2_rows[[label]], ar2_prob$quantity), ]
+  earlier <- ar2_base_inf[
+    match(ar2_base_rows[[label]], ar2_base_inf$quantity), ]
+  earlier_estimate <- earlier$estimate
+  if (grepl("^Exit rate", label)) earlier_estimate <- 1 - earlier_estimate
+  cat(label, " & ", sprintf("%.2f", 100 * ar1$estimate), " & ",
+      sprintf("%.2f", 100 * earlier_estimate), " & ",
+      sprintf("%.2f", 100 * current$estimate), " \\\\\n",
+      " & (", sprintf("%.2f", 100 * ar1$se), ") & (",
+      sprintf("%.2f", 100 * earlier$se), ") & (",
+      sprintf("%.2f", 100 * current$se), ") \\\\\n", sep = "")
+}
+cat("\\addlinespace\nLog likelihood & ",
+    formatC(ar1_run$loglik, format = "f", digits = 1, big.mark = ","),
+    " & ",
+    formatC(ar2_base_run$loglik, format = "f", digits = 1, big.mark = ","),
+    " & ",
+    formatC(ar2_fit$loglik, format = "f", digits = 1, big.mark = ","),
+    " \\\\\nN & ", formatC(ar1_run$n_obs, format = "d", big.mark = ","),
+    " & ", formatC(ar2_base_run$n_obs, format = "d", big.mark = ","),
+    " & ", formatC(max(ar2_runs$n_obs), format = "d", big.mark = ","),
+    " \\\\\nSecond employment lag & No & Yes & Yes",
+    " \\\\\nDuration controls & No & No & Yes",
+    " \\\\\n\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Entries are model-implied quarterly probabilities in percent; the duration-controlled entries are posterior risk-set and survey-weighted averages. Parentheses contain analytical standard errors. The AR(1) rate is repeated across the two corresponding AR(2) rows because the first-order model imposes equality across the second-lag state. Every specification has one latent type, a constant symmetric misclassification probability, and free initial conditions. Duration controls comprise log tenure, log time since work, never-worked and missing-duration indicators; duration values vary across origin waves. The duration-controlled model's 317,437 observations collapse exactly to 37,031 likelihood cells.}\n",
+    "\\end{table}\n", sep = "")
+```
+
+```{r ar2-coefficient-appendix, results='asis'}
+ar2_coef <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/ar2_duration_coefficients_latest.csv"))
+latest_result <- function(path, pattern) {
+  files <- list.files(file.path(project_root, path), pattern = pattern,
+    full.names = TRUE)
+  if (!length(files)) stop("Missing saved fit: ", pattern)
+  tail(sort(files), 1L)
+}
+numeric_jacobian <- function(fn, x, step = 1e-5) {
+  base <- fn(x)
+  out <- matrix(NA_real_, length(base), length(x),
+    dimnames = list(names(base), names(x)))
+  for (j in seq_along(x)) {
+    h <- step * max(1, abs(x[j])); xp <- xm <- x
+    xp[j] <- xp[j] + h; xm[j] <- xm[j] - h
+    out[, j] <- (fn(xp) - fn(xm)) / (2 * h)
+  }
+  out
+}
+coefficient_inference <- function(eta, vcov_eta, transform) {
+  estimate <- transform(eta)
+  jacobian <- numeric_jacobian(transform, eta)
+  se <- sqrt(pmax(diag(jacobian %*% vcov_eta %*% t(jacobian)), 0))
+  data.frame(term = names(estimate), estimate = unname(estimate), se = unname(se))
+}
+
+ar1_fit <- readRDS(latest_result("EM-AR1-4W/output/results",
+  "^ar1_4w_sym_free_[0-9_]+[.]rds$"))
+ar1_coefficient_transform <- function(z) setNames(unname(c(
+  z["alpha"], qnorm(plogis(z["theta0"])),
+  qnorm(plogis(z["theta1"])), z["pi"])),
+  c("initial_employment_logit", "entry_intercept",
+    "persistence_intercept", "misclassification_logit"))
+ar1_coef <- coefficient_inference(ar1_fit$eta,
+  ar1_fit$analytical_inference$vcov_eta, ar1_coefficient_transform)
+
+ar2_base_fit <- readRDS(latest_result("EM-AR2/output/results",
+  "^em_ar2_sym_[0-9_]+[.]rds$"))
+ar2_base_eta <- setNames(unname(c(
+  log(ar2_base_fit$params$alpha["10"] / ar2_base_fit$params$alpha["00"]),
+  log(ar2_base_fit$params$alpha["01"] / ar2_base_fit$params$alpha["00"]),
+  log(ar2_base_fit$params$alpha["11"] / ar2_base_fit$params$alpha["00"]),
+  qlogis(ar2_base_fit$params$theta0),
+  qlogis(ar2_base_fit$params$theta01 / (1 - ar2_base_fit$params$theta0)),
+  qlogis(1 - ar2_base_fit$params$theta1 - ar2_base_fit$params$theta10),
+  qlogis(ar2_base_fit$params$theta10 /
+    (ar2_base_fit$params$theta1 + ar2_base_fit$params$theta10)),
+  qlogis(ar2_base_fit$params$pi / 0.5))),
+  c("alpha10", "alpha01", "alpha11", "p00", "gap10", "p01", "gap11", "pi"))
+ar2_base_coefficient_transform <- function(z) {
+  p00 <- plogis(z["p00"])
+  p10 <- p00 + (1 - p00) * plogis(z["gap10"])
+  p01 <- plogis(z["p01"])
+  p11 <- p01 + (1 - p01) * plogis(z["gap11"])
+  setNames(unname(c(z["alpha10"], z["alpha01"], z["alpha11"],
+    qnorm(p00), qnorm(p10) - qnorm(p00), qnorm(p01),
+    qnorm(p11) - qnorm(p01), z["pi"])),
+    c("alpha_logit_10", "alpha_logit_01", "alpha_logit_11",
+      "entry_intercept", "entry_lag2", "persistence_intercept",
+      "persistence_lag2", "misclassification_logit"))
+}
+ar2_base_coef <- coefficient_inference(ar2_base_eta,
+  ar2_base_fit$analytical_inference$vcov_eta,
+  ar2_base_coefficient_transform)
+
+coefficient_labels <- c(
+  initial_employment_logit = "Initial employment logit",
+  alpha_logit_10 = "Initial-pair logit: 10",
+  alpha_logit_01 = "Initial-pair logit: 01",
+  alpha_logit_11 = "Initial-pair logit: 11",
+  entry_intercept = "Entry: intercept",
+  entry_lag2 = "Entry: employed two waves ago",
+  entry_log_time_since_work = "Entry: log time since work",
+  entry_never_worked = "Entry: never worked",
+  entry_timegap_missing = "Entry: timegap missing",
+  persistence_intercept = "Persistence: intercept",
+  persistence_lag2 = "Persistence: employed two waves ago",
+  persistence_log_tenure = "Persistence: log tenure",
+  persistence_tenure_missing = "Persistence: tenure missing",
+  misclassification_logit = "Misclassification logit")
+coefficient_terms <- names(coefficient_labels)
+coefficient_cell <- function(tbl, term, field) {
+  value <- tbl[[field]][match(term, tbl$term)]
+  if (!length(value) || is.na(value)) return(NA_real_)
+  value
+}
+duration_coef <- ar2_coef
+cat("\\begin{table}[H]\n\\centering\n",
+    "\\caption*{Appendix Table A4: Four-wave AR(1) and AR(2) coefficients}\n",
+    "\\scriptsize\n\\setlength{\\tabcolsep}{5pt}\n",
+    "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
+    "Coefficient & AR(1) & AR(2) & AR(2), duration controls \\\\\n\\midrule\n",
+    sep = "")
+for (term in coefficient_terms) {
+  estimates <- c(coefficient_cell(ar1_coef, term, "estimate"),
+    coefficient_cell(ar2_base_coef, term, "estimate"),
+    coefficient_cell(duration_coef, term, "estimate"))
+  ses <- c(coefficient_cell(ar1_coef, term, "se"),
+    coefficient_cell(ar2_base_coef, term, "se"),
+    coefficient_cell(duration_coef, term, "se"))
+  estimate_cells <- ifelse(is.na(estimates), "---", sprintf("%.3f", estimates))
+  se_cells <- ifelse(is.na(ses), "", paste0("(", sprintf("%.3f", ses), ")"))
+  cat(coefficient_labels[[term]], " & ", paste(estimate_cells, collapse = " & "),
+      " \\\\\n & ", paste(se_cells, collapse = " & "), " \\\\\n", sep = "")
+}
+cat("\\bottomrule\n\\end{tabular}\n\\end{table}\n")
+```
+
+Transition coefficients are on a common probit scale. The unrestricted AR(1)
+and no-duration AR(2) transition probabilities are re-expressed in their
+observationally equivalent probit parameterisations; the duration-controlled
+AR(2) is estimated directly by probit. Initial-state coefficients are logits,
+and the misclassification coefficient is $\operatorname{logit}(2\pi)$ in all
+three models. Parentheses contain analytical sandwich/delta-method standard
+errors. Duration variables and their missingness indicators vary across origin
+waves. The information-matrix condition numbers are 14.6 for AR(1), 130.7 for
+AR(2), and 388,646 for duration-controlled AR(2); all three are locally full
+rank.
+
+## Interpretation
+
+- The AR(1) model estimates quarterly entry and exit of 3.20% and 3.13%, with
+  a 2.70% symmetric misclassification probability.
+- Duration controls substantially reduce the large AR(2) transition
+  differences but do not eliminate them.
+- Entry and exit after two periods in the same state remain close to 4.5% and
+  4.3%; recent state reversals remain associated with much higher transition
+  probabilities.
+- Surviving AR(2) dependence may reflect unobserved duration, state dependence,
+  latent heterogeneity, or within-quarter transitions; the current estimates do
+  not distinguish these mechanisms.
+
+## To do
+
+- Compare AR(1) and AR(2) using formal fit criteria and richer duration controls.
+- With additional waves, test latent heterogeneity, wave-varying transitions,
+  and correlated classification errors as competing explanations.
+
+# 6. Unobserved heterogeneity: Table 6 and Appendix Table A5
+
+- Re-estimated the two-type finite-mixture model by direct likelihood
+  maximisation with multiple starts and audited local identification.
+- Removed the underidentified three-wave FMM table: only the no-error model with free initial
+  conditions is locally identified; symmetric error cannot be separated from
+  two-type transition heterogeneity.
+- Developed a four-wave alternative with observed covariates, duration
+  controls, and class-specific misclassification intercepts.
+- Compared all four specifications in one main table, including the nested
+  no-misclassification model, and moved inconsistency-specific error rates to
+  a secondary table.
+
+\Needspace{44\baselineskip}
+
+**Table 6. Comparison of all four-wave two-type FMM specifications**
+
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{2.7pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+& \multicolumn{4}{c}{No controls} & \multicolumn{4}{c}{Controls} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+& \multicolumn{2}{c}{No error} & \multicolumn{2}{c}{Common error}
+& \multicolumn{2}{c}{Common error} & \multicolumn{2}{c}{Type-specific error} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+& Stable & Mobile & Stable & Mobile & Stable & Mobile & Stable & Mobile \\
+\midrule
+Latent-class share (\%) & 75.65 & 24.35 & 92.13 & 7.87 & 89.63 & 10.37 & 58.17 & 41.83 \\
+& (1.00) & (1.00) & (0.37) & (0.37) & (1.26) & (1.26) & (3.05) & (3.05) \\
+Entry rate (\%) & 0.46 & 30.46 & 2.36 & 42.16 & 3.20 & 27.30 & 1.33 & 11.98 \\
+& (0.18) & (0.75) & (0.07) & (1.15) & (0.12) & (2.49) & (0.15) & (0.64) \\
+Exit rate (\%) & 0.004 & 33.63 & 2.21 & 47.04 & 3.01 & 26.87 & 0.75 & 11.18 \\
+& (0.240) & (0.77) & (0.08) & (1.16) & (0.16) & (1.57) & (0.20) & (0.65) \\
+Misclassification rate (\%) & 0.00 & 0.00 & 1.35 & 1.35 & 1.74 & 1.98 & 0.68 & 4.60 \\
+& (fixed) & (fixed) & (0.03) & (0.03) & (0.03) & (0.03) & (0.09) & (0.18) \\
+Initial employment rate (\%) & 47.73 & 48.17 & 47.74 & 47.95 & 47.38 & 50.59 & 44.61 & 52.33 \\
+& (0.18) & (0.45) & (0.13) & (0.74) & (0.22) & (1.75) & (0.58) & (0.56) \\
+\addlinespace
+Log-likelihood & \multicolumn{2}{c}{-451,874.52}
+& \multicolumn{2}{c}{-450,805.93}
+& \multicolumn{2}{c}{-428,777.56}
+& \multicolumn{2}{c}{-428,568.60} \\
+$N$ & \multicolumn{2}{c}{308,240}
+& \multicolumn{2}{c}{308,240}
+& \multicolumn{2}{c}{308,240}
+& \multicolumn{2}{c}{308,240} \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+All estimates except the log likelihood and observation count are percentages;
+analytical survey-weighted sandwich standard errors, transformed by the delta
+method, are in parentheses. Entry and exit rates are posterior risk-set weighted
+in the controlled models. Posterior mean misclassification averages each
+respondent-wave's fitted posterior mismatch probability using survey weights and
+posterior class membership. Controls comprise observed covariates and duration
+controls. Both controlled models use common slopes and class-specific transition
+intercepts. The last model additionally makes the misclassification intercept
+class-specific; the age- and education-inconsistency slopes remain common. In
+the no-error model, all misclassification probabilities are fixed at zero. The
+no-error model has full probability-Jacobian rank, but weak curvature around
+its near-zero stable-class exit estimate warrants caution. Pattern-specific
+implied misclassification rates are reported separately in Appendix Table A5.
+
+\Needspace{13\baselineskip}
+
+**Appendix Table A5. Misclassification rates by inconsistency pattern**
+
+| Inconsistency pattern | Common error: Stable | Common error: Mobile | Type-specific error: Stable | Type-specific error: Mobile | Mobile minus stable |
+|:--|--:|--:|--:|--:|--:|
+| None | 0.72 (0.02) | 0.72 (0.02) | 0.14 (0.04) | 2.37 (0.15) | 2.22 |
+| Age | 14.72 (0.31) | 14.72 (0.31) | 6.28 (0.98) | 35.52 (1.05) | 29.25 |
+| Education | 3.73 (0.12) | 3.73 (0.12) | 0.89 (0.21) | 11.83 (0.53) | 10.94 |
+| Age and education | 34.85 (0.40) | 34.85 (0.40) | 23.62 (1.97) | 46.93 (0.34) | 23.31 |
+
+Estimates are misclassification rates in percent; analytical standard errors
+are in parentheses. Both specifications include observed covariates and
+duration controls. The common-error model has a common misclassification
+intercept; the type-specific model has separate stable- and mobile-class
+intercepts. Age- and education-inconsistency slopes are common across classes.
+
+**Appendix Table A5, Panel B. Preferred FMM coefficients and diagnostics**
+
+| Quantity | Estimate | Analytical SE |
+|:--|--:|--:|
+| Persistence: log tenure | 0.650 | 0.015 |
+| Entry: log time since work | -0.325 | 0.007 |
+| Entry: never worked | -0.860 | 0.018 |
+| Persistence: permanent contract | 0.399 | 0.016 |
+| Persistence: informal sector | -0.266 | 0.016 |
+| Mobile-minus-stable misclassification intercept | 2.839 | 0.225 |
+| Wald statistic for common error intercept | 12.64 | -- |
+| Entry-risk peak age | 38 | -- |
+| Persistence peak age | 53 | -- |
+| Information-matrix rank | 32/32 | -- |
+| Minimum information eigenvalue | 0.0000120 | -- |
+| Information condition number | 29,216 | -- |
+| Maximum weighted score | 0.0000032 | -- |
+
+Coefficients are probit-index effects except the logit-scale difference between
+the class-specific misclassification intercepts. The controlled sample contains
+308,240 people and collapses exactly to 229,809 likelihood cells.
+
+\Needspace{16\baselineskip}
+
+## Interpretation
+
+- The three-wave symmetric-error FMM is underidentified and should not be
+  reported structurally; four waves are required to separate the two mechanisms.
+- Imposing no misclassification pushes the stable-class exit estimate to
+  essentially zero and attributes 30--34% quarterly transition rates to the
+  mobile class. Allowing error materially improves fit and avoids this extreme
+  decomposition.
+- Four waves support a large stable/mobile distinction after controlling for
+  observed characteristics and duration.
+- Allowing the misclassification probability to differ by type makes the mobile
+  class larger and less extreme, showing that the uncontrolled FMM mixed
+  genuine mobility, observed heterogeneity, and heterogeneous classification
+  error.
+- In the preferred controlled model, the survey-weighted posterior mean
+  misclassification rate is 0.68% in the stable class and 4.60% in the mobile
+  class, a much sharper reliability contrast than the baseline probabilities
+  alone convey.
+- The type-specific probabilities describe joint latent classifications; they
+  do not show that mobility causes reporting or matching error.
+- The four-wave results are best presented as a replacement or appendix
+  extension rather than as validation of the underidentified three-wave results.
+
+## To do
+
+- Complete profile-likelihood, multistart, and simulation checks for the
+  four-wave model's identification and class separation.
+- Test covariate-dependent class membership and, with a longer panel, whether
+  latent types can be combined with AR(2) state dependence.
+
+# 7. Endogenous duration dependence: Table 7
+
+- Modelled transition hazards as functions of endogenous tenure and time since
+  work, separately from the age/education-consistency analysis in Table 3.
+- Repaired the tenure-contamination likelihood and optimisation diagnostics.
+- Retained exact consistency between clean duration reports and latent
+  employment histories.
+- Integrated unavailable wrong-state duration clocks instead of imputing them.
+- Replaced constant and power-law transition hazards with tail-safe piecewise
+  hazards.
+- Added contamination in reported time since work and tested local and joint
+  alternatives.
+
+\Needspace{42\baselineskip}
+
+```{r tenure-main-table, results='asis'}
+piece <- read.csv(file.path(project_root,
+  "EM-tenure/output/results/piecewise_hazard/model_comparison_latest.csv"),
+  check.names = FALSE)
+robust <- read.csv(file.path(project_root,
+  "EM-tenure/output/results/timegap_contamination_robustness/model_comparison_latest.csv"),
+  check.names = FALSE)
+tenure_inf <- read.csv(file.path(project_root,
+  "EM-tenure/output/results/analytical_inference/table7_analytical_se_latest.csv"))
+tenure_tab <- rbind(
+  data.frame(model = piece$model[1:3], loglik = piece$loglik[1:3],
+    pi = piece$pi[1:3], eps_g = piece$eps[1:3], eps_d = 0,
+    weighted_exit = piece$weighted_exit[1:3],
+    weighted_entry = piece$weighted_entry[1:3]),
+  robust[2:4, c("model", "loglik", "pi", "eps_g", "eps_d",
+                 "weighted_exit", "weighted_entry")])
+tenure_tab$model <- c("Constant, exact", "Power law, exact",
+  "Piecewise, exact", "Independent error", "Local error",
+  "Joint per-wave error")
+inference_value <- function(quantity, field) vapply(tenure_tab$model, function(m) {
+  z <- tenure_inf[tenure_inf$model == m & tenure_inf$quantity == quantity, field]
+  if (length(z) != 1L) stop("Missing Table 7 inference: ", m, " / ", quantity)
+  z
+}, numeric(1L))
+quantity_map <- c(
+  "Entry rate" = "entry_rate",
+  "Exit rate" = "exit_rate",
+  "Misclassification rate" = "misclassification_rate",
+  "Initial employment rate" = "initial_employment_rate",
+  "Tenure contamination rate" = "tenure_contamination_rate",
+  "Timegap contamination rate" = "timegap_contamination_rate")
+values <- 100 * t(vapply(quantity_map,
+  function(q) inference_value(q, "estimate"), numeric(nrow(tenure_tab))))
+se_values <- 100 * t(vapply(quantity_map,
+  function(q) inference_value(q, "se"), numeric(nrow(tenure_tab))))
+rownames(values) <- rownames(se_values) <- names(quantity_map)
+colnames(values) <- colnames(se_values) <- tenure_tab$model
+cat("\\setcounter{table}{6}\n\\begin{table}[H]\n\\centering\n",
+    "\\caption{Tenure-contamination misclassification and transition rates}\n",
+    "\\scriptsize\n\\setlength{\\tabcolsep}{4pt}\n",
+    "\\resizebox{\\textwidth}{!}{%\n",
+    "\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n & ",
+    paste(tenure_tab$model, collapse = " & "), " \\\\\n\\midrule\n", sep = "")
+for (label in rownames(values)) {
+  cat(label, " & ", paste(sprintf("%.2f", values[label, ]),
+                           collapse = " & "), " \\\\\n", sep = "")
+  se_text <- ifelse(is.finite(se_values[label, ]),
+                    sprintf("(%.2f)", se_values[label, ]), "fixed")
+  cat(" & ", paste(se_text, collapse = " & "), " \\\\\n", sep = "")
+}
+cat("\\addlinespace\nLog likelihood & ",
+    paste(formatC(tenure_tab$loglik, format = "f", digits = 1,
+                  big.mark = ","), collapse = " & "), " \\\\\n",
+    "N & ", paste(rep("402,923", nrow(tenure_tab)), collapse = " & "),
+    " \\\\\n\\addlinespace\n",
+    "Transition-hazard form & Constant & Power law & Piecewise & Piecewise & Piecewise & Piecewise \\\\\n",
+    "Tenure-error model & Independent marginal & Independent marginal & Independent marginal & Independent marginal & Independent marginal & Independent marginal \\\\\n",
+    "Timegap-error model & None (exact) & None (exact) & None (exact) & Independent marginal & Local category & Joint per-wave marginal",
+    " \\\\\n\\bottomrule\n\\end{tabular}}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Rates are in percent and follow the common entry, exit, misclassification, and initial-employment order used in the other main tables; model-specific duration-error rates follow. Entry and exit are posterior risk-set and survey-weighted quarterly probabilities. Parentheses contain numerical observed-information/delta-method standard errors from the full covariance matrix. In every model, a contaminated tenure report is an independent draw from the marginal tenure distribution; otherwise it must follow the exact clock. `Exact' means that no separate timegap-contamination process is allowed; status misclassification and tenure contamination remain allowed.}\n",
+    "\\end{table}\n", sep = "")
+```
+
+For the joint model, 16.62% is the per-report probability. It implies a 30.48%
+probability that at least one report in a two-report pair is contaminated.
+
+\Needspace{12\baselineskip}
+
+**Appendix Table A6, Panel A. Exact and alternative duration profiles**
+
+| Duration interval | Exact exit hazard | Exact exit (%) | Independent-error exit (%) | Joint-model exit (%) |
+|:--|--:|--:|--:|--:|
+| 0--3 months | 0.3420 | 8.35 | 7.79 | 7.79 |
+| 3--12 months | 0.3558 | 8.51 | 7.90 | 7.90 |
+| 1--3 years | 0.1757 | 4.30 | 4.23 | 4.23 |
+| 3--5 years | 0.1522 | 3.73 | 3.67 | 3.67 |
+| 5+ years | 0.1353 | 3.33 | 3.27 | 3.27 |
+
+| Duration interval | Exact entry hazard | Exact entry (%) | Independent-error entry (%) | Joint-model entry (%) |
+|:--|--:|--:|--:|--:|
+| 0--3 months | 0.5060 | 9.15 | 7.66 | 7.88 |
+| 3--12 months | 0.2620 | 6.34 | 5.00 | 5.07 |
+| 1--3 years | 0.1098 | 2.71 | 2.27 | 2.27 |
+| 3--5 years | 0.1177 | 2.90 | 2.57 | 2.57 |
+| 5+ years | 0.1425 | 3.50 | 2.82 | 2.83 |
+
+\Needspace{24\baselineskip}
+
+**Appendix Table A6, Panel B. Auxiliary model comparisons**
+
+| Quantity | Constant, exact | Power law, exact | Piecewise, exact |
+|:--|--:|--:|--:|
+| Parameters | 5 | 7 | 13 |
+| AIC | 5,020,870.7 | 4,951,367.6 | 4,924,420.8 |
+| Mean employment duration (months) | 68.9 | 68.1 | 67.0 |
+| Mean nonemployment duration (months) | 72.0 | 1,257.2 | 76.7 |
+| Comparable two-report timegap contamination (%) | 0 | 0 | 0 |
+| Analytical SE | fixed | fixed | fixed |
+
+| Quantity | Independent error | Local error | Joint per-wave error |
+|:--|--:|--:|--:|
+| Parameters | 14 | 14 | 14 |
+| AIC | 4,660,178.6 | 4,686,130.8 | 4,640,617.9 |
+| Mean employment duration (months) | 69.6 | 69.6 | 69.6 |
+| Mean nonemployment duration (months) | 95.6 | 102.2 | 94.8 |
+| Comparable two-report timegap contamination (%) | 28.04 | 39.20 | 30.48 |
+| Analytical SE | 0.11 | 0.15 | 0.12 |
+
+**Appendix Table A6, Panel C. Effect of integrating unavailable wrong-state clocks**
+
+| Quantity | Imputed clock | Integrated clock |
+|:--|--:|--:|
+| Entry rate (%) | 2.08 | 1.96 |
+| Exit rate (%) | 4.91 | 4.51 |
+| Misclassification rate (%) | 10.35 | 10.53 |
+| Tenure contamination rate (%) | 24.81 | 25.09 |
+| Exit duration slope | -0.4413 | -0.3742 |
+| Entry duration slope | -0.9148 | -0.8782 |
+| Mean nonemployment duration (months) | 3,800 | 1,257 |
+
+**Appendix Table A6, Panel D. Timegap-contamination mechanism decomposition**
+
+| Interview interval | Clock-feasible (%) | Reset-compatible contradiction (%) | Other contradiction (%) | Posterior contamination (%) |
+|:--|--:|--:|--:|--:|
+| Wave 1 to wave 2 | 84.42 | 2.82 | 12.76 | 28.20 |
+| Wave 2 to wave 3 | 84.95 | 2.98 | 12.07 | 27.87 |
+
+In the power-law model, exit falls from 7.42% at zero tenure to 3.22% at
+ten years, while entry falls from 8.51% to 1.18%. Integrating rather than
+imputing wrong-state clocks affects 15.5% of the posterior employment risk set
+and 4.5% of the nonemployment risk set. In the piecewise exact model, median
+employment and nonemployment durations are 35.3 and 51.4 months. For the
+independent-error model, clock-impossible shares are 15.6% and 15.0%, while
+average contaminated-branch probabilities among feasible reports are 14.96%
+and 15.09%. Roughly 10% of fitted contamination mass is reset-compatible,
+43--45% comes from contradictions that a hidden reset cannot explain, and
+45--46% is allocated among clock-feasible reports. Joint-model exit risks
+differ from the independent-error risks by less than 0.03 percentage points in
+every interval.
+
+The independent-error information matrix has rank 14/14, condition number 45,
+and a sharply peaked likelihood around 28.04%; the boundary likelihood-ratio
+diagnostic is 264,244. Refined maximum scaled gradients are $2.0\times10^{-4}$
+for the exact piecewise fit, $2.1\times10^{-6}$ for the local-error fit, and
+$2.5\times10^{-6}$ for the joint model. These are numerical diagnostics, not
+substitutes for the standard errors reported in Table 7.
+
+## Interpretation
+
+- Piecewise hazards fit much better than constant or power-law hazards and
+  improve the weighted-likelihood AIC by about 26,947 relative to the power
+  law, while avoiding its implausibly long nonemployment tail.
+- Exit falls after the first year of tenure. Entry falls sharply with time
+  since work and then levels off rather than approaching zero.
+- Allowing timegap contamination reduces estimated status error from about 10%
+  to 2--3%, while tenure contamination remains close to 25%.
+- The joint per-wave model fits best and leaves transition rates and duration
+  profiles almost unchanged relative to the simpler contamination model.
+- Only about 3 percentage points of timegap contradictions can be explained by
+  an unobserved within-quarter employment spell; hidden resets are not the main
+  source of the contamination estimate.
+- The results identify inconsistency among status, tenure, timegap, and linked
+  histories. They do not determine whether the underlying cause is respondent
+  error, matching error, or another data problem.
+
+## To do
+
+- Add bootstrap or profile uncertainty and posterior-predictive checks for the
+  joint status and duration distributions.
+- Test alternative contamination densities, rounding and heaping rules, and
+  tail cut-points while retaining transition-duration consistency.
+
+# 8. No-error duration counterfactual (Appendix Table A7)
+
+- Estimated flexible AR(1) and AR(2) transition models treating reported status
+  changes as error-free.
+- Simulated the duration clocks implied by those transitions.
+- Compared simulated and observed tenure and timegap distributions, with
+  transition-conditional graphs as the primary diagnostic.
+
+\Needspace{18\baselineskip}
+
+```{r no-error-clock-table, results='asis'}
+clock <- read.csv(file.path(project_root,
+  "diagnostics/output/no_error_duration_counterfactual/clock_inconsistency.csv"))
+clock_labels <- c(
+  "Entry followed by tenure >3 months" =
+    "Apparent entry followed by tenure over three months",
+  "Exit followed by timegap >3 months" =
+    "Apparent exit followed by timegap over three months",
+  "Employment continuation with inconsistent clock" =
+    "Employment continuation with inconsistent tenure",
+  "Nonemployment continuation with inconsistent clock" =
+    "Nonemployment continuation with unreachable timegap")
+cat("\\begin{table}[H]\n\\centering\n",
+    "\\caption*{Appendix Table A7: No-error duration-clock contradictions}\n",
+    "\\small\n\\begin{tabular}{@{}lrr@{}}\n\\toprule\n",
+    " & AR(1) & AR(2) \\\\\n\\midrule\n", sep = "")
+for (key in names(clock_labels)) {
+  z <- clock[match(c("AR(1)", "AR(2)"),
+    clock$model[clock$diagnostic == key]), ]
+  # Re-select explicitly because match above indexes within a subset.
+  z <- clock[clock$diagnostic == key, ]
+  z <- z[match(c("AR(1)", "AR(2)"), z$model), ]
+  cat(clock_labels[[key]], " & ",
+      paste(sprintf("%.1f", 100 * z$inconsistent_share), collapse = " & "),
+      " \\\\\n & ",
+      paste(sprintf("(%.2f)", 100 * z$standard_error), collapse = " & "),
+      " \\\\\n", sep = "")
+}
+cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted shares in percent. Parentheses contain person-clustered linearized standard errors. Each no-error model allows flexible duration dependence in observed transitions; destination-wave durations are held out and used for these clock-consistency diagnostics.}\n",
+    "\\end{table}\n", sep = "")
+```
+
+**Graph accompanying Panel A. Clock contradictions under AR(1) and AR(2)**
+
+```{r no-error-clock-graph, out.width='100%', fig.align='center'}
+knitr::include_graphics(file.path(project_root,
+  "diagnostics/output/no_error_duration_counterfactual/clock_inconsistency_shares.png"))
+```
+
+**Appendix Table A7, Panel B. Observed transition benchmarks**
+
+| Rate | AR(1) (%) | AR(2) (%) |
+|:--|--:|--:|
+| Entry rate | 8.23 | 7.78 |
+| Exit rate | 8.47 | 7.83 |
+| Admissible tenure after apparent entry | 37.0 | 37.2 |
+
+The flexible transition equations reproduce these observed entry and exit
+rates. Among apparent exits in the AR(1) analysis, 26.0% report that they have
+never worked, reinforcing the contradiction between status changes and the
+reported duration history.
+
+**Graphs accompanying Panel B. Empirical and simulated duration distributions**
+
+```{r no-error-tenure-density-graph, out.width='100%', fig.align='center'}
+knitr::include_graphics(file.path(project_root,
+  "diagnostics/output/no_error_duration_counterfactual/tenure_empirical_vs_simulated_pdf.pdf"))
+```
+
+```{r no-error-timegap-graph, out.width='100%', fig.align='center'}
+knitr::include_graphics(file.path(project_root,
+  "diagnostics/output/no_error_duration_counterfactual/timegap_empirical_vs_simulated.png"))
+```
+
+## Interpretation
+
+- Flexible no-error transition models reproduce average observed changes but
+  cannot reconcile them with destination-wave duration reports.
+- Most apparent entries and exits imply duration clocks that are impossible
+  under a genuine transition during the interview interval.
+- Marginal duration distributions obscure the problem because most respondents
+  do not change reported state; transition-conditional comparisons are more
+  persuasive.
+- The diagnostic motivates jointly modelling status and duration consistency
+  without claiming which reported variable or linked record is incorrect.
+
+## To do
+
+- Add simulation uncertainty bands to the empirical-versus-implied duration
+  graphs and report transition-conditional comparisons prominently.
+- Repeat the counterfactual under alternative matching panels and initial-clock
+  assumptions.
+
+# Reproducibility and remaining inference
+
+- A result-by-result audit against `branch_changes_summary.Rmd` maps the
+  baseline estimates to Table 1/A1, matching-rule results to Table 2,
+  age/education-consistency results to Table 3/A2, covariate estimates and
+  hazard distributions to Table 4/A3, AR(2) results to Table 5/A4, four-wave
+  FMM results to Table 6/A5, tenure-contamination results to Table 7/A6, and
+  the no-error duration benchmarks to A7. No numerical estimate reported in
+  the long summary is intentionally omitted here; only detailed implementation
+  narrative is abbreviated.
+- Tables 1, 3, and 4 and Appendix Tables A1--A3 are rebuilt by build_tables.R.
+- Table 2 is rebuilt by the matching-sensitivity script; the four-wave, tenure,
+  and diagnostic scripts save the inputs for Tables 5--7 and Appendix Tables
+  A4--A7 outside version control.
+- Analytical standard errors are available for Tables 1--7 and their associated
+  model estimates. Table 7 uses the full numerical observed-information matrix
+  and delta method; Appendix Table A7 uses person-clustered linearization for
+  its weighted descriptive shares.
+- Table 7's numerical observed-information errors should still be checked with
+  a person-level bootstrap or profile likelihood before final submission.
+- A person-level bootstrap remains the most useful common inference robustness
+  check across the paper.

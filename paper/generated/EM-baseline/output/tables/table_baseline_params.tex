@@ -1,0 +1,48 @@
+\begin{table}[htbp]
+\centering
+\caption{Baseline latent-state model: parameter estimates}
+\label{tab:baseline_params}
+\begin{tabular}{lcccccc}
+\toprule
+ & (1) & (2) & (3) & (4) & (5) & (6)
+
+ & \multicolumn{2}{c}{No miscl.} & \multicolumn{2}{c}{Symmetric} & \multicolumn{2}{c}{Asymmetric}
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ & Stat. & Free & Stat. & Free & Stat. & Free
+\midrule
+\multicolumn{7}{l}{\textit{Transition parameters}}
+$\theta_0$ (entry) & 0.0818 & 0.0828 & 0.0286 & 0.0298 & 0.0286 & 0.0298
+
+ & (0.0004) & (0.0005) & (0.0005) & (0.0006) & (0.0005) & (0.0006)
+
+$\theta_1$ (persistence) & 0.9136 & 0.9146 & 0.9696 & 0.9709 & 0.9696 & 0.9709
+
+ & (0.0004) & (0.0005) & (0.0005) & (0.0006) & (0.0005) & (0.0006)
+
+$\alpha$ (initial empl.) & 0.4863 & 0.4852 & 0.4850 & 0.4837 & 0.4846 & 0.4832
+
+ & (0.0009) & (0.0009) & (0.0009) & (0.0010) & (0.0009) & (0.0010)
+
+\multicolumn{7}{l}{\textit{Misclassification}}
+$\pi$ (symmetric) & --- & --- & 0.0299 & 0.0299 & --- & ---
+
+ &  &  & (0.0003) & (0.0003) &  &
+
+$\pi_0$ (false positive) & --- & --- & --- & --- & 0.0305 & 0.0305
+
+ &  &  &  &  & (0.0004) & (0.0004)
+
+$\pi_1$ (false negative) & --- & --- & --- & --- & 0.0293 & 0.0292
+
+ &  &  &  &  & (0.0004) & (0.0004)
+
+Log-likelihood & -357.208M & -357.204M & -349.378M & -349.371M & -349.376M & -349.368M
+
+$N$ & 402,923 & 402,923 & 402,923 & 402,923 & 402,923 & 402,923
+
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.98\linewidth}
+\footnotesize \textit{Note:} Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix. $\alpha$ is the initial employment probability; in stationary columns it is derived from the transition parameters. The calculation does not incorporate strata or PSU clustering.
+\end{minipage}
+\end{table}
