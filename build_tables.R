@@ -610,6 +610,38 @@ names(cov_implied) <- cov_labels_all
 
 # ---- Main Table 4: risk-set and survey-weighted transition summaries --------
 
+covrel_fit_path <- here::here("EM-baseline-ext", "output", "results",
+                              "fit_cov_s4_reliability_free.rds")
+covrel_inf_path <- here::here("EM-baseline-ext", "output", "results",
+                              "analytical_se_cov_s4_reliability_free.rds")
+if (!file.exists(covrel_fit_path) || !file.exists(covrel_inf_path)) {
+  stop("Run EM-baseline-ext/estimate_table4_reliability.R before building Table 4.")
+}
+covrel_fit <- readRDS(covrel_fit_path)
+covrel_inf <- readRDS(covrel_inf_path)
+covrel_summary <- covrel_inf$summary
+covrel_est <- setNames(covrel_summary$estimate, covrel_summary$quantity)
+covrel_se <- setNames(covrel_summary$std_error, covrel_summary$quantity)
+
+.covrel_cell <- function(quantity, formatter = .fmt_pct_plain) {
+  formatter(unname(covrel_est[[quantity]]), unname(covrel_se[[quantity]]))
+}
+
+.table4_row <- function(old_quantity, new_quantity, row_label) {
+  old <- .cov_plain_row(old_quantity, row_label, cov_labels_free, .fmt_pct_plain)
+  new <- .covrel_cell(new_quantity)
+  list(est = c(old$est, new[1L]), se = c(old$se, new[2L]))
+}
+
+table4_col_headers <- c("", paste0("(", 1:9, ")"))
+table4_sub_headers <- c(
+  paste(c("", "\\multicolumn{4}{c}{No miscl.}",
+          "\\multicolumn{4}{c}{Constant symmetric}",
+          "\\multicolumn{1}{c}{Reliability-dependent}"), collapse = " & ") %+% " \\\\",
+  "\\cmidrule(lr){2-5} \\cmidrule(lr){6-9} \\cmidrule(lr){10-10}",
+  paste(c("", rep(paste("Set", 1:4), 2), "Set 4"), collapse = " & ") %+% " \\\\"
+)
+
 .cov_plain_row <- function(qty_name, row_label, panel_labels, formatter = .fmt_pct) {
   cells <- lapply(panel_labels, function(lbl) {
     imp <- cov_implied[[lbl]]
@@ -623,35 +655,91 @@ names(cov_implied) <- cov_labels_all
 
 main_table4_rows <- list(
   list(header = NULL, rows = list(
-    .cov_plain_row("mean_entry_rate", "Entry rate (\\%)", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("mean_exit_rate", "Exit rate (\\%)", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("pi", "Misclassification rate (\\%)", cov_labels_free, .fmt_pct_plain),
-    .cov_plain_row("mean_employment_rate", "Employment rate (\\%)", cov_labels_free, .fmt_pct_plain)
+    .table4_row("mean_entry_rate", "mean_entry_rate", "Entry rate (\\%)"),
+    .table4_row("mean_exit_rate", "mean_exit_rate", "Exit rate (\\%)"),
+    .table4_row("pi", "mean_misclassification_rate", "Misclassification rate (\\%)"),
+    .table4_row("mean_employment_rate", "mean_employment_rate", "Employment rate (\\%)")
   )),
   list(header = NULL, rows = list(
     list(est = c("Log-likelihood", vapply(cov_labels_free, function(lbl) {
       fit <- cov_fits[[lbl]]
       if (is.null(fit)) "---" else .fmt_ll(fit$loglik)
-    }, character(1L))), se = rep("", 9L)),
-    list(est = c("$N$", rep(.fmt_n(N_ext), 8L)), se = rep("", 9L))
+    }, character(1L)), .fmt_ll(covrel_fit$loglik)), se = rep("", 10L)),
+    list(est = c("$N$", rep(.fmt_n(N_ext), 9L)), se = rep("", 10L))
   )),
-  list(header = "Covariates included", rows = .cov_indicator_rows(cov_labels_free))
+  list(header = "Covariates included", rows = c(
+    lapply(.cov_indicator_rows(cov_labels_free), function(x) {
+      x$est <- c(x$est, "Yes")
+      x$se <- c(x$se, "")
+      x
+    }),
+    list(list(est = c("Reliability variables in error equation",
+                       rep("No", 8L), "Yes"), se = rep("", 10L)))
+  ))
 )
 
 .write_latex_table(
-  col_headers = cov_col_headers_panel,
+  col_headers = table4_col_headers,
   row_data = main_table4_rows,
   caption = "Risk-set and survey-weighted quarterly employment transitions",
   label = "tab:cov_risk_weighted",
   path = file.path(tables_ext_dir, "table_cov_risk_weighted.tex"),
-  sub_headers = cov_sub_headers_panel,
+  sub_headers = table4_sub_headers,
   note = paste0("All specifications estimate the initial employment probability freely. ",
                 "Rates average predicted hazards using survey weights and posterior ",
                 "probabilities of belonging to the relevant origin-state risk set. ",
                 "Employment is the survey-weighted posterior employed share. ",
                 "SE are bootstrap estimates when available and otherwise use ",
                 "an individual-level survey-weighted sandwich/delta approximation. ",
-                "The approximation does not incorporate strata or PSU clustering.")
+                "The approximation does not incorporate strata or PSU clustering. ",
+                "Column (9) retains the Set 4 transition equations and lets the ",
+                "symmetric error probability depend on age and education inconsistencies, ",
+                "their severity, and the two nested matching-quality indicators used in ",
+                "Table 3, columns (5)--(6).")
+)
+
+# Secondary results for the reliability-dependent error equation. Transition
+# coefficients are retained in the machine-readable summary CSV; this compact
+# table reports the new error slopes and the probabilities needed to interpret
+# them.
+.covrel_secondary_row <- function(quantity, label, percent = FALSE) {
+  cell <- if (percent) .covrel_cell(quantity) else
+    .fmt_param_plain(unname(covrel_est[[quantity]]), unname(covrel_se[[quantity]]))
+  list(est = c(label, cell[1L]), se = c("", cell[2L]))
+}
+covrel_secondary_rows <- list(
+  list(header = "Symmetric-error equation: $0.5\\,\\Lambda(Z_{it}\\delta)$", rows = list(
+    .covrel_secondary_row("error_intercept", "Intercept"),
+    .covrel_secondary_row("age_inconsistency", "Age inconsistency"),
+    .covrel_secondary_row("education_inconsistency", "Education inconsistency"),
+    .covrel_secondary_row("large_age_inconsistency", "Large age inconsistency"),
+    .covrel_secondary_row("large_education_inconsistency", "Large education inconsistency"),
+    .covrel_secondary_row("panel_B_not_C", "Panel B but not C"),
+    .covrel_secondary_row("panel_A_not_B", "Panel A but not B")
+  )),
+  list(header = "Implied misclassification probabilities", rows = list(
+    .covrel_secondary_row("pi_base", "No inconsistency; panel C (\\%)", TRUE),
+    .covrel_secondary_row("pi_age_mild", "Age inconsistency (\\%)", TRUE),
+    .covrel_secondary_row("pi_age_severe", "Large age inconsistency (\\%)", TRUE),
+    .covrel_secondary_row("pi_education_mild", "Education inconsistency (\\%)", TRUE),
+    .covrel_secondary_row("pi_education_severe", "Large education inconsistency (\\%)", TRUE),
+    .covrel_secondary_row("pi_both_mild", "Both inconsistencies (\\%)", TRUE),
+    .covrel_secondary_row("pi_both_both_severe", "Both large inconsistencies (\\%)", TRUE),
+    .covrel_secondary_row("pi_B_not_C", "Panel B but not C (\\%)", TRUE),
+    .covrel_secondary_row("pi_A_not_B", "Panel A but not B (\\%)", TRUE)
+  ))
+)
+.write_latex_table(
+  col_headers = c("", "Set 4; reliability-dependent error"),
+  row_data = covrel_secondary_rows,
+  caption = "Reliability-dependent misclassification estimates for Table 4",
+  label = "tab:cov_reliability_appendix",
+  path = file.path(tables_ext_dir, "table_cov_reliability_appendix.tex"),
+  note = paste0("Parentheses contain analytical individual-level ",
+                "survey-weighted sandwich/delta-method standard errors. ",
+                "Each implied rate changes the named indicator(s) from the ",
+                "panel-C, internally consistent reference case while holding ",
+                "the remaining indicators at zero.")
 )
 
 # ---- Appendix: raw probit coefficients and distributional summaries --------
@@ -735,6 +823,16 @@ screen_table4 <- data.frame(
   pi = 100 * vapply(cov_implied[cov_labels_free], function(x) x$pi, numeric(1L))
 )
 print(screen_table4, row.names = FALSE, digits = 4)
+cat("\nReliability-dependent Set 4 extension:\n")
+print(data.frame(
+  model = "cov_s4_reliability_free",
+  entry = 100 * covrel_est[["mean_entry_rate"]],
+  exit = 100 * covrel_est[["mean_exit_rate"]],
+  employed_risk_share = 100 * covrel_est[["mean_employment_rate"]],
+  pi = 100 * covrel_est[["mean_misclassification_rate"]],
+  loglik = covrel_fit$loglik,
+  N = covrel_fit$n_obs
+), row.names = FALSE, digits = 4)
 
 cat("\n--- Appendix hazard distribution (percent) ---\n")
 screen_hazards <- data.frame(

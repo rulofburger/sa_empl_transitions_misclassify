@@ -87,6 +87,7 @@ source(file.path(.ext_r, "em_driver_inconsistency.R"))
 source(file.path(.ext_r, "implied_quantities_ext.R"))
 source(file.path(.ext_r, "bootstrap_utils_ext.R"))
 source(file.path(.ext_r, "analytical_se_covariates.R"))
+source(file.path(.ext_r, "covariate_reliability.R"))
 
 # Signal that extension symbols are loaded.
 # IMPORTANT: must be set BEFORE rm() so the guard at the top fires on re-source.

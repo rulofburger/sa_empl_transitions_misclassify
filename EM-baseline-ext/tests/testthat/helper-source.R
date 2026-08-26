@@ -64,5 +64,6 @@ source(file.path(.ext_r, "implied_quantities_ext.R"), local = FALSE)
 source(file.path(.baseline_r, "bootstrap_utils.R"), local = FALSE)
 source(file.path(.ext_r, "bootstrap_utils_ext.R"), local = FALSE)
 source(file.path(.ext_r, "analytical_se_covariates.R"), local = FALSE)
+source(file.path(.ext_r, "covariate_reliability.R"), local = FALSE)
 
 rm(.baseline_r, .ext_r)

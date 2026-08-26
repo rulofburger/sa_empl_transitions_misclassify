@@ -209,18 +209,27 @@ table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
 - Added tenure and time since work in Set 3.
 - Added time-varying contract type and informal-sector status in Set 4 without
   restricting the sample to respondents observed in employment at every wave.
+- Added a Set 4 specification in which the symmetric misclassification rate
+  depends on age and education inconsistencies, their severity, and the two
+  nested panel-matching indicators used in Table 3, columns (5)--(6).
 - Moved raw coefficients, the initial-state parameter, total churn, and hazard
   distributions to an appendix table.
 
 ```{r revised-table-4, results='asis'}
 include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex",
-                  tabular_scale = 0.72, table_number = 4)
+                  tabular_scale = 0.60, table_number = 4)
 ```
 
 ```{r covariate-appendix, results='asis'}
 include_tex_table(
   "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
   tabular_scale = 0.55, appendix_label = "Appendix Table A3")
+```
+
+```{r covariate-reliability-appendix, results='asis'}
+include_tex_table(
+  "EM-baseline-ext/output/tables/table_cov_reliability_appendix.tex",
+  tabular_scale = 0.82, appendix_label = "Appendix Table A3B")
 ```
 
 ## Interpretation
@@ -232,6 +241,14 @@ include_tex_table(
 - In symmetric Set 4, predicted risks are highly dispersed: the weighted
   10th--90th percentile range is 1.00--13.82% for entry and 0.19--14.29% for
   exit.
+- Allowing error rates to depend on linked-record reliability gives entry and
+  exit rates of 4.67% and 4.62%, and raises the mean error rate from 2.18% in
+  constant-error Set 4 to 2.55%.
+- The implied error probability is only 1.16% for an internally consistent
+  panel-C record, but rises to 3.07% for records in panel A but not B, 15.65%
+  for a large age inconsistency, and 31.89% when both age and education have
+  large inconsistencies. Reliability heterogeneity is therefore substantial,
+  although corrected entry and exit remain close to the original Set 4 values.
 - Observable heterogeneity therefore explains some differences in transition
   risk but does not explain away the classification-error signal.
 - Duration is economically important: entry falls with time since work and exit
@@ -247,6 +264,8 @@ include_tex_table(
   check whether this changes the transition and error estimates.
 - Test more flexible duration functions and confirm the main inference with a
   person-level bootstrap.
+- Check robustness to alternative definitions and interactions for the
+  reliability indicators in the misclassification equation.
 
 # 5. Higher-order state dependence: Table 5
 
@@ -465,6 +484,10 @@ rank.
 ## To do
 
 - Compare AR(1) and AR(2) using formal fit criteria and richer duration controls.
+- Estimate the four-wave AR(2) extension with Set 4 transition covariates and
+  the Table 3, columns (5)--(6), reliability-dependent symmetric error equation;
+  verify the information rank, likelihood profiles, and stability across
+  multiple starts before interpreting it.
 - With additional waves, test latent heterogeneity, wave-varying transitions,
   and correlated classification errors as competing explanations.
 
