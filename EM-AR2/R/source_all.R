@@ -39,6 +39,7 @@ source(file.path(.em_ar2_r, "analytical_se_AR2.R"),      local = FALSE)
 # implied_quantities_AR2 depends on: latent_histories (stationary_ar2), utils (%||%)
 source(file.path(.em_ar2_r, "implied_quantities_AR2.R"), local = FALSE)
 source(file.path(.em_ar2_r, "ar2_duration_covariates_4w.R"), local = FALSE)
+source(file.path(.em_ar2_r, "ar2_set4_reliability_4w.R"), local = FALSE)
 # Bootstrap helpers are optional. The core estimator and analytical inference
 # must remain independently sourceable; bootstrap_pipeline_AR2.R sources the
 # baseline resampling helper before requesting these functions.

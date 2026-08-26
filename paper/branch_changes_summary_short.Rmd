@@ -13,6 +13,8 @@ header-includes:
   - \usepackage{float}
   - \usepackage{caption}
   - \usepackage{needspace}
+  - \usepackage{graphicx}
+  - \usepackage{longtable}
 fontsize: 11pt
 ---
 
@@ -53,16 +55,6 @@ include_tex_table <- function(relative_path, tabular_scale = NULL,
   cat(lines, sep = "\n")
 }
 ```
-
-# Scope
-
-This note summarises the paper-facing results produced on the branch. It is
-organised by the corresponding section and table in the paper. Technical
-implementation details are retained in the module READMEs and estimation
-scripts; this note focuses on changes that affect estimates or interpretation.
-Across the main tables, shared rates appear in the same order: entry, exit,
-misclassification, and employment or initial employment. Model-specific error
-or duration rates follow those common quantities.
 
 # 1. Baseline transition model: Table 1 and Appendix Table A1
 
@@ -273,6 +265,10 @@ include_tex_table(
   initial employment.
 - Added the same tenure and time-since-work controls used in Table 4.
 - Allowed duration covariates to change across origin waves.
+- Added a nested AR(2) extension with Set 4 transition controls, followed by
+  inconsistency/severity and matching-quality predictors of symmetric error.
+- Used informed and perturbed starts, exact stage-specific likelihood collapse,
+  likelihood-nesting checks, Newton polishing, and score/rank diagnostics.
 - Replaced approximate optimisation and inference with exact collapsed
   likelihood estimation and analytical standard errors.
 
@@ -289,12 +285,18 @@ ar2_base_inf <- read.csv(file.path(project_root,
   "EM-AR2/output/results/analytical_se_latest.csv"))
 ar2_base_inf <- ar2_base_inf[ar2_base_inf$model == "sym", ]
 ar2_base_run <- ar2_runs[ar2_runs$model == "sym", ]
+ar2_base_files <- list.files(file.path(project_root, "EM-AR2/output/results"),
+  pattern = "^em_ar2_sym_[0-9_]+[.]rds$", full.names = TRUE)
+ar2_base_fit_main <- readRDS(tail(sort(ar2_base_files), 1L))
 ar1_inf <- read.csv(file.path(project_root,
   "EM-AR1-4W/output/results/analytical_se_latest.csv"))
 ar1_inf <- ar1_inf[ar1_inf$model == "sym_free", ]
 ar1_runs <- read.csv(file.path(project_root,
   "EM-AR1-4W/output/results/run_summary_latest.csv"))
 ar1_run <- ar1_runs[ar1_runs$model == "sym_free", ]
+ar2_extension <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/set4_reliability/table5_extension_summary.csv"))
+extension_stages <- c("constant", "inconsistency", "reliability")
 ar2_rows <- c(
   "Entry rate: nonemployed in both preceding waves" = "risk_weighted_entry_00",
   "Entry rate: employed two waves ago" = "risk_weighted_entry_10",
@@ -315,8 +317,10 @@ ar1_rows <- c(
   "Misclassification rate" = "pi")
 cat("\\setcounter{table}{4}\n\\begin{table}[H]\n\\centering\n",
     "\\caption{Four-wave AR(1) and AR(2) estimates}\n",
-    "\\small\n\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
-    " & AR(1) & AR(2) & AR(2), duration controls \\\\\n\\midrule\n",
+    "\\scriptsize\n\\setlength{\\tabcolsep}{3pt}\n",
+    "\\resizebox{\\textwidth}{!}{%\n",
+    "\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n",
+    " & AR(1) & AR(2) & AR(2), duration controls & AR(2), Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
     sep = "")
 for (label in names(ar2_rows)) {
   ar1 <- ar1_inf[match(ar1_rows[[label]], ar1_inf$quantity), ]
@@ -325,26 +329,85 @@ for (label in names(ar2_rows)) {
     match(ar2_base_rows[[label]], ar2_base_inf$quantity), ]
   earlier_estimate <- earlier$estimate
   if (grepl("^Exit rate", label)) earlier_estimate <- 1 - earlier_estimate
+  extension_quantity <- switch(label,
+    "Entry rate: nonemployed in both preceding waves" = "entry_00",
+    "Entry rate: employed two waves ago" = "entry_10",
+    "Exit rate: nonemployed two waves ago" = "exit_01",
+    "Exit rate: employed in both preceding waves" = "exit_11",
+    "Misclassification rate" = "mean_misclassification")
+  extension <- ar2_extension[
+    ar2_extension$quantity == extension_quantity, ]
+  extension <- extension[match(extension_stages, extension$stage), ]
   cat(label, " & ", sprintf("%.2f", 100 * ar1$estimate), " & ",
       sprintf("%.2f", 100 * earlier_estimate), " & ",
-      sprintf("%.2f", 100 * current$estimate), " \\\\\n",
+      sprintf("%.2f", 100 * current$estimate), " & ",
+      paste(sprintf("%.2f", 100 * extension$estimate), collapse = " & "),
+      " \\\\\n",
       " & (", sprintf("%.2f", 100 * ar1$se), ") & (",
       sprintf("%.2f", 100 * earlier$se), ") & (",
-      sprintf("%.2f", 100 * current$se), ") \\\\\n", sep = "")
+      sprintf("%.2f", 100 * current$se), ") & ",
+      paste(sprintf("(%.2f)", 100 * extension$se), collapse = " & "),
+      " \\\\\n", sep = "")
 }
+initial_pair_summary <- function(fit) {
+  fn <- function(z) {
+    shift <- max(c(0, z)); a <- c(exp(-shift), exp(z - shift))
+    p <- a / sum(a); p[3] + p[4]
+  }
+  z <- fit$eta[1:3]; estimate <- fn(z); gradient <- numeric(3)
+  for (j in 1:3) {
+    h <- 1e-5 * max(1, abs(z[j])); zp <- zm <- z
+    zp[j] <- zp[j] + h; zm[j] <- zm[j] - h
+    gradient[j] <- (fn(zp) - fn(zm)) / (2 * h)
+  }
+  V <- fit$analytical_inference$vcov_eta[1:3, 1:3, drop = FALSE]
+  c(estimate = estimate,
+    se = sqrt(as.numeric(t(gradient) %*% V %*% gradient)))
+}
+base_vq <- ar2_base_fit_main$analytical_inference$vcov_quantities
+base_initial <- c(
+  estimate = sum(ar2_base_fit_main$params$alpha[c("01", "11")]),
+  se = sqrt(sum(base_vq[c("alpha_01", "alpha_11"),
+                        c("alpha_01", "alpha_11")])))
+duration_initial <- initial_pair_summary(ar2_fit)
+extension_initial <- ar2_extension[
+  ar2_extension$quantity == "initial_wave2_employment.01", ]
+extension_initial <- extension_initial[
+  match(extension_stages, extension_initial$stage), ]
+ar1_initial <- ar1_inf[ar1_inf$quantity == "initial_employment", ]
+cat("Initial employment rate & ", sprintf("%.2f", 100 * ar1_initial$estimate),
+    " & ", sprintf("%.2f", 100 * base_initial["estimate"]),
+    " & ", sprintf("%.2f", 100 * duration_initial["estimate"]),
+    " & ", paste(sprintf("%.2f", 100 * extension_initial$estimate),
+                   collapse = " & "), " \\\\\n",
+    " & (", sprintf("%.2f", 100 * ar1_initial$se), ") & (",
+    sprintf("%.2f", 100 * base_initial["se"]), ") & (",
+    sprintf("%.2f", 100 * duration_initial["se"]), ") & ",
+    paste(sprintf("(%.2f)", 100 * extension_initial$se), collapse = " & "),
+    " \\\\\n", sep = "")
+extension_stats <- ar2_extension[ar2_extension$quantity == "entry_00", ]
+extension_stats <- extension_stats[match(extension_stages, extension_stats$stage), ]
 cat("\\addlinespace\nLog likelihood & ",
     formatC(ar1_run$loglik, format = "f", digits = 1, big.mark = ","),
     " & ",
     formatC(ar2_base_run$loglik, format = "f", digits = 1, big.mark = ","),
     " & ",
     formatC(ar2_fit$loglik, format = "f", digits = 1, big.mark = ","),
+    " & ", paste(formatC(extension_stats$loglik, format = "f", digits = 1,
+                          big.mark = ","), collapse = " & "),
     " \\\\\nN & ", formatC(ar1_run$n_obs, format = "d", big.mark = ","),
     " & ", formatC(ar2_base_run$n_obs, format = "d", big.mark = ","),
     " & ", formatC(max(ar2_runs$n_obs), format = "d", big.mark = ","),
-    " \\\\\nSecond employment lag & No & Yes & Yes",
-    " \\\\\nDuration controls & No & No & Yes",
-    " \\\\\n\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are model-implied quarterly probabilities in percent; the duration-controlled entries are posterior risk-set and survey-weighted averages. Parentheses contain analytical standard errors. The AR(1) rate is repeated across the two corresponding AR(2) rows because the first-order model imposes equality across the second-lag state. Every specification has one latent type, a constant symmetric misclassification probability, and free initial conditions. Duration controls comprise log tenure, log time since work, never-worked and missing-duration indicators; duration values vary across origin waves. The duration-controlled model's 317,437 observations collapse exactly to 37,031 likelihood cells.}\n",
+    " & ", paste(formatC(extension_stats$N, format = "d", big.mark = ","),
+                  collapse = " & "),
+    " \\\\\nParameters & 4 & 8 & ", length(ar2_fit$eta), " & ",
+    paste(extension_stats$K, collapse = " & "),
+    " \\\\\nSecond employment lag & No & Yes & Yes & Yes & Yes & Yes",
+    " \\\\\nDuration controls & No & No & Yes & Yes & Yes & Yes",
+    " \\\\\nSet 4 transition controls & No & No & No & Yes & Yes & Yes",
+    " \\\\\nError predictors & Constant & Constant & Constant & Constant & Inconsistency/severity & + matching quality",
+    " \\\\\n\\bottomrule\n\\end{tabular}}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Entries are model-implied quarterly probabilities in percent. Covariate specifications report posterior risk-set and survey-weighted averages; the misclassification row is the corresponding posterior mean probability. Initial employment is the latent employment probability in wave 2. Parentheses contain analytical sandwich/delta-method standard errors. The AR(1) rate is repeated across the two corresponding AR(2) rows because the first-order model imposes equality across the second-lag state. Every specification has one latent type, symmetric misclassification, and free initial conditions. Set 4 includes the Table 4 demographic, tenure, time-since-work, contract, and informal-sector transition controls. Inconsistency/severity adds age and education inconsistency indicators and large-inconsistency indicators to the error equation; matching quality additionally adds panel B-not-C and panel A-not-B indicators. The three extensions use the same 308,240 observations and exact nested likelihoods.}\n",
     "\\end{table}\n", sep = "")
 ```
 
@@ -457,16 +520,117 @@ for (term in coefficient_terms) {
 cat("\\bottomrule\n\\end{tabular}\n\\end{table}\n")
 ```
 
+```{r ar2-extension-coefficient-appendix, results='asis'}
+extension_coef <- lapply(extension_stages, function(stage)
+  read.csv(file.path(project_root,
+    sprintf("EM-AR2/output/results/set4_reliability/coefficients_ar2_set4_%s.csv",
+            stage))))
+names(extension_coef) <- extension_stages
+extension_terms <- unique(unlist(lapply(extension_coef, `[[`, "term")))
+extension_term_labels <- c(
+  alpha_logit_10 = "Initial-pair logit: 10",
+  alpha_logit_01 = "Initial-pair logit: 01",
+  alpha_logit_11 = "Initial-pair logit: 11",
+  entry_intercept = "Entry: intercept",
+  entry_lag2 = "Entry: employed two waves ago",
+  entry_age = "Entry: age",
+  entry_age_sq = "Entry: age squared",
+  entry_educ = "Entry: education",
+  entry_race_2 = "Entry: race 2",
+  entry_race_3 = "Entry: race 3",
+  entry_race_4 = "Entry: race 4",
+  entry_female = "Entry: female",
+  entry_log_time_since_work = "Entry: log time since work",
+  entry_never_worked = "Entry: never worked",
+  entry_timegap_missing = "Entry: timegap missing",
+  persistence_intercept = "Persistence: intercept",
+  persistence_lag2 = "Persistence: employed two waves ago",
+  persistence_age = "Persistence: age",
+  persistence_age_sq = "Persistence: age squared",
+  persistence_educ = "Persistence: education",
+  persistence_race_2 = "Persistence: race 2",
+  persistence_race_3 = "Persistence: race 3",
+  persistence_race_4 = "Persistence: race 4",
+  persistence_female = "Persistence: female",
+  persistence_log_tenure = "Persistence: log tenure",
+  persistence_tenure_missing = "Persistence: tenure missing",
+  persistence_permanent_contract = "Persistence: permanent contract",
+  persistence_informal_sector = "Persistence: informal sector",
+  error_intercept = "Error: intercept",
+  age_inconsistency = "Error: age inconsistency",
+  education_inconsistency = "Error: education inconsistency",
+  large_age_inconsistency = "Error: large age inconsistency",
+  large_education_inconsistency = "Error: large education inconsistency",
+  panel_B_not_C = "Error: panel B not C",
+  panel_A_not_B = "Error: panel A not B")
+cat("\\begingroup\n\\scriptsize\n\\setlength{\\tabcolsep}{5pt}\n",
+    "\\begin{longtable}{@{}lrrr@{}}\n",
+    "\\caption*{Appendix Table A4B: Set 4 AR(2) extension coefficients}\\\\\n",
+    "\\toprule\nCoefficient & Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
+    "\\endfirsthead\n\\toprule\nCoefficient & Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
+    "\\endhead\n", sep = "")
+for (term in extension_terms) {
+  estimates <- vapply(extension_coef, function(tbl)
+    coefficient_cell(tbl, term, "estimate"), numeric(1))
+  ses <- vapply(extension_coef, function(tbl)
+    coefficient_cell(tbl, term, "se"), numeric(1))
+  estimate_cells <- ifelse(is.na(estimates), "---", sprintf("%.3f", estimates))
+  se_cells <- ifelse(is.na(ses), "", paste0("(", sprintf("%.3f", ses), ")"))
+  cat(extension_term_labels[[term]], " & ",
+      paste(estimate_cells, collapse = " & "), " \\\\\n & ",
+      paste(se_cells, collapse = " & "), " \\\\\n", sep = "")
+}
+cat("\\bottomrule\n\\end{longtable}\n\\endgroup\n")
+```
+
+```{r ar2-apparent-transition-appendix, results='asis'}
+transition_implications <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/set4_reliability/apparent_transition_decomposition.csv"),
+  check.names = FALSE)
+direction_order <- c("All apparent transitions", "Apparent entries",
+                     "Apparent exits")
+model_order <- c("Table 1: raw/no error", "Table 1: symmetric error",
+                 "Table 5: final AR(2)")
+model_labels <- c(
+  `Table 1: raw/no error` = "Table 1: raw/no error",
+  `Table 1: symmetric error` = "Table 1: symmetric-error adjustment",
+  `Table 5: final AR(2)` = "Table 5: final AR(2)")
+cat("\\begin{table}[H]\n\\centering\n",
+    "\\caption*{Appendix Table A4C: Implications for apparent two-wave transitions}\n",
+    "\\small\n\\setlength{\\tabcolsep}{7pt}\n",
+    "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
+    "Model & Classification only & Genuine reversal & Genuine persistence \\\\\n",
+    "\\midrule\n", sep = "")
+for (direction in direction_order) {
+  cat("\\multicolumn{4}{l}{\\textit{", direction, "}} \\\\\n", sep = "")
+  rows <- transition_implications[
+    transition_implications$direction == direction, ]
+  rows <- rows[match(model_order, rows$model), ]
+  for (i in seq_len(nrow(rows))) {
+    cat(model_labels[[rows$model[i]]], " & ",
+        sprintf("%.1f", 100 * rows$classification_only[i]), " & ",
+        sprintf("%.1f", 100 * rows$true_reversal[i]), " & ",
+        sprintf("%.1f", 100 * rows$true_persistent[i]), " \\\\\n", sep = "")
+  }
+  if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
+}
+cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages conditional only on the two reports forming an apparent transition; the subsequent report is integrated out. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The Table 1 columns use the nonstationary three-wave estimates; the final AR(2) column uses the four-wave Set 4 model with inconsistency, severity, and matching-quality predictors of symmetric classification error. Because the Table 1 and Table 5 estimation samples differ, comparisons combine model and sample differences.}\n",
+    "\\end{table}\n", sep = "")
+```
+
 Transition coefficients are on a common probit scale. The unrestricted AR(1)
 and no-duration AR(2) transition probabilities are re-expressed in their
 observationally equivalent probit parameterisations; the duration-controlled
 AR(2) is estimated directly by probit. Initial-state coefficients are logits,
 and the misclassification coefficient is $\operatorname{logit}(2\pi)$ in all
-three models. Parentheses contain analytical sandwich/delta-method standard
-errors. Duration variables and their missingness indicators vary across origin
-waves. The information-matrix condition numbers are 14.6 for AR(1), 130.7 for
-AR(2), and 388,646 for duration-controlled AR(2); all three are locally full
-rank.
+three original models and is reported directly for the staged extension.
+Parentheses contain analytical sandwich/delta-method standard errors. Duration
+variables and their missingness indicators vary across origin waves. The
+information-matrix condition numbers are 14.6 for AR(1), 130.7 for AR(2),
+388,646 for duration-controlled AR(2), and approximately 746,558, 1,067,863,
+and 2,800,426 across the three Set 4 stages; every reported model is locally
+full rank.
 
 ## Interpretation
 
@@ -474,20 +638,36 @@ rank.
   a 2.70% symmetric misclassification probability.
 - Duration controls substantially reduce the large AR(2) transition
   differences but do not eliminate them.
-- Entry and exit after two periods in the same state remain close to 4.5% and
-  4.3%; recent state reversals remain associated with much higher transition
-  probabilities.
+- With Set 4 controls and constant error, entry and exit after two periods in
+  the same state are 4.72% and 4.56%; following a recent reversal they are
+  31.13% and 32.37%. Observed transition heterogeneity therefore does not
+  explain away the second-lag pattern.
+- Allowing inconsistency and severity to predict error raises the posterior
+  mean error rate from 0.93% to 2.02% and lowers the four transition rates to
+  4.22%, 27.52%, 28.65%, and 3.95%.
+- Adding matching-quality indicators improves fit further and produces rates
+  of 4.22%, 28.28%, 29.38%, and 3.94%, with 1.95% mean error. The substantive
+  AR(2) pattern remains large after the complete observed-control sequence.
+- Appendix Table A4C shows that the final model attributes 41.1% of apparent
+  transitions to classification error, 16.8% to genuine transitions that
+  reverse next period, and 42.1% to genuine persistent transitions. Among the
+  58.9% inferred to be genuine, 28.6% reverse in the following period. This is
+  more balanced than the Table 1 symmetric-error model, which attributes 67.0%
+  to error and only 1.0% to genuine short-lived transitions.
 - Surviving AR(2) dependence may reflect unobserved duration, state dependence,
   latent heterogeneity, or within-quarter transitions; the current estimates do
   not distinguish these mechanisms.
+- The extension is locally identified and has very small final scores, but its
+  rising information condition number calls for sensitivity checks before it
+  is treated as the preferred specification.
 
 ## To do
 
 - Compare AR(1) and AR(2) using formal fit criteria and richer duration controls.
-- Estimate the four-wave AR(2) extension with Set 4 transition covariates and
-  the Table 3, columns (5)--(6), reliability-dependent symmetric error equation;
-  verify the information rank, likelihood profiles, and stability across
-  multiple starts before interpreting it.
+- Profile the weakly curved directions in the three Set 4 extensions and check
+  stability with additional long starts and alternative covariate scaling.
+- Compare the staged extensions on a common sample with the simpler AR(1),
+  AR(2), and duration-controlled benchmarks.
 - With additional waves, test latent heterogeneity, wave-varying transitions,
   and correlated classification errors as competing explanations.
 

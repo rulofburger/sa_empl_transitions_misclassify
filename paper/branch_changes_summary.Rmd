@@ -11,6 +11,10 @@ header-includes:
   - \usepackage{booktabs}
   - \usepackage{amsmath}
   - \usepackage{float}
+  - \usepackage{caption}
+  - \usepackage{needspace}
+  - \usepackage{graphicx}
+  - \usepackage{longtable}
 fontsize: 11pt
 ---
 
@@ -18,787 +22,212 @@ fontsize: 11pt
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 project_root <- normalizePath("..", winslash = "/", mustWork = TRUE)
 
-include_tex_table <- function(relative_path, tabular_scale = NULL) {
+include_tex_table <- function(relative_path, tabular_scale = NULL,
+                              table_number = NULL, appendix_label = NULL) {
   path <- file.path(project_root, relative_path)
   if (!file.exists(path)) {
     stop("Missing generated table: ", path,
          ". Run Rscript build_tables.R from the project root first.")
   }
   lines <- readLines(path, warn = FALSE)
+  lines <- sub("^\\\\begin\\{table\\}\\[[^]]+\\]$", "\\\\begin{table}[H]", lines)
+  if (!is.null(table_number)) {
+    lines <- c(sprintf("\\setcounter{table}{%d}", as.integer(table_number) - 1L),
+               lines)
+  }
+  if (!is.null(appendix_label)) {
+    caption_line <- grep("^\\\\caption\\{", lines)
+    if (length(caption_line) != 1L)
+      stop("Expected exactly one caption in ", path)
+    caption_text <- sub("^\\\\caption\\{(.*)\\}$", "\\1", lines[caption_line])
+    lines[caption_line] <- sprintf("\\caption*{%s: %s}", appendix_label,
+                                   caption_text)
+  }
   if (!is.null(tabular_scale)) {
     begin_tabular <- grep("^\\\\begin\\{tabular\\}", lines)
     end_tabular <- grep("^\\\\end\\{tabular\\}", lines)
     if (length(begin_tabular) != 1L || length(end_tabular) != 1L)
       stop("Expected exactly one tabular environment in ", path)
     lines <- append(lines, "}", after = end_tabular)
-    lines <- append(
-      lines,
-      sprintf("\\scalebox{%s}{%%", tabular_scale),
-      after = begin_tabular - 1L
-    )
+    lines <- append(lines, sprintf("\\scalebox{%s}{%%", tabular_scale),
+                    after = begin_tabular - 1L)
   }
   cat(lines, sep = "\n")
 }
+
+# The paper-facing sections and tables have one authoritative source. The long
+# summary renders the short summary body verbatim, then adds technical notes.
+short_path <- file.path(dirname(knitr::current_input(dir = TRUE)),
+                        "branch_changes_summary_short.Rmd")
+short_lines <- readLines(short_path, warn = FALSE)
+body_start <- grep("^# 1\\. Baseline transition model", short_lines)
+if (length(body_start) != 1L)
+  stop("Could not locate the numbered body in branch_changes_summary_short.Rmd")
+short_body <- short_lines[body_start:length(short_lines)]
 ```
 
-# Purpose and scope
-
-This note records the changes made on `codex/rulof_new_work` relative to the
-`efficient` branch. It covers the exact baseline estimator and analytical
-inference used in Tables 2 and 3, together with the observable-covariate
-extension and revised Table 4. It also records the repaired four-wave AR(1)
-models, the two-type finite-mixture extensions, and the models combining
-observable transition heterogeneity with inconsistency-dependent
-misclassification. The AR(2) and structural endogenous-duration specifications
-are not reinterpreted here.
-
-The central objectives were to replace stale or numerically unreliable results
-with validated maximum-likelihood estimates, provide fast analytical inference,
-handle state-specific duration and job characteristics without discarding
-respondents, and report heterogeneous transition risks in a
-way that remains comparable with the paper's earlier tables. The later
-four-wave work tests whether latent classes partly absorb observed heterogeneity
-or heterogeneous measurement reliability.
-
-# Changes to the code and estimation approach
-
-## Exact baseline estimator and result provenance
-
-The simple model is now maximised directly on the eight possible observed
-three-wave employment histories. This collapse is exactly equivalent to the
-row-level likelihood and makes the optimisation extremely fast. It also fixes
-the stationary model: the earlier closed-form transition update imposed the
-stationary initial probability only afterwards and therefore did not maximise
-the exact constrained likelihood.
-
-All probabilities are mapped from unconstrained logit parameters. Each model
-uses multiple starts, with symmetric models initialized from the corresponding
-no-error estimates and asymmetric models from the symmetric estimates. Results
-are saved only when the likelihood score is small, observed information is
-positive definite, and every unrestricted model has a likelihood at least as
-large as its nested restriction. Each saved fit also records its source panel,
-sample signature, sample size, weight total, and optimiser diagnostics. The
-table builder rejects stale fits or inference files that do not match the
-current `df_qlfs_A.rds` estimation sample.
-
-## Numerical optimisation
-
-The covariate model is estimated by a Generalised EM algorithm. The earlier
-M-step used separate probit IRLS updates. That approach did not maximise the
-correct joint expected complete-data likelihood when the initial-state term
-coupled the entry and persistence equations, and it could return a solution
-whose likelihood was below that of the nested no-misclassification model.
-
-The revised estimator:
-
-1. normalises survey weights during optimisation to improve numerical
-   conditioning, while restoring the original likelihood scale in saved output;
-2. updates the entry and persistence coefficient blocks jointly with limited
-   BFGS steps;
-3. backtracks until both the complete-data objective and observed-data
-   likelihood are non-decreasing;
-4. uses several starting values and initializes each symmetric-error model from
-   its corresponding no-error estimate;
-5. explicitly checks that the symmetric model's maximised likelihood is no
-   lower than that of its nested no-error model; and
-6. requires both a small likelihood improvement and a small parameter change
-   before declaring convergence.
-
-These safeguards address the invalid-MLE problem directly: they alter how the
-model is estimated, rather than merely changing how its results are displayed.
-
-## Covariate sets and state-specific variables
-
-The revised sequence of specifications is:
-
-1. Set 1: age, age squared, and education;
-2. Set 2: Set 1 plus race and sex;
-3. Set 3: Set 2 plus log tenure in the employment-persistence equation, and
-   log time since last employment plus a never-worked indicator in the entry
-   equation; and
-4. Set 4: Set 3 plus contract type and informal-sector status in the
-   persistence equation.
-
-Tenure and time since work are measured at the origin wave and transformed as
-$\log(1+d)$. Their coefficients are restricted to the equation in which the
-reported duration is economically defined. The ingestion script preserves
-these state-appropriate reported values before the separate tenure module's
-nearest-spell filling. A missing-tenure indicator prevents missing reports from
-being treated as genuine zero tenure; zero-variance missingness indicators are
-automatically omitted to avoid unidentified information-matrix directions.
-
-## Contract type and informal-sector status
-
-Contract type is structurally undefined when a respondent is not employed.
-The adopted treatment is therefore to include it only in the
-employment-persistence equation. Its coefficient in the job-entry equation is
-fixed at zero, so non-employed observations are retained instead of being
-dropped or assigned an economically artificial contract category.
-
-Set 4 also includes an informal-sector indicator, defined from the QLFS
-sector classification and including informal agricultural employment. Like
-contract type, it enters only the persistence/exit equation. Rural or urban
-residence is not included, avoiding the sample loss caused by missing residence
-information.
-
-Both employment characteristics are measured at the origin of each transition:
-wave 1 values are used for the wave 1--2 transition and wave 2 values for the
-wave 2--3 transition. They can consequently change between waves. Employment
-is still represented by a single latent state; formal and informal employment
-are not modelled as separate states.
-
-## Initial conditions and reported transition rates
-
-Because the Set 3 and Set 4 transition covariates can vary between the two transition
-periods, the main comparison no longer imposes a time-homogeneous stationary
-initial distribution. All eight columns of the revised Table 4 estimate the
-initial employment probability freely.
-
-Average entry and exit rates are computed using the survey weights and the
-posterior probability that each observation belongs to the appropriate latent
-origin-state risk set. This makes the averages conditional hazards: entry is
-averaged over latent non-employment exposure and exit over latent employment
-exposure. The table also reports the posterior employed risk share and total
-employment churn. The separate entry-flow and exit-flow rows have been removed
-to keep the presentation close to the earlier implied-probability tables.
-
-## Analytical standard errors
-
-Pending a full bootstrap, inference for the covariate models uses an
-individual-level survey-weighted sandwich estimator. The observed-information
-``bread'' is obtained by numerically differentiating the analytic observed-data
-score, while the ``meat'' is the outer product of weighted individual scores.
-The delta method propagates this covariance matrix to average transition rates,
-total churn, and Set 4 discrete effects. The linearisation also includes direct
-sampling variation from averaging predicted quantities over the observed
-covariate and posterior-risk distribution.
-
-These are approximate analytical standard errors. They use survey weights but
-do not incorporate stratification or PSU clustering because those identifiers
-are unavailable in the estimation extract. A person-level bootstrap remains a
-useful robustness exercise.
-
-## Output and reproducibility
-
-The extension pipeline saves fitted model objects and convergence diagnostics.
-`EM-baseline-ext/estimate_analytical_se_table4.R` produces the analytical
-covariance estimates, and `build_tables.R` creates the LaTeX results below.
-Generated model objects and tables remain excluded from version control and can
-be rebuilt locally from the underlying confidential QLFS files.
-
-# New and revised tables
-
-The following are the baseline tables rebuilt with the exact estimator and
-analytical inference, followed by the two covariate tables introduced on this
-branch. Unchanged tables are not duplicated.
-
-## Table 2: baseline implied probabilities
-
-```{r baseline-implied, results='asis'}
-include_tex_table("EM-baseline/output/tables/table_baseline_implied.tex")
+```{r synchronized-paper-facing-summary, results='asis'}
+cat(knitr::knit_child(text = short_body, quiet = TRUE), sep = "\n")
 ```
 
-Without a reporting-error correction, quarterly entry and exit rates are about
-8.2--8.6%. Allowing symmetric misclassification lowers both rates to roughly
-3%, while the estimated per-wave misclassification probability is itself only
-2.99%. The result is robust to freeing the initial employment probability and
-to allowing asymmetric reporting errors.
-
-## Table 3: baseline parameters
-
-```{r baseline-parameters, results='asis'}
-include_tex_table("EM-baseline/output/tables/table_baseline_params.tex")
-```
-
-The asymmetric estimates now satisfy the required likelihood nesting
-relationship. False-positive and false-negative probabilities are approximately
-3.05% and 2.93%; their small difference has virtually no effect on the implied
-transition rates. The table distinguishes the initial employment probability
-$\alpha$ from the steady-state employment share $\alpha^*$ reported in Table 2.
-
-## Revised Table 4
-
-```{r revised-table-4, results='asis'}
-include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex")
-```
-
-The no-error specifications imply quarterly entry and exit rates of about
-8.14% and 8.58%, almost invariant to the four covariate sets. Allowing for
-symmetric reporting error lowers these rates to 3.62--4.87% and 3.71--5.09%,
-respectively. The estimated per-wave misclassification probability declines
-from 2.58% in Set 1 to 2.18% in Set 4. Observable characteristics therefore explain
-substantial heterogeneity across workers, but they do not explain away the
-measurement-error signal. Ignoring misclassification still approximately
-doubles the estimated average transition hazards and total churn.
-
-The exit rate is only modestly higher than the entry rate in the symmetric
-models. In Set 4 the difference is about 0.22 percentage points, compared with
-roughly 0.44 percentage points in the no-error specification. This is more
-consistent with the approximately stable employment share than a comparison of
-the two conditional hazards alone might initially suggest.
-
-## Coefficients, hazard distributions, and Set 4 discrete effects
-
-```{r coefficient-appendix, results='asis'}
-include_tex_table(
-  "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
-  tabular_scale = 0.55
-)
-```
-
-The appendix demonstrates why a single mean hazard is incomplete. In symmetric
-Set 4, the risk-weighted 10th--90th percentile range is approximately
-1.00--13.82% for entry and 0.19--14.29% for exit. Thus workers with different
-observed characteristics face markedly different transition risks even though
-the population-average entry and exit rates are similar.
-
-The duration coefficients have the expected signs. In symmetric Set 4, a
-one-standard-deviation increase in log tenure raises the persistence probit
-index by 0.508 (SE 0.012), while a one-standard-deviation increase in log time
-since work lowers the entry index by 0.307 (SE 0.006). Never having worked also
-substantially lowers entry (coefficient -0.835, SE 0.021). The missing-tenure
-coefficient is imprecise and should not be interpreted substantively.
-
-Holding other covariates at their observed values, a permanent contract lowers
-the average quarterly exit probability by about 2.43 percentage points in the
-symmetric-error model, while informal-sector employment raises it by about
-2.36 percentage points. The corresponding no-error effects are -3.28 and +3.01
-percentage points. Adding duration variables therefore exposes much wider
-heterogeneity in predicted hazards while preserving the main conclusion that
-misclassification materially inflates uncorrected transition rates.
-
-# Four-wave finite-mixture results
-
-The new `EM-AR1-4W` module uses every complete four-wave history in the
-method-A panel. The controlled specifications contain 308,240 people, exactly
-collapsed to 229,809 likelihood cells after adding observed durations. Initial employment probabilities are
-free rather than restricted to stationarity. Estimation combines an EM warm
-start with exact observed-likelihood analytical scores, dispersed starting
-values, label normalisation, and survey-weighted sandwich/delta-method
-inference.
-
-## Uncontrolled and controlled two-type models
-
-The uncontrolled model estimates constant transition and symmetric
-misclassification probabilities within two time-invariant latent classes. The
-controlled model instead gives the classes distinct transition intercepts but
-constrains all transition-covariate slopes to be common. Baseline age,
-age-squared, education, race, and sex enter both transition equations.
-Origin-wave log tenure enters persistence, while log time since work and a
-never-worked indicator enter entry. Missing-duration indicators retain the full
-sample without assigning a substantive zero duration.
-Origin-wave permanent-contract and informal-sector status can change over time
-and enter persistence only. Age and education inconsistencies predict
-misclassification without attempting to distinguish inconsistent respondent
-reports from incorrect panel matches.
-
-| Model and latent type | Population share | Initial employment | Risk-weighted entry | Risk-weighted exit |
-|:--|--:|--:|--:|--:|
-| Uncontrolled: stable | 92.13 | 47.74 | 2.36 | 2.21 |
-| Uncontrolled: mobile | 7.87 | 47.95 | 42.16 | 47.04 |
-| Controlled with duration, common misclassification: stable | 89.63 | 47.38 | 3.20 | 3.01 |
-| Controlled with duration, common misclassification: mobile | 10.37 | 50.59 | 27.30 | 26.87 |
-| Controlled with duration, type-specific misclassification: stable | 58.17 | 44.61 | 1.33 | 0.75 |
-| Controlled with duration, type-specific misclassification: mobile | 41.83 | 52.33 | 11.98 | 11.18 |
-
-All entries are percentages. In the preferred type-specific-misclassification
-model, analytical standard errors are 3.05 percentage points for the class
-shares, 0.15 and 0.20 points for stable entry and exit, and 0.64 and 0.65 points
-for mobile entry and exit. The class distinction remains economically large,
-but observed duration and heterogeneous reliability make the mobile class
-larger and substantially less extreme than in the uncontrolled model. This
-shows that the original latent classes combined duration dependence, other
-observed heterogeneity, and heterogeneous misclassification with residual mobility.
-
-The common-slope estimates are economically coherent. Log tenure raises latent
-employment persistence (probit coefficient 0.650, SE 0.015). Log time since
-work lowers entry (-0.325, SE 0.007), as does never having worked (-0.860, SE
-0.018). Permanent contracts raise persistence (0.399, SE 0.016), whereas
-informal-sector employment lowers it (-0.266, SE 0.016). Age effects
-are nonlinear: entry peaks at approximately age 38 and persistence at
-approximately age 53. Education raises persistence, while women have lower
-conditional entry and persistence probabilities. These are conditional
-associations rather than causal effects.
-
-## Type-specific misclassification
-
-The parsimonious relaxation gives the stable and mobile classes different
-misclassification intercepts while keeping the age- and education-inconsistency
-slopes common.
-
-| Response pattern | Stable type | Mobile type | Mobile minus stable |
-|:--|--:|--:|--:|
-| Consistent age and education | 0.14 (0.04) | 2.37 (0.15) | 2.22 |
-| Age inconsistency | 6.28 (0.98) | 35.52 (1.05) | 29.25 |
-| Education inconsistency | 0.89 (0.21) | 11.83 (0.53) | 10.94 |
-| Both inconsistencies | 23.62 (1.97) | 46.93 (0.34) | 23.31 |
-
-Probabilities and analytical standard errors are percentages. The mobile
-class has about 16 times the baseline misclassification probability. The
-difference between the transformed intercepts is 2.839 (SE 0.225), giving a
-sandwich Wald statistic of 12.64. The weighted log likelihood improves from
--428,777.56 to -428,568.60 with one additional parameter. Because the objective
-uses survey weights, this likelihood gain should not be assigned the usual
-unweighted likelihood-ratio reference distribution; the sandwich Wald result
-provides separate evidence against a common intercept.
-
-The estimates do not mean that latent mobility causes misclassification. Class
-membership and misclassification are inferred jointly. The higher mobile-type
-probability may represent persistent differences in response reliability,
-match quality, or other omitted characteristics.
-
-## Observable characteristics and posterior class membership
-
-The earlier posterior-correlation calculations referred to the specification
-without observed duration and are therefore not reproduced as current results.
-They should be rerun before making claims about how much posterior class
-assignment is explained by the expanded observable covariate set.
-
-## Four-wave diagnostics and reproducibility
-
-The preferred model has full information-matrix rank (32/32), a positive
-minimum eigenvalue of 0.0000120, condition number 29,216, and maximum weighted
-score $3.2\times10^{-6}$. This duration-expanded run was refined from the
-previous preferred solution; dispersed-start replication remains a useful
-computational robustness check. The four-wave test suite includes checks
-including posterior normalisation and numerical verification of the analytical
-scores for both common and type-specific misclassification.
-
-The main scripts are `EM-AR1-4W/estimate_fmm_covariates_inconsistency.R` and
-`EM-AR1-4W/estimate_fmm_type_specific_misclassification.R`. Generated fitted
-objects remain ignored by Git and can be reconstructed from the confidential
-QLFS inputs.
-
-# Interpretation for the paper
-
-The revisions strengthen the paper's core result. The earlier numerical problem
-could have made the misclassification specification appear to fit worse than a
-model it mathematically nests. Once the likelihood is optimised with appropriate
-monotonicity and nesting checks, a small but precisely estimated reporting-error
-rate continues to produce a large reduction in inferred employment turnover.
-
-At the same time, the new Sets 3--4 results sharpen the economic interpretation.
-Misclassification and genuine heterogeneity are not competing explanations in
-which only one survives: duration dependence, contract security, and informal
-employment strongly predict true transition risk, while a separate
-reporting-error component remains.
-The paper should therefore distinguish clearly between variation in transition
-risk across workers and the upward bias in observed transitions caused by
-classification error.
-
-# Four-wave one-type AR(2) with observed duration
-
-The single-type AR(2) model was re-estimated after adding the same observed-
-duration controls used in the three-wave covariate specifications. Log time
-since work, never-worked status, and a missing-timegap indicator enter the entry
-equation. Log tenure and a missing-tenure indicator enter employment
-persistence. The covariates change with the origin wave, while the second lag
-remains a latent employment state. The initial two-state distribution is free,
-and a common symmetric misclassification probability is estimated jointly.
-Exact collapsing reduces 317,437 observations to 37,031 likelihood cells
-without changing the weighted likelihood; summed squared weights preserve the
-individual-level analytical sandwich covariance.
-
-| Transition probability or parameter | Estimate | Analytical SE |
-|:--|--:|--:|
-| Entry, non-employed in both preceding waves | 4.51 | 0.07 |
-| Entry, employed two waves ago | 17.48 | 0.97 |
-| Exit, non-employed two waves ago | 19.16 | 0.81 |
-| Exit, employed in both preceding waves | 4.27 | 0.08 |
-| Symmetric misclassification probability | 1.49 | 0.08 |
-
-Transition probabilities are percentages and are survey-weighted averages
-within the observed origin-state risk set. The duration coefficients have the
-expected signs: a one-standard-deviation increase in log time since work lowers
-the entry probit index by 0.215 (SE 0.010), never having worked lowers it by
-0.831 (SE 0.028), and a one-standard-deviation increase in log tenure raises
-the persistence index by 0.431 (SE 0.015). The missing-tenure effect is very
-imprecise and has no substantive interpretation.
-
-Duration controls explain an important part, but not all, of the apparent
-second-order dependence. Relative to the earlier symmetric-error AR(2), the
-average probability of entry when employed two waves ago falls from 30.75% to
-17.48%, and exit when non-employed two waves ago falls from 31.60% to 19.16%.
-The corresponding long-spell probabilities barely change: entry after two
-non-employment waves is 4.51% rather than 4.60%, and exit after two employment
-waves is 4.27% rather than 4.38%. The remaining latent lag coefficients are
-large and precisely estimated (entry 0.811, SE 0.034; persistence 0.903, SE
-0.025), so coarse observed tenure and timegap do not eliminate AR(2)
-dependence. The estimated misclassification probability rises from 0.98% to
-1.49%; this comparison should be treated as a specification change rather than
-as evidence that duration causes misclassification.
-
-The fit converged at a maximum weighted score of $3.3\times10^{-6}$. The
-observed-information matrix has full rank (13/13) and a positive minimum
-eigenvalue, although its condition number of approximately 388,646 indicates
-that the initial-state and missing-duration parameters are less sharply scaled
-than the main transition effects. The reproducible runner is
-`EM-AR2/estimate_duration_covariates_4w.R`; generated estimates remain ignored
-by Git.
-
-# Three-wave tenure-contamination model with duration-dependent hazards
-
-The nonstationary CTMC-linked tenure-contamination model was extended so that
-the continuous-time exit and entry hazards depend on log duration:
-$h_E(s)=\lambda_E(1+s)^{\beta_E}$ and
-$h_N(d)=\lambda_N(1+d)^{\beta_N}$. The same hazards determine both the
-duration likelihood and the quarterly probabilities of a latent transition;
-the existing clock-consistency and tenure-contamination rules are retained.
-For interval-censored time since employment, entry probabilities are integrated
-over the model-implied duration distribution within each reported category,
-including the open-ended five-years-or-more category.
-
-| Parameter or probability | Constant hazard | Log-duration hazard |
-|:--|--:|--:|
-| Log-duration exit slope $\beta_E$ | 0 | -0.3742 |
-| Log-duration entry slope $\beta_N$ | 0 | -0.8782 |
-| Initial employment | 54.98 | 55.92 |
-| Status misclassification | 10.21 | 10.53 |
-| Tenure contamination | 24.79 | 25.09 |
-| Risk- and survey-weighted quarterly exit | 4.26 | 4.51 |
-| Risk- and survey-weighted quarterly entry | 4.08 | 1.96 |
-
-Probabilities are percentages. The weighted log likelihood improves from
--2,510,430.34 to -2,475,676.82. All three starts converge to the same optimum.
-Exit declines from 7.42% at zero tenure to 3.22% at ten years; entry declines
-from 8.51% at zero duration to 1.18% at ten years. Thus duration dependence is
-substantively large but leaves the misclassification and tenure-contamination
-estimates almost unchanged.
-
-The entry slope is close to the proper-distribution boundary $\beta_N=-1$.
-Consequently, extrapolation beyond the observed range produces an implausible
-unconditional mean nonemployment duration of about 1,257 months. The fitted
-transition probabilities over the observed range remain interpretable, but
-this shifted-power functional form should be treated as a diagnostic rather
-than a preferred final specification. A more controlled tail specification,
-such as a restricted spline or piecewise hazard, is required before using
-unconditional mean durations. No bootstrap or analytical standard errors have
-yet been produced for this extension.
-
-The reproducible point-estimation runner is
-`EM-tenure/estimate_duration_hazard_tenure_contamination.R`; generated fit
-objects and tables remain ignored by Git.
-
-## Integrating unavailable wrong-state durations
-
-The duration-dependent likelihood previously evaluated an exit hazard using
-an imputed tenure when employment was latent but nonemployment was reported,
-and evaluated an entry hazard using an imputed timegap in the converse case.
-The tenure-specific preparation now preserves these wrong-state clocks as
-missing. For mismatched latent and reported states, the transition prior
-averages the hazard over the model-implied duration distribution rather than
-plugging in a nearest-wave or floor imputation. Observed duration reports still
-enter the spell emissions and retain all clock-consistency restrictions,
-including consistency between observed tenure flanks around a missing wave.
-
-The constant-hazard estimates and likelihood are unchanged to numerical
-precision, as they must be because transition risk does not depend on the
-missing clock in that specification. Relative to the former plug-in version,
-the corrected log-duration model changes as follows:
-
-| Quantity | Imputed wrong-state clock | Integrated missing clock |
-|:--|--:|--:|
-| Status misclassification (%) | 10.35 | 10.53 |
-| Tenure contamination (%) | 24.81 | 25.09 |
-| Exit duration slope | -0.4413 | -0.3742 |
-| Entry duration slope | -0.9148 | -0.8782 |
-| Weighted quarterly exit (%) | 4.91 | 4.51 |
-| Weighted quarterly entry (%) | 2.08 | 1.96 |
-| Implied mean nonemployment duration (months) | 3,800 | 1,257 |
-
-In the corrected fit, 15.5% of the posterior-weighted latent employment origin
-risk set reports nonemployment and therefore has no observed tenure clock;
-4.5% of the latent nonemployment risk set reports employment and has no
-observed timegap clock. Thus the old imputations affected a nontrivial part of
-the duration-dependent prior. Removing them moderately attenuates both duration
-slopes and lowers the average fitted transition rates, but it does not remove
-the main measurement-error result: the status and tenure-contamination
-estimates rise slightly. Log likelihoods from the old and corrected
-duration-dependent likelihoods should not be compared directly because they
-condition on different information.
-
-# Tail-safe piecewise duration hazards
-
-The corrected tenure-contamination likelihood was next estimated with
-piecewise-constant exit and entry hazards over five intervals: 0--3 months,
-3--12 months, 1--3 years, 3--5 years, and 5 years or more. Hazard levels are
-positive and the final level remains constant over the open tail. The model
-therefore retains flexible duration dependence while guaranteeing a proper
-spell distribution with a finite mean. Missing wrong-state clocks continue to
-be integrated out and all clean observed clocks retain the exact consistency
-restrictions.
-
-| Model | Parameters | Weighted log likelihood | AIC | Status error (%) | Tenure contamination (%) | Weighted exit (%) | Weighted entry (%) |
-|:--|--:|--:|--:|--:|--:|--:|--:|
-| Constant hazard | 5 | -2,510,430.3 | 5,020,870.7 | 10.21 | 24.79 | 4.26 | 4.08 |
-| Power-law hazard | 7 | -2,475,676.8 | 4,951,367.6 | 10.53 | 25.09 | 4.51 | 1.96 |
-| Piecewise hazard | 13 | -2,462,197.4 | 4,924,420.8 | 9.93 | 24.98 | 4.62 | 3.64 |
-
-The AIC values use the survey-weighted likelihood and are best interpreted as
-within-analysis fit diagnostics rather than conventional design-based model
-selection statistics. Even after charging for six additional parameters, the
-piecewise model improves AIC by about 26,947 relative to the power-law model.
-The status-error estimate falls modestly to 9.93%, while tenure contamination
-remains essentially unchanged at 24.98%.
-
-| Duration interval | Exit hazard | Exit probability per quarter (%) | Entry hazard | Entry probability per quarter (%) |
-|:--|--:|--:|--:|--:|
-| 0--3 months | 0.3420 | 8.35 | 0.5060 | 9.15 |
-| 3--12 months | 0.3558 | 8.51 | 0.2620 | 6.34 |
-| 1--3 years | 0.1757 | 4.30 | 0.1098 | 2.71 |
-| 3--5 years | 0.1522 | 3.73 | 0.1177 | 2.90 |
-| 5+ years | 0.1353 | 3.33 | 0.1425 | 3.50 |
-
-Annualized hazard levels are shown alongside exact model-implied quarterly
-probabilities. Exit risk is approximately flat during the first year and then
-falls sharply. Entry risk falls steeply through the first three years of
-nonemployment, but levels off and rises modestly in the longest-duration
-groups. The power law cannot represent this long-duration flattening and
-instead drives its slope towards the heavy-tail boundary.
-
-The piecewise model implies mean employment and nonemployment durations of
-67.0 and 76.7 months, with medians of 35.3 and 51.4 months. This eliminates the
-power-law model's implausible 1,257-month mean nonemployment duration without
-forcing entry to remain constant. The aggregate entry estimate correspondingly
-rises from 1.96% under the power law to 3.64%, much closer to the 4.08%
-constant-hazard estimate. The substantive conclusion is therefore that entry
-falls strongly at first but does not continue approaching zero indefinitely.
-
-Two non-flat starts reached the same solution to displayed precision; a flat
-start encountered a non-finite line search. A tighter BFGS refinement left all
-reported estimates unchanged. Direct likelihood profiles increase on either
-side of the solution. With a finite-difference step appropriate to the
-interval integrations, the maximum scaled gradient is $2.0\times10^{-4}$; a
-smaller step gives a spurious gradient because it falls below numerical
-integration precision. No hazard is close to its numerical bound. These checks
-support a stable point estimate, although standard errors or profile intervals
-are still required before treating the modest rebound in long-duration entry
-as precisely estimated.
-
-The reproducible runner is
-`EM-tenure/estimate_piecewise_hazard_tenure_contamination.R`; generated fit
-objects and CSV tables remain ignored by Git. No bootstrap errors have been
-estimated.
-
-# Contamination in reported time since employment
-
-The piecewise-hazard model was extended to relax its remaining error-free
-duration-report assumption. Conditional on a latent nonemployment continuation
-and reported nonemployment at consecutive waves, the follow-up timegap category
-is clock-consistent with probability $1-\epsilon_d$. With probability
-$\epsilon_d$, it is an independent draw from the model-implied marginal
-timegap-category distribution. Marginal and isolated timegap reports have the
-same distribution under both branches and therefore do not identify
-$\epsilon_d$. This one-parameter specification exactly nests the preceding
-model at $\epsilon_d=0$ and avoids an underidentified unrestricted $7\times7$
-reporting-error matrix.
-
-| Quantity | Timegap exact | Timegap contamination |
-|:--|--:|--:|
-| Weighted log likelihood | -2,462,197.4 | -2,330,075.3 |
-| AIC | 4,924,420.8 | 4,660,178.6 |
-| Initial employment (%) | 55.02 | 48.30 |
-| Status misclassification (%) | 9.93 | 2.33 |
-| Tenure contamination (%) | 24.98 | 25.22 |
-| Follow-up timegap contamination (%) | 0 | 28.04 |
-| Risk- and survey-weighted quarterly exit (%) | 4.62 | 4.42 |
-| Risk- and survey-weighted quarterly entry (%) | 3.64 | 3.13 |
-| Mean employment duration (months) | 67.0 | 69.6 |
-| Mean nonemployment duration (months) | 76.7 | 95.6 |
-
-The likelihood gain is very large: the boundary likelihood-ratio statistic is
-264,244 for one additional parameter. This formal statistic uses the normalized
-survey-weighted likelihood and should be read as a within-analysis diagnostic,
-but the magnitude leaves no ambiguity about fit. The new estimate is
-$\widehat\epsilon_d=0.2804$, with a naive observed-information standard error of
-0.0011. The information matrix has full rank (14/14), a positive minimum
-eigenvalue, and a condition number of approximately 45. A conditional
-likelihood slice is sharply maximized near 0.28. Two starts converge to the same
-optimum and the BFGS refinement reproduces it; a deliberately high-error,
-perturbed start terminates at a substantially inferior solution.
-
-| Duration interval | Exit probability per quarter (%) | Entry probability per quarter (%) |
-|:--|--:|--:|
-| 0--3 months | 7.79 | 7.66 |
-| 3--12 months | 7.90 | 5.00 |
-| 1--3 years | 4.23 | 2.27 |
-| 3--5 years | 3.67 | 2.57 |
-| 5+ years | 3.27 | 2.82 |
-
-Among posterior-weighted latent nonemployment continuations with two reported
-nonemployment observations, 28.2% of wave-1-to-2 and 27.9% of wave-2-to-3
-follow-up reports are assigned to the contaminated branch. About 15.6% and
-15.0%, respectively, are impossible under the clean clock transition and must
-enter that branch; the remainder reflects probabilistic reallocation among
-clock-feasible reports.
-
-The main interpretive change is that the error-free timegap assumption was
-forcing the status-error parameter to explain incompatible duration-category
-movements. Once timegap contamination is admitted, inferred status error falls
-from roughly 10% to 2.3%, while tenure contamination remains close to 25%.
-Thus the evidence for substantial inconsistency in duration reports is robust,
-but the earlier piecewise model overstated how much of that inconsistency had
-to be attributed to employment-status misclassification. The entry profile
-still falls sharply with nonemployment duration and then flattens, although its
-level is modestly lower and the implied mean nonemployment spell is longer.
-
-The reproducible runner is `EM-tenure/estimate_timegap_contamination.R`.
-Generated fit objects and diagnostic CSV files remain ignored by Git. No
-bootstrap has been run; the reported standard error is a naive numerical
-observed-information approximation.
-
-## Could unobserved within-quarter employment explain timegap contamination?
-
-The fitted posterior was decomposed without re-estimating the model. For a
-person who is nonemployed at both quarterly interviews, an unobserved
-$N\rightarrow E\rightarrow N$ sequence can reset time since employment, but
-the new nonemployment spell must be shorter than three months. Consequently,
-only a clock-inconsistent follow-up in category 1 is reset-compatible. An
-inconsistent follow-up in categories 2--7 cannot be generated by an intervening
-employment spell within the interview interval.
-
-| Interview interval | Clock-feasible (%) | Reset-compatible contradiction (%) | Other contradiction (%) | Posterior contamination (%) |
-|:--|--:|--:|--:|--:|
-| Wave 1 to wave 2 | 84.42 | 2.82 | 12.76 | 28.20 |
-| Wave 2 to wave 3 | 84.95 | 2.98 | 12.07 | 27.87 |
-
-Shares use survey weights multiplied by the posterior probability of a latent
-nonemployment continuation. All clock-impossible observations have posterior
-contamination probability one. Among clock-feasible reports, the average
-posterior contamination probability is 14.96% in the first interval and 15.09%
-in the second. Thus the fitted contamination mass has three approximately
-distinct components: around 10% comes from potentially hidden spell resets,
-43--45% from contradictions that a reset cannot explain, and 45--46% from
-clock-feasible observations that fit the marginal contamination distribution
-better than the conditional clock distribution.
-
-This rules out unobserved within-quarter employment as the principal explanation
-for the 28% estimate. Allowing multiple transitions could absorb at most the
-roughly three-percentage-point reset-compatible share under the maintained
-quarterly timing. The more important next robustness check is therefore the
-shape and dependence structure of the timegap-contamination distribution,
-rather than immediately adding a computationally expensive multiple-transition
-process.
-
-The reproducible decomposition is
-`EM-tenure/diagnose_timegap_contamination.R`; its generated category-cell and
-mechanism tables remain ignored by Git.
-
-## Robustness to the timegap-contamination distribution
-
-Two alternative one-parameter contamination models were estimated with the
-same piecewise hazards. First, a local category-error model gives greatest mass
-to the categories reachable from the preceding report and exponentially less
-mass to more distant categories. Second, a joint model gives each timegap
-report its own clean/contaminated indicator. Clean reports remain linked around
-a contaminated middle wave, while contaminated reports are independent draws
-from the model-implied marginal distribution. For a two-report block, a
-per-wave contamination probability $\epsilon_d$ implies pair contamination
-$1-(1-\epsilon_d)^2$.
-
-| Model | Weighted log likelihood | AIC | Status error (%) | Tenure contamination (%) | Timegap parameter (%) | Comparable pair contamination (%) | Weighted exit (%) | Weighted entry (%) |
-|:--|--:|--:|--:|--:|--:|--:|--:|--:|
-| Timegap exact | -2,462,197.4 | 4,924,420.8 | 9.93 | 24.98 | 0 | 0 | 4.62 | 3.64 |
-| Independent marginal follow-up | -2,330,075.3 | 4,660,178.6 | 2.33 | 25.22 | 28.04 | 28.04 | 4.42 | 3.13 |
-| Local category follow-up | -2,343,051.4 | 4,686,130.8 | 3.02 | 25.22 | 39.20 | 39.20 | 4.43 | 2.91 |
-| Joint per-wave marginal | -2,320,294.9 | 4,640,617.9 | 2.32 | 25.21 | 16.62 | 30.48 | 4.42 | 3.15 |
-
-The local model fits less well than the independent marginal contamination
-model because it gives relatively little probability to the large category
-contradictions in the data. It consequently estimates a larger contamination
-share, 39.2%. Nevertheless, the status-error estimate rises only modestly to
-3.0%, tenure contamination remains 25.2%, and the exit and entry profiles retain
-the same shapes. Thus the main reallocation away from status error is not an
-artifact of using the marginal duration distribution for contaminated reports.
-
-The joint model fits best despite having the same number of parameters as the
-other contamination specifications. Its 16.62% per-report probability implies
-a 30.48% probability that at least one report in a two-wave pair is
-contaminated, close to the original conditional estimate of 28.04%. Status
-error is 2.32%, tenure contamination is 25.21%, and the aggregate transition
-rates and duration-specific hazards are almost identical to the independent
-marginal model. Linking clean flanks around a contaminated middle report
-therefore improves fit without changing the substantive conclusions.
-
-The joint model implies quarterly entry probabilities of 7.88%, 5.07%, 2.27%,
-2.57%, and 2.83% across the five duration intervals, compared with 7.66%, 5.00%,
-2.27%, 2.57%, and 2.82% in the original contamination model. Exit probabilities
-differ by less than 0.03 percentage points in every interval. The joint model's
-mean employment and nonemployment durations are 69.6 and 94.8 months.
-
-Each successful optimum was reproduced by a tighter BFGS refinement, with
-maximum scaled gradients of $2.1\times10^{-6}$ for the local model and
-$2.5\times10^{-6}$ for the joint model. The deliberately low-contamination
-BFGS starts stepped into invalid near-zero hazards and were rejected; the
-higher starts converged to the reported optima. Future robustness runs retain
-positive hazard transforms, but bounded preliminary optimization is preferable
-when exploring more distant starts.
-
-The reproducible runner is
-`EM-tenure/estimate_timegap_contamination_robustness.R`; generated fits and CSV
-tables remain ignored by Git. These results support using the joint per-wave
-model as the preferred timegap-contamination specification, while retaining the
-local model as a distributional robustness check.
-
-# Transition-only no-error duration counterfactual
-
-As an out-of-likelihood diagnostic, conventional no-status-error AR(1) and
-AR(2) transition models were estimated using only reported employment changes
-and origin-wave durations. Entry and exit depend on four-degree-of-freedom
-natural splines in log time since employment and log tenure, respectively;
-the AR(2) model additionally includes the second employment lag. Interval
-indicators are included in both models. Destination-wave durations do not enter
-either transition likelihood.
-
-Starting from each observed origin state and duration, the fitted model is used
-to propagate the spell clock when the state persists and reset it within the
-three-month interview interval when the state changes. The resulting
-counterfactual is compared with the held-out destination duration.
-
-| No-error clock contradiction | AR(1) | AR(2) |
-|:--|--:|--:|
-| Apparent entry followed by tenure over three months | 63.0 | 62.8 |
-| Apparent exit followed by timegap over three months | 65.5 | 63.9 |
-| Employment continuation with an inconsistent tenure clock | 33.4 | 30.7 |
-| Nonemployment continuation with an unreachable timegap category | 19.8 | 18.6 |
-
-Entries are survey-weighted percentages. Exact three-month tenure is treated as
-admissible, and tenure continuations allow a one-month reporting tolerance. The
-AR(1) observed quarterly entry and exit rates are 8.23% and 8.47%; the AR(2)
-sample rates are 7.78% and 7.83%. The fitted flexible transition models match
-these average changes but cannot reconcile them with the destination spell
-clocks: only 37.0% of apparent entrants report admissible tenure in the AR(1)
-sample, and only 34.5% of apparent exits report a timegap below three months.
-Among apparent exits, 26.0% report that they have never worked.
-
-The transition-conditional comparison is more informative than the marginal
-duration stocks. Since only about 8% of respondents change reported state per
-quarter, unconditional tenure and timegap distributions remain fairly similar
-after counterfactual propagation even though most reported changes conflict
-with the destination duration. In the tenure CDF overlay, the empirical and
-simulated curves therefore nearly coincide when all employed destination waves
-are pooled. Among apparent entrants, however, the simulated no-error CDF reaches
-one by three months while the empirical CDF reaches only 37.0% (AR(1)) or 37.2%
-(AR(2)). Continuation-clock inconsistencies are weaker
-evidence because an unobserved exit and re-entry between interviews could reset
-a spell without changing endpoint status. In contrast, tenure over three months
-after a reported nonemployment-to-employment change, or a long timegap after an
-employment-to-nonemployment change, cannot be generated by a genuine transition
-within that interview interval.
-
-These diagnostics do not establish whether employment status, duration, or the
-longitudinal match is at fault. They show that the reported transition and
-duration histories cannot jointly be correct, motivating a model that reconciles
-both sources rather than treating reported employment changes as truth. The
-reproducible runner is
-`diagnostics/estimate_no_error_duration_counterfactual.R`; generated figures
-and CSV summaries are ignored by Git.
-
-# Remaining checks
-
-Before final submission, the analytical standard errors should ideally be
-compared with a person-level bootstrap. If the survey extract can be augmented
-with strata and PSU identifiers, design-based clustered inference would also be
-preferable. The main qualitative conclusions should be assessed against those
-two alternatives, while retaining the current analytical estimates as a fast
-and reproducible diagnostic.
+\newpage
+
+# Detailed changes to code and estimation
+
+The preceding numbered sections, tables, interpretations, and to-do lists are
+identical to the short summary. This section records the additional estimation
+and implementation detail needed to reproduce and audit those results.
+
+## Tables 1--2: exact baseline likelihood and matching robustness
+
+The three-wave baseline estimator works with the exact eight possible observed
+employment histories. Collapsing to these histories preserves the weighted
+observed likelihood while making multiple-start optimization inexpensive. All
+probabilities are represented by unconstrained logits. Stationary models impose
+the restriction inside the likelihood; free-initial-condition models estimate
+the initial employment probability separately.
+
+The pipeline uses nested warm starts and dispersed deterministic starts, checks
+the analytical score against numerical derivatives, requires positive-definite
+observed information, and verifies that each unrestricted specification weakly
+dominates its nested restriction. Saved fits carry the panel identity, sample
+signature, sample size, total weight, likelihood, and optimizer diagnostics so
+the table builder can reject stale results.
+
+Table 2 reruns the nonstationary no-error and symmetric-error models on panels
+A, B, and C. These panels apply progressively stricter longitudinal matching
+rules. The sensitivity script changes the panel input explicitly rather than
+silently modifying the default ingestion path, which remains
+`df_qlfs_A.rds`.
+
+## Table 3: observed indicators of linked-record reliability
+
+The inconsistency likelihood permits the symmetric status-error probability to
+depend on age inconsistency, education inconsistency, both inconsistencies, and
+in the expanded models the magnitude of those discrepancies. The most recent
+specifications also include indicators for observations retained in panel B
+but not C and in panel A but not B. These indicators are constructed using the
+same nested matching algorithm as Table 2.
+
+The EM update for the error equation now maximizes its correct conditional
+objective. Both stationary and free-initial-condition results are retained,
+and the robustness model allows true entry and exit rates to differ across
+reliability groups. Reported means use the same survey and posterior weighting
+conventions as the other tables. The mechanism language remains deliberately
+neutral: inconsistencies may reflect response problems, incorrect longitudinal
+matches, or both.
+
+## Table 4: observable transition heterogeneity
+
+Sets 1--4 are nested. Set 1 contains age, age squared, and education; Set 2 adds
+race and sex; Set 3 adds origin-wave log tenure to persistence and origin-wave
+log time since work plus never-worked status to entry; Set 4 adds origin-wave
+contract type and informal-sector status to persistence. Contract type and
+sector may change between transitions. They do not enter entry because they are
+undefined for a genuinely nonemployed origin state, so respondents are retained
+without assigning artificial job characteristics.
+
+The eight constant-error/no-error specifications retain the repaired
+generalized-EM implementation: normalized weights, joint transition-block
+updates, likelihood-preserving backtracking, nested starts, and explicit
+convergence and nesting checks. Posterior risk-set and survey-weighted hazards
+replace unweighted averages. Individual-level survey-weighted sandwich
+covariances and delta-method transformations provide approximate analytical
+errors where bootstrap estimates are unavailable.
+
+Column (9) is estimated by the exact observed likelihood rather than by the old
+separable M-step. It combines the Set 4 transition equations with a symmetric
+error probability depending on the full Table 3 reliability specification:
+age and education inconsistencies, severity indicators, panel B but not C, and
+panel A but not B. Five starts were evaluated. The polished solution has 30 of
+30 information-matrix directions identified, condition number about 18,126,
+and maximum normalized score $1.1\times10^{-8}$. The new mean entry, exit, and
+error rates are 4.67%, 4.62%, and 2.55%. Detailed error slopes and implied
+reliability-specific rates appear in Appendix Table A3B.
+
+## Table 5: four-wave AR(1) and AR(2)
+
+The four-wave modules enumerate latent histories and evaluate the exact
+collapsed observed likelihood. The AR(1) benchmark has free initial employment
+and symmetric error. The unrestricted AR(2) allows the previous two latent
+states to determine the next transition. Its duration-controlled specification
+adds the same state-appropriate tenure and time-since-work variables used in
+Table 4 and permits those variables to change with the origin wave.
+
+The analytical covariance uses the observed information and collapsed
+person-level score outer products. The duration-controlled AR(2) information
+matrix is locally full rank, although its high condition number means the
+initial-state and missing-duration directions warrant caution.
+
+The new extension is estimated as three exact nested likelihoods on the same
+308,240 observations. The first combines AR(2) with the Table 4 Set 4 transition
+equations and constant symmetric error. The second adds age/education
+inconsistency and severity predictors to the error equation. The third adds
+panel B-not-C and panel A-not-B matching-quality predictors. Stage-specific
+collapsing leaves 197,933, 220,795, and 228,195 exact cells. Each stage uses two
+substantively distinct starts, checks likelihood nesting, applies an
+observed-information Newton correction where useful, and is accepted only with
+a maximum normalized score below $2\times10^{-5}$ and full information rank.
+The final scores are $2.8\times10^{-6}$, $4.2\times10^{-6}$, and
+$2.8\times10^{-6}$. All three models are locally full rank, but condition
+numbers rise from about 746,558 to 2,800,426, motivating profile and
+long-start sensitivity checks. Appendix Table A4C is generated from a separate
+prospective decomposition that conditions only on the two reports forming an
+apparent transition and integrates out the subsequent report.
+
+## Table 6: finite-mixture heterogeneity
+
+The two-type four-wave model uses exact likelihood refinement after EM warm
+starts, label normalization, multiple starts, and analytical sandwich/delta
+inference. The comparison now contains the no-error FMM, the uncontrolled
+symmetric-error FMM, the controlled common-error model, and the controlled
+type-specific-error model in one table. Observed transition slopes are common
+across latent types in the parsimonious controlled models, while type-specific
+intercepts retain mobility heterogeneity.
+
+Age and education inconsistencies determine error risk without assigning them
+to a particular behavioral mechanism. The preferred type-specific model allows
+the two classes to have different error intercepts and common inconsistency
+slopes. Its local information matrix is full rank. The failed three-wave
+symmetric-error FMM is not reported as an identified result: three waves do not
+separate two-type transition heterogeneity from symmetric misclassification.
+
+## Table 7: endogenous duration dependence
+
+The tenure-contamination module preserves the central consistency restriction:
+latent employment paths must agree with clean reported tenure and time-since-
+work clocks. Successive specifications relax constant transition hazards,
+integrate unavailable wrong-state clocks, use tail-safe piecewise hazards, and
+allow alternative contamination processes for tenure and timegap reports.
+These are likelihood changes, not presentation-only adjustments.
+
+The preferred timegap treatment is the joint per-wave marginal-contamination
+model. The table reports approximate analytical errors from the full numerical
+observed-information matrix and delta method, not bootstrap errors. Appendix
+Table A6 retains hazard profiles, auxiliary comparisons, wrong-state-clock
+integration checks, and the within-quarter reset decomposition.
+
+## Appendix Table A7: no-error duration counterfactual
+
+The counterfactual diagnostic estimates flexible no-status-error AR(1) and
+AR(2) transition models without using destination-wave durations in the
+likelihood. It then propagates implied spell clocks and compares them with the
+held-out reported tenure and timegap. Large conditional contradictions show
+that reported employment changes and duration histories cannot generally both
+be correct. The exercise motivates joint modeling but does not distinguish
+response inconsistency from longitudinal matching error.
+
+## Reproducibility and generated files
+
+`build_tables.R` generates Tables 1, 3, and 4 and their coefficient appendices;
+the matching-sensitivity runner generates Table 2. The four-wave and duration
+modules retain their own reproducible runners, tests, result summaries, and
+diagnostic outputs. Confidential data and intermediate fitted objects remain
+ignored by Git. Curated paper-facing snapshots and both summary sources are
+tracked. A complete rerun still requires the confidential QLFS inputs and the R
+environment recorded by `renv`.
+
+The remaining inference priorities are the person-level bootstrap for the main
+covariate and duration specifications, robustness to alternative reliability
+links, and likelihood-profile and longer-start checks for the ill-conditioned
+Table 5 Set 4 AR(2) extensions.
