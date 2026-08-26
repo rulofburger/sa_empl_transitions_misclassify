@@ -3,153 +3,154 @@
 \contentsline {subsection}{\numberline {2.1}The Quarterly Labour Force Survey}{14}{subsection.2.1}%
 \contentsline {subsection}{\numberline {2.2}The empirical puzzle}{15}{subsection.2.2}%
 \contentsline {subsection}{\numberline {2.3}Evidence of measurement error}{16}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Tenure and duration data}{16}{subsection.2.4}%
 \contentsline {section}{\numberline {3}Methodology}{18}{section.3}%
 \contentsline {subsection}{\numberline {3.1}Baseline model}{18}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Extensions}{20}{subsection.3.2}%
-\contentsline {subsubsection}{\numberline {3.2.1}Observable worker heterogeneity}{21}{subsubsection.3.2.1}%
-\contentsline {subsubsection}{\numberline {3.2.2}Finite mixture model for unobserved heterogeneity}{21}{subsubsection.3.2.2}%
-\contentsline {subsubsection}{\numberline {3.2.3}Inconsistency-augmented misclassification}{22}{subsubsection.3.2.3}%
-\contentsline {subsubsection}{\numberline {3.2.4}AR(2) extension}{22}{subsubsection.3.2.4}%
-\contentsline {subsubsection}{\numberline {3.2.5}Tenure contamination model}{23}{subsubsection.3.2.5}%
-\contentsline {subsection}{\numberline {3.3}Matching and sample construction}{24}{subsection.3.3}%
-\contentsline {section}{\numberline {4}Main Results}{25}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Baseline estimates}{25}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Observable worker heterogeneity}{26}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Unobserved worker heterogeneity}{27}{subsection.4.3}%
-\contentsline {subsection}{\numberline {4.4}Inconsistency-augmented misclassification}{27}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Alternative Specifications}{28}{section.5}%
-\contentsline {subsection}{\numberline {5.1}AR(2): second-order Markov dynamics}{28}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Tenure contamination model}{34}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Matching algorithm sensitivity}{35}{subsection.5.3}%
-\contentsline {section}{\numberline {6}Conclusion}{36}{section.6}%
-\contentsline {section}{\numberline {A}Baseline EM algorithm: full derivation}{47}{section.A}%
-\contentsline {subsection}{\numberline {A.1}Model}{47}{subsection.A.1}%
-\contentsline {subsubsection}{\numberline {A.1.1}States and notation}{47}{subsubsection.A.1.1}%
-\contentsline {subsubsection}{\numberline {A.1.2}True dynamics: first-order Markov chain}{47}{subsubsection.A.1.2}%
-\contentsline {subsubsection}{\numberline {A.1.3}Observation model: state misclassification}{48}{subsubsection.A.1.3}%
-\contentsline {subsubsection}{\numberline {A.1.4}Observed-data likelihood}{48}{subsubsection.A.1.4}%
-\contentsline {subsection}{\numberline {A.2}EM algorithm}{49}{subsection.A.2}%
-\contentsline {subsubsection}{\numberline {A.2.1}Complete-data formulation}{49}{subsubsection.A.2.1}%
-\contentsline {subsubsection}{\numberline {A.2.2}E-step: responsibilities}{50}{subsubsection.A.2.2}%
-\contentsline {paragraph}{Sufficient statistics.}{50}{section*.19}%
-\contentsline {subsubsection}{\numberline {A.2.3}M-step: parameter updates}{51}{subsubsection.A.2.3}%
-\contentsline {paragraph}{Transition probabilities (closed form).}{51}{section*.20}%
-\contentsline {paragraph}{Misclassification probability (closed form).}{52}{section*.21}%
-\contentsline {paragraph}{Summary.}{52}{section*.22}%
-\contentsline {subsubsection}{\numberline {A.2.4}Iteration and convergence}{52}{subsubsection.A.2.4}%
-\contentsline {paragraph}{Practical considerations.}{53}{section*.23}%
-\contentsline {subsubsection}{\numberline {A.2.5}Equivalence to direct numerical maximisation}{53}{subsubsection.A.2.5}%
-\contentsline {subsection}{\numberline {A.3}Identification}{54}{subsection.A.3}%
-\contentsline {paragraph}{Observed cell probabilities.}{54}{section*.24}%
-\contentsline {paragraph}{Identification without misclassification.}{54}{section*.25}%
-\contentsline {paragraph}{Identification with misclassification.}{55}{section*.26}%
-\contentsline {paragraph}{Counting argument.}{56}{section*.27}%
-\contentsline {paragraph}{Overidentification and specification testing.}{56}{section*.28}%
-\contentsline {subsection}{\numberline {A.4}Asymmetric misclassification}{56}{subsection.A.4}%
-\contentsline {subsection}{\numberline {A.5}Extension I: Observable heterogeneity}{57}{subsection.A.5}%
-\contentsline {subsubsection}{\numberline {A.5.1}Motivation}{57}{subsubsection.A.5.1}%
-\contentsline {subsubsection}{\numberline {A.5.2}Covariate specification}{58}{subsubsection.A.5.2}%
-\contentsline {subsubsection}{\numberline {A.5.3}EM algorithm with covariates}{59}{subsubsection.A.5.3}%
-\contentsline {paragraph}{E-step.}{59}{section*.29}%
-\contentsline {paragraph}{M-step: transition coefficients (GEM).}{59}{section*.30}%
-\contentsline {paragraph}{M-step: misclassification (closed form).}{60}{section*.31}%
-\contentsline {paragraph}{Parameter count and identification.}{60}{section*.32}%
-\contentsline {subsection}{\numberline {A.6}Extension II: Duration dependence}{60}{subsection.A.6}%
-\contentsline {subsubsection}{\numberline {A.6.1}Motivation}{60}{subsubsection.A.6.1}%
-\contentsline {subsubsection}{\numberline {A.6.2}Specification}{60}{subsubsection.A.6.2}%
-\contentsline {subsubsection}{\numberline {A.6.3}The missing-covariate challenge}{61}{subsubsection.A.6.3}%
-\contentsline {subsection}{\numberline {A.7}Extension III: Unobserved heterogeneity}{62}{subsection.A.7}%
-\contentsline {subsubsection}{\numberline {A.7.1}Motivation}{62}{subsubsection.A.7.1}%
-\contentsline {subsubsection}{\numberline {A.7.2}Two-type FMM specification}{62}{subsubsection.A.7.2}%
-\contentsline {paragraph}{Observed-data likelihood.}{63}{section*.33}%
-\contentsline {subsubsection}{\numberline {A.7.3}EM algorithm for the FMM}{63}{subsubsection.A.7.3}%
-\contentsline {paragraph}{Complete-data formulation.}{63}{section*.34}%
-\contentsline {paragraph}{E-step: joint responsibilities.}{63}{section*.35}%
-\contentsline {paragraph}{M-step: type weights (closed form).}{64}{section*.36}%
-\contentsline {paragraph}{M-step: type-specific transition probabilities (closed form).}{64}{section*.37}%
-\contentsline {paragraph}{M-step: misclassification (closed form, pooled).}{64}{section*.38}%
-\contentsline {paragraph}{Parameter count and identification.}{65}{section*.39}%
-\contentsline {subsection}{\numberline {A.8}Extension IV: Inconsistency-augmented misclassification}{65}{subsection.A.8}%
-\contentsline {subsubsection}{\numberline {A.8.1}Motivation}{65}{subsubsection.A.8.1}%
-\contentsline {subsubsection}{\numberline {A.8.2}Inconsistency indicators}{66}{subsubsection.A.8.2}%
-\contentsline {paragraph}{Age inconsistencies.}{66}{section*.40}%
-\contentsline {paragraph}{Education inconsistencies.}{66}{section*.41}%
-\contentsline {subsubsection}{\numberline {A.8.3}Extended misclassification model}{66}{subsubsection.A.8.3}%
-\contentsline {paragraph}{Baseline parameters.}{67}{section*.42}%
-\contentsline {subsubsection}{\numberline {A.8.4}EM algorithm with inconsistency indicators}{67}{subsubsection.A.8.4}%
-\contentsline {paragraph}{E-step.}{67}{section*.43}%
-\contentsline {paragraph}{M-step: misclassification coefficients (GEM).}{67}{section*.44}%
-\contentsline {paragraph}{M-step: transition probabilities (closed form).}{68}{section*.45}%
-\contentsline {paragraph}{Interpretation.}{68}{section*.46}%
-\contentsline {section}{\numberline {B}AR(2) extension: full derivation}{68}{section.B}%
-\contentsline {subsection}{\numberline {B.1}Motivation}{68}{subsection.B.1}%
-\contentsline {subsection}{\numberline {B.2}Model}{69}{subsection.B.2}%
-\contentsline {subsubsection}{\numberline {B.2.1}States and notation}{69}{subsubsection.B.2.1}%
-\contentsline {subsubsection}{\numberline {B.2.2}True dynamics: second-order Markov chain}{69}{subsubsection.B.2.2}%
-\contentsline {subsubsection}{\numberline {B.2.3}Stationary distribution}{70}{subsubsection.B.2.3}%
-\contentsline {subsubsection}{\numberline {B.2.4}Prior probability of a latent history}{71}{subsubsection.B.2.4}%
-\contentsline {subsubsection}{\numberline {B.2.5}Observed-data likelihood}{71}{subsubsection.B.2.5}%
-\contentsline {subsection}{\numberline {B.3}EM algorithm}{71}{subsection.B.3}%
-\contentsline {subsubsection}{\numberline {B.3.1}E-step: responsibilities}{72}{subsubsection.B.3.1}%
-\contentsline {paragraph}{Sufficient statistics.}{72}{section*.47}%
-\contentsline {subsubsection}{\numberline {B.3.2}M-step: parameter updates}{72}{subsubsection.B.3.2}%
-\contentsline {paragraph}{Transition probabilities (closed form).}{73}{section*.48}%
-\contentsline {paragraph}{Misclassification probability (closed form).}{73}{section*.49}%
-\contentsline {paragraph}{Summary.}{73}{section*.50}%
-\contentsline {subsubsection}{\numberline {B.3.3}Iteration and convergence}{73}{subsubsection.B.3.3}%
-\contentsline {subsubsection}{\numberline {B.3.4}Testing for second-order dependence}{74}{subsubsection.B.3.4}%
-\contentsline {subsection}{\numberline {B.4}Identification}{74}{subsection.B.4}%
-\contentsline {paragraph}{Identification without misclassification.}{74}{section*.51}%
-\contentsline {paragraph}{Identification with misclassification.}{74}{section*.52}%
-\contentsline {section}{\numberline {C}Tenure contamination model: full derivation}{75}{section.C}%
-\contentsline {subsection}{\numberline {C.1}Motivation}{75}{subsection.C.1}%
-\contentsline {subsection}{\numberline {C.2}Notation and terminology}{77}{subsection.C.2}%
-\contentsline {subsection}{\numberline {C.3}Tenure measurement model}{78}{subsection.C.3}%
-\contentsline {subsubsection}{\numberline {C.3.1}Spell-length distribution: Exponential}{78}{subsubsection.C.3.1}%
-\contentsline {subsubsection}{\numberline {C.3.2}Contamination model: point-mass + Exponential}{79}{subsubsection.C.3.2}%
-\contentsline {subsubsection}{\numberline {C.3.3}Latent clock and spell-pair structure}{79}{subsubsection.C.3.3}%
-\contentsline {subsubsection}{\numberline {C.3.4}Per-spell tenure emission (the key innovation)}{80}{subsubsection.C.3.4}%
-\contentsline {paragraph}{Singletons (\(K = 1\)).}{81}{section*.53}%
-\contentsline {paragraph}{Pairs (\(K = 2\)): the identification-critical case.}{81}{section*.54}%
-\contentsline {paragraph}{Why this is the engine of identification.}{81}{section*.55}%
-\contentsline {paragraph}{Triples (\(K = 3\)).}{82}{section*.56}%
-\contentsline {paragraph}{Posterior contamination probability.}{82}{section*.57}%
-\contentsline {subsubsection}{\numberline {C.3.5}N-spell timegap emission}{83}{subsubsection.C.3.5}%
-\contentsline {subsubsection}{\numberline {C.3.6}Per-wave emissions for non-spell-pair cases}{83}{subsubsection.C.3.6}%
-\contentsline {subsubsection}{\numberline {C.3.7}State misclassification}{84}{subsubsection.C.3.7}%
-\contentsline {subsubsection}{\numberline {C.3.8}Observed-data likelihood}{84}{subsubsection.C.3.8}%
-\contentsline {subsection}{\numberline {C.4}EM algorithm}{85}{subsection.C.4}%
-\contentsline {subsubsection}{\numberline {C.4.1}Complete-data formulation}{85}{subsubsection.C.4.1}%
-\contentsline {subsubsection}{\numberline {C.4.2}E-step}{85}{subsubsection.C.4.2}%
-\contentsline {paragraph}{Responsibilities.}{85}{section*.58}%
-\contentsline {paragraph}{Posterior contamination probabilities.}{85}{section*.59}%
-\contentsline {subsubsection}{\numberline {C.4.3}M-step}{86}{subsubsection.C.4.3}%
-\contentsline {paragraph}{Markov prior block}{86}{section*.60}%
-\contentsline {paragraph}{Misclassification}{86}{section*.61}%
-\contentsline {paragraph}{Tenure contamination}{86}{section*.62}%
-\contentsline {paragraph}{Spell-length rate}{86}{section*.63}%
-\contentsline {paragraph}{Nonemployment rate}{87}{section*.64}%
-\contentsline {subsection}{\numberline {C.5}Identification}{87}{subsection.C.5}%
-\contentsline {subsubsection}{\numberline {C.5.1}Block separation of the complete-data log-likelihood}{87}{subsubsection.C.5.1}%
-\contentsline {subsubsection}{\numberline {C.5.2}Identification of \(\varepsilon \)}{87}{subsubsection.C.5.2}%
-\contentsline {subsubsection}{\numberline {C.5.3}Identification of \(\pi \) (the corroboration channel)}{88}{subsubsection.C.5.3}%
-\contentsline {subsubsection}{\numberline {C.5.4}How \(\varepsilon \) affects the responsibilities}{89}{subsubsection.C.5.4}%
-\contentsline {paragraph}{Mechanism.}{89}{section*.65}%
-\contentsline {paragraph}{Clock-consistent observations (\(g_3 = g_1 + 2\Delta \)).}{89}{section*.66}%
-\contentsline {paragraph}{Clock-inconsistent observations (\(g_3 \neq g_1 + 2\Delta \)).}{90}{section*.67}%
-\contentsline {paragraph}{Discrimination power.}{90}{section*.68}%
-\contentsline {subsubsection}{\numberline {C.5.5}Identification of \(\lambda _g\)}{91}{subsubsection.C.5.5}%
-\contentsline {subsection}{\numberline {C.6}Comparison with base EM tenure model}{91}{subsection.C.6}%
-\contentsline {subsubsection}{\numberline {C.6.1}Why no \(\varepsilon _d\) for timegap}{91}{subsubsection.C.6.1}%
-\contentsline {subsubsection}{\numberline {C.6.2}Why no \(\rho \) (full mismatch)}{92}{subsubsection.C.6.2}%
-\contentsline {subsection}{\numberline {C.7}Nesting and tests}{92}{subsection.C.7}%
-\contentsline {paragraph}{Nesting.}{92}{section*.69}%
-\contentsline {paragraph}{LR test of \(\varepsilon = 0\).}{92}{section*.70}%
-\contentsline {paragraph}{LR test of CTMC-link.}{92}{section*.71}%
-\contentsline {subsection}{\numberline {C.8}Preliminary results}{93}{subsection.C.8}%
-\contentsline {subsubsection}{\numberline {C.8.1}Descriptive evidence from the QLFS}{93}{subsubsection.C.8.1}%
-\contentsline {subsubsection}{\numberline {C.8.2}Estimation results}{94}{subsubsection.C.8.2}%
-\contentsline {paragraph}{Contamination rate.}{95}{section*.74}%
-\contentsline {paragraph}{Misclassification rate.}{95}{section*.75}%
-\contentsline {paragraph}{Transition rates.}{96}{section*.76}%
-\contentsline {subsection}{\numberline {C.9}Summary}{96}{subsection.C.9}%
+\contentsline {subsection}{\numberline {3.2}Extensions}{23}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Observable worker heterogeneity}{23}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}Finite mixture model for unobserved heterogeneity}{23}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3.2.3}Inconsistency-augmented misclassification}{24}{subsubsection.3.2.3}%
+\contentsline {subsubsection}{\numberline {3.2.4}AR(2) extension}{25}{subsubsection.3.2.4}%
+\contentsline {subsubsection}{\numberline {3.2.5}Tenure contamination model}{25}{subsubsection.3.2.5}%
+\contentsline {subsection}{\numberline {3.3}Matching and sample construction}{26}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Main Results}{27}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Baseline estimates}{27}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Observable worker heterogeneity}{28}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Unobserved worker heterogeneity}{29}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Inconsistency-augmented misclassification}{29}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Alternative Specifications}{30}{section.5}%
+\contentsline {subsection}{\numberline {5.1}AR(2): second-order Markov dynamics}{30}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Tenure contamination model}{36}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Matching algorithm sensitivity}{37}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Conclusion}{38}{section.6}%
+\contentsline {section}{\numberline {A}Baseline EM algorithm: full derivation}{49}{section.A}%
+\contentsline {subsection}{\numberline {A.1}Model}{49}{subsection.A.1}%
+\contentsline {subsubsection}{\numberline {A.1.1}States and notation}{49}{subsubsection.A.1.1}%
+\contentsline {subsubsection}{\numberline {A.1.2}True dynamics: first-order Markov chain}{49}{subsubsection.A.1.2}%
+\contentsline {subsubsection}{\numberline {A.1.3}Observation model: state misclassification}{50}{subsubsection.A.1.3}%
+\contentsline {subsubsection}{\numberline {A.1.4}Observed-data likelihood}{50}{subsubsection.A.1.4}%
+\contentsline {subsection}{\numberline {A.2}EM algorithm}{51}{subsection.A.2}%
+\contentsline {subsubsection}{\numberline {A.2.1}Complete-data formulation}{51}{subsubsection.A.2.1}%
+\contentsline {subsubsection}{\numberline {A.2.2}E-step: responsibilities}{52}{subsubsection.A.2.2}%
+\contentsline {paragraph}{Sufficient statistics.}{52}{section*.21}%
+\contentsline {subsubsection}{\numberline {A.2.3}M-step: parameter updates}{53}{subsubsection.A.2.3}%
+\contentsline {paragraph}{Transition probabilities (closed form).}{53}{section*.22}%
+\contentsline {paragraph}{Misclassification probability (closed form).}{54}{section*.23}%
+\contentsline {paragraph}{Summary.}{54}{section*.24}%
+\contentsline {subsubsection}{\numberline {A.2.4}Iteration and convergence}{54}{subsubsection.A.2.4}%
+\contentsline {paragraph}{Practical considerations.}{55}{section*.25}%
+\contentsline {subsubsection}{\numberline {A.2.5}Equivalence to direct numerical maximisation}{55}{subsubsection.A.2.5}%
+\contentsline {subsection}{\numberline {A.3}Identification}{56}{subsection.A.3}%
+\contentsline {paragraph}{Observed cell probabilities.}{56}{section*.26}%
+\contentsline {paragraph}{Identification without misclassification.}{56}{section*.27}%
+\contentsline {paragraph}{Identification with misclassification.}{57}{section*.28}%
+\contentsline {paragraph}{Counting argument.}{58}{section*.29}%
+\contentsline {paragraph}{Overidentification and specification testing.}{58}{section*.30}%
+\contentsline {subsection}{\numberline {A.4}Asymmetric misclassification}{58}{subsection.A.4}%
+\contentsline {subsection}{\numberline {A.5}Extension I: Observable heterogeneity}{59}{subsection.A.5}%
+\contentsline {subsubsection}{\numberline {A.5.1}Motivation}{59}{subsubsection.A.5.1}%
+\contentsline {subsubsection}{\numberline {A.5.2}Covariate specification}{60}{subsubsection.A.5.2}%
+\contentsline {subsubsection}{\numberline {A.5.3}EM algorithm with covariates}{61}{subsubsection.A.5.3}%
+\contentsline {paragraph}{E-step.}{61}{section*.31}%
+\contentsline {paragraph}{M-step: transition coefficients (GEM).}{61}{section*.32}%
+\contentsline {paragraph}{M-step: misclassification (closed form).}{62}{section*.33}%
+\contentsline {paragraph}{Parameter count and identification.}{62}{section*.34}%
+\contentsline {subsection}{\numberline {A.6}Extension II: Duration dependence}{62}{subsection.A.6}%
+\contentsline {subsubsection}{\numberline {A.6.1}Motivation}{62}{subsubsection.A.6.1}%
+\contentsline {subsubsection}{\numberline {A.6.2}Specification}{62}{subsubsection.A.6.2}%
+\contentsline {subsubsection}{\numberline {A.6.3}The missing-covariate challenge}{63}{subsubsection.A.6.3}%
+\contentsline {subsection}{\numberline {A.7}Extension III: Unobserved heterogeneity}{64}{subsection.A.7}%
+\contentsline {subsubsection}{\numberline {A.7.1}Motivation}{64}{subsubsection.A.7.1}%
+\contentsline {subsubsection}{\numberline {A.7.2}Two-type FMM specification}{64}{subsubsection.A.7.2}%
+\contentsline {paragraph}{Observed-data likelihood.}{65}{section*.35}%
+\contentsline {subsubsection}{\numberline {A.7.3}EM algorithm for the FMM}{65}{subsubsection.A.7.3}%
+\contentsline {paragraph}{Complete-data formulation.}{65}{section*.36}%
+\contentsline {paragraph}{E-step: joint responsibilities.}{65}{section*.37}%
+\contentsline {paragraph}{M-step: type weights (closed form).}{66}{section*.38}%
+\contentsline {paragraph}{M-step: type-specific transition probabilities (closed form).}{66}{section*.39}%
+\contentsline {paragraph}{M-step: misclassification (closed form, pooled).}{66}{section*.40}%
+\contentsline {paragraph}{Parameter count and identification.}{67}{section*.41}%
+\contentsline {subsection}{\numberline {A.8}Extension IV: Inconsistency-augmented misclassification}{67}{subsection.A.8}%
+\contentsline {subsubsection}{\numberline {A.8.1}Motivation}{67}{subsubsection.A.8.1}%
+\contentsline {subsubsection}{\numberline {A.8.2}Inconsistency indicators}{68}{subsubsection.A.8.2}%
+\contentsline {paragraph}{Age inconsistencies.}{68}{section*.42}%
+\contentsline {paragraph}{Education inconsistencies.}{68}{section*.43}%
+\contentsline {subsubsection}{\numberline {A.8.3}Extended misclassification model}{68}{subsubsection.A.8.3}%
+\contentsline {paragraph}{Baseline parameters.}{69}{section*.44}%
+\contentsline {subsubsection}{\numberline {A.8.4}EM algorithm with inconsistency indicators}{69}{subsubsection.A.8.4}%
+\contentsline {paragraph}{E-step.}{69}{section*.45}%
+\contentsline {paragraph}{M-step: misclassification coefficients (GEM).}{69}{section*.46}%
+\contentsline {paragraph}{M-step: transition probabilities (closed form).}{70}{section*.47}%
+\contentsline {paragraph}{Interpretation.}{70}{section*.48}%
+\contentsline {section}{\numberline {B}AR(2) extension: full derivation}{70}{section.B}%
+\contentsline {subsection}{\numberline {B.1}Motivation}{70}{subsection.B.1}%
+\contentsline {subsection}{\numberline {B.2}Model}{71}{subsection.B.2}%
+\contentsline {subsubsection}{\numberline {B.2.1}States and notation}{71}{subsubsection.B.2.1}%
+\contentsline {subsubsection}{\numberline {B.2.2}True dynamics: second-order Markov chain}{71}{subsubsection.B.2.2}%
+\contentsline {subsubsection}{\numberline {B.2.3}Stationary distribution}{72}{subsubsection.B.2.3}%
+\contentsline {subsubsection}{\numberline {B.2.4}Prior probability of a latent history}{73}{subsubsection.B.2.4}%
+\contentsline {subsubsection}{\numberline {B.2.5}Observed-data likelihood}{73}{subsubsection.B.2.5}%
+\contentsline {subsection}{\numberline {B.3}EM algorithm}{73}{subsection.B.3}%
+\contentsline {subsubsection}{\numberline {B.3.1}E-step: responsibilities}{74}{subsubsection.B.3.1}%
+\contentsline {paragraph}{Sufficient statistics.}{74}{section*.49}%
+\contentsline {subsubsection}{\numberline {B.3.2}M-step: parameter updates}{74}{subsubsection.B.3.2}%
+\contentsline {paragraph}{Transition probabilities (closed form).}{75}{section*.50}%
+\contentsline {paragraph}{Misclassification probability (closed form).}{75}{section*.51}%
+\contentsline {paragraph}{Summary.}{75}{section*.52}%
+\contentsline {subsubsection}{\numberline {B.3.3}Iteration and convergence}{75}{subsubsection.B.3.3}%
+\contentsline {subsubsection}{\numberline {B.3.4}Testing for second-order dependence}{76}{subsubsection.B.3.4}%
+\contentsline {subsection}{\numberline {B.4}Identification}{76}{subsection.B.4}%
+\contentsline {paragraph}{Identification without misclassification.}{76}{section*.53}%
+\contentsline {paragraph}{Identification with misclassification.}{76}{section*.54}%
+\contentsline {section}{\numberline {C}Tenure contamination model: full derivation}{77}{section.C}%
+\contentsline {subsection}{\numberline {C.1}Motivation}{77}{subsection.C.1}%
+\contentsline {subsection}{\numberline {C.2}Notation and terminology}{79}{subsection.C.2}%
+\contentsline {subsection}{\numberline {C.3}Tenure measurement model}{80}{subsection.C.3}%
+\contentsline {subsubsection}{\numberline {C.3.1}Spell-length distribution: Exponential}{80}{subsubsection.C.3.1}%
+\contentsline {subsubsection}{\numberline {C.3.2}Contamination model: point-mass + Exponential}{81}{subsubsection.C.3.2}%
+\contentsline {subsubsection}{\numberline {C.3.3}Latent clock and spell-pair structure}{81}{subsubsection.C.3.3}%
+\contentsline {subsubsection}{\numberline {C.3.4}Per-spell tenure emission (the key innovation)}{82}{subsubsection.C.3.4}%
+\contentsline {paragraph}{Singletons (\(K = 1\)).}{83}{section*.55}%
+\contentsline {paragraph}{Pairs (\(K = 2\)): the identification-critical case.}{83}{section*.56}%
+\contentsline {paragraph}{Why this is the engine of identification.}{83}{section*.57}%
+\contentsline {paragraph}{Triples (\(K = 3\)).}{84}{section*.58}%
+\contentsline {paragraph}{Posterior contamination probability.}{84}{section*.59}%
+\contentsline {subsubsection}{\numberline {C.3.5}N-spell timegap emission}{85}{subsubsection.C.3.5}%
+\contentsline {subsubsection}{\numberline {C.3.6}Per-wave emissions for non-spell-pair cases}{85}{subsubsection.C.3.6}%
+\contentsline {subsubsection}{\numberline {C.3.7}State misclassification}{86}{subsubsection.C.3.7}%
+\contentsline {subsubsection}{\numberline {C.3.8}Observed-data likelihood}{86}{subsubsection.C.3.8}%
+\contentsline {subsection}{\numberline {C.4}EM algorithm}{87}{subsection.C.4}%
+\contentsline {subsubsection}{\numberline {C.4.1}Complete-data formulation}{87}{subsubsection.C.4.1}%
+\contentsline {subsubsection}{\numberline {C.4.2}E-step}{87}{subsubsection.C.4.2}%
+\contentsline {paragraph}{Responsibilities.}{87}{section*.60}%
+\contentsline {paragraph}{Posterior contamination probabilities.}{87}{section*.61}%
+\contentsline {subsubsection}{\numberline {C.4.3}M-step}{88}{subsubsection.C.4.3}%
+\contentsline {paragraph}{Markov prior block}{88}{section*.62}%
+\contentsline {paragraph}{Misclassification}{88}{section*.63}%
+\contentsline {paragraph}{Tenure contamination}{88}{section*.64}%
+\contentsline {paragraph}{Spell-length rate}{88}{section*.65}%
+\contentsline {paragraph}{Nonemployment rate}{89}{section*.66}%
+\contentsline {subsection}{\numberline {C.5}Identification}{89}{subsection.C.5}%
+\contentsline {subsubsection}{\numberline {C.5.1}Block separation of the complete-data log-likelihood}{89}{subsubsection.C.5.1}%
+\contentsline {subsubsection}{\numberline {C.5.2}Identification of \(\varepsilon \)}{89}{subsubsection.C.5.2}%
+\contentsline {subsubsection}{\numberline {C.5.3}Identification of \(\pi \) (the corroboration channel)}{90}{subsubsection.C.5.3}%
+\contentsline {subsubsection}{\numberline {C.5.4}How \(\varepsilon \) affects the responsibilities}{91}{subsubsection.C.5.4}%
+\contentsline {paragraph}{Mechanism.}{91}{section*.67}%
+\contentsline {paragraph}{Clock-consistent observations (\(g_3 = g_1 + 2\Delta \)).}{91}{section*.68}%
+\contentsline {paragraph}{Clock-inconsistent observations (\(g_3 \neq g_1 + 2\Delta \)).}{92}{section*.69}%
+\contentsline {paragraph}{Discrimination power.}{92}{section*.70}%
+\contentsline {subsubsection}{\numberline {C.5.5}Identification of \(\lambda _g\)}{93}{subsubsection.C.5.5}%
+\contentsline {subsection}{\numberline {C.6}Comparison with base EM tenure model}{93}{subsection.C.6}%
+\contentsline {subsubsection}{\numberline {C.6.1}Why no \(\varepsilon _d\) for timegap}{93}{subsubsection.C.6.1}%
+\contentsline {subsubsection}{\numberline {C.6.2}Why no \(\rho \) (full mismatch)}{94}{subsubsection.C.6.2}%
+\contentsline {subsection}{\numberline {C.7}Nesting and tests}{94}{subsection.C.7}%
+\contentsline {paragraph}{Nesting.}{94}{section*.71}%
+\contentsline {paragraph}{LR test of \(\varepsilon = 0\).}{94}{section*.72}%
+\contentsline {paragraph}{LR test of CTMC-link.}{94}{section*.73}%
+\contentsline {subsection}{\numberline {C.8}Preliminary results}{95}{subsection.C.8}%
+\contentsline {subsubsection}{\numberline {C.8.1}Descriptive evidence from the QLFS}{95}{subsubsection.C.8.1}%
+\contentsline {subsubsection}{\numberline {C.8.2}Estimation results}{96}{subsubsection.C.8.2}%
+\contentsline {paragraph}{Contamination rate.}{97}{section*.76}%
+\contentsline {paragraph}{Misclassification rate.}{97}{section*.77}%
+\contentsline {paragraph}{Transition rates.}{98}{section*.78}%
+\contentsline {subsection}{\numberline {C.9}Summary}{98}{subsection.C.9}%

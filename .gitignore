@@ -29,10 +29,17 @@ data-use/
 .github/instructions/
 .github/copilot-instructions.md
 .cg-docs/
+C:\WBG\.compound-gpid/
+compound-gpid.local.md
+prompts/
+documents/2025-05-05-contamination-presentation_files/
+documents/2025-05-05-contamination-model-presentation_files/
 
 # Large binary outputs (fitted models, results) — untrack with: git rm --cached
-output/results/*.rds
-output/results/*.csv
+# Nested output directories (EM-AR2, EM-baseline, etc.) and root-level
+**/output/results/*.rds
+**/output/results/*.csv
+**/output/results/bootstrap/
 # R data objects — both conventional cases (.rds lowercase and .Rds mixed-case
 # both appear in data-use/ from older serialization code)
 *.rds
@@ -41,9 +48,6 @@ output/results/*.csv
 # Generated output tables/figures — do not commit; regenerate from pipeline
 **/output/tables/
 **/output/figures/
-
-# Compound GPID local config (user-specific, never commit)
-compound-gpid.local.md
 
 # OS files
 .DS_Store

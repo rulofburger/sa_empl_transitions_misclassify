@@ -21,7 +21,7 @@
 #   Table 6: Inconsistency model results                 (table_inconsistency.tex)
 #
 # Usage (from project root):
-#   Rscript build_tables_v2.R
+#   Rscript build_tables.R
 #
 # Prerequisites:
 #   bootstrap_pipeline.R must have been run first.
@@ -32,8 +32,7 @@
 # ------------------------------------------------------------------------------
 
 library(here)
-library(dplyr)
-library(ggplot2)  # required by ingest_data_3waves_SA.R diagnostic plots
+# dplyr and ggplot2 are loaded transitively by ingest_data_3waves_SA.R below.
 
 # Null-coalescing (also defined in EM-baseline/R/utils.R via source_all.R;
 # explicit here to avoid silent coupling to the source chain).
@@ -46,17 +45,19 @@ boot_baseline_dir <- here::here("EM-baseline",     "output", "results", "bootstr
 boot_ext_dir      <- here::here("EM-baseline-ext", "output", "results", "bootstrap")
 
 .detect_B <- function(boot_dir) {
-  fls <- list.files(boot_dir, pattern = "boot_.*_B[0-9]+\\.rds$")
+  fls <- sort(list.files(boot_dir, pattern = "boot_.*_B[0-9]+\\.rds$"))
   if (length(fls) == 0L) return(NULL)
-
-  as.integer(sub(".*_B([0-9]+)\\.rds$", "\\1", fls[1]))
+  # Use the last file after sorting (largest B if multiple exist)
+  as.integer(sub(".*_B([0-9]+)\\.rds$", "\\1", fls[length(fls)]))
 }
 B_baseline <- .detect_B(boot_baseline_dir)
 B_ext      <- .detect_B(boot_ext_dir)
+if (is.null(B_baseline) && is.null(B_ext))
+  warning("No bootstrap files found; B defaulted to 200 — tables will show no SEs.")
 B          <- B_baseline %||% B_ext %||% 200L
 if (!is.null(B_baseline) && !is.null(B_ext) && B_baseline != B_ext) {
-  warning(sprintf("Detected different B in baseline (%d) vs ext (%d) bootstrap dirs.",
-                  B_baseline, B_ext))
+  stop(sprintf("Bootstrap B mismatch: baseline=%d, ext=%d. Re-run bootstrap pipelines with the same B.",
+               B_baseline, B_ext))
 }
 cat(sprintf("B detected from bootstrap files: %d\n", B))
 
@@ -78,10 +79,16 @@ keep <- keep_baseline &
         !is.na(df_qlfs$age1)   & !is.na(df_qlfs$age2)   & !is.na(df_qlfs$age3) &
         !is.na(df_qlfs$educ1)  & !is.na(df_qlfs$educ2)  & !is.na(df_qlfs$educ3)
 df_ext        <- df_qlfs[keep, , drop = FALSE]
-df_ext$y1     <- as.integer(df_ext$y1)
-df_ext$y2     <- as.integer(df_ext$y2)
-df_ext$y3     <- as.integer(df_ext$y3)
+# Use as.character() intermediate to guard against factor-coded y columns
+df_ext$y1     <- as.integer(as.character(df_ext$y1))
+df_ext$y2     <- as.integer(as.character(df_ext$y2))
+df_ext$y3     <- as.integer(as.character(df_ext$y3))
 df_ext$weight <- as.numeric(df_ext$weight)
+# NA contract type → 0 ("no contract") to align with estimation pipeline
+n_imputed_ct <- sum(is.na(df_ext$contracttype1))
+if (n_imputed_ct > 0L)
+  message(sprintf("Imputing %d NA contracttype1 values to 0L (no contract).",
+                  n_imputed_ct))
 df_ext$contracttype1 <- ifelse(is.na(df_ext$contracttype1), 0L,
                                as.integer(df_ext$contracttype1))
 df_ext <- as.data.frame(df_ext)
@@ -104,9 +111,10 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 `%+%` <- function(a, b) paste0(a, b)
 
 # Significance threshold constants (standard normal quantiles)
+# Significance thresholds: z = |est/se|, two-sided tests.
 .CRIT_p01 <- qnorm(0.995)  # ≈ 2.576  (p < 0.01, two-sided)
-.CRIT_p05 <- qnorm(0.975)  # ≈ 1.960  (p < 0.05)
-.CRIT_p10 <- qnorm(0.945)  # ≈ 1.645  (p < 0.10)
+.CRIT_p05 <- qnorm(0.975)  # ≈ 1.960  (p < 0.05, two-sided)
+.CRIT_p10 <- qnorm(0.95)   # ≈ 1.645  (p < 0.10, two-sided)
 
 #' Significance stars based on z = |est/se|
 .stars <- function(est, se) {
@@ -213,6 +221,13 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   obj <- readRDS(p)
   if (!is.list(obj) || is.null(obj$params) || is.null(obj$loglik))
     stop(sprintf(".load_fit: fit_%s.rds is missing $params or $loglik.", label))
+  stopifnot(
+    is.list(obj$params),
+    length(obj$params) > 0L,
+    is.numeric(obj$loglik),
+    length(obj$loglik) == 1L,
+    !is.na(obj$loglik)
+  )
   obj
 }
 
@@ -224,6 +239,7 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
   if (!is.list(obj) || !is.data.frame(obj$summary))
     stop(sprintf(".load_boot: '%s' is missing required $summary data frame.",
                  basename(path)))
+  stopifnot(all(c("quantity", "se") %in% names(obj$summary)))
   obj
 }
 
@@ -270,8 +286,7 @@ cat("\n--- Building baseline tables ---\n")
 baseline_labels <- c("none_stat", "none_free", "sym_stat", "sym_free",
                      "asym_stat", "asym_free")
 
-baseline_col_headers <- c("",
-                           "(1)", "(2)", "(3)", "(4)", "(5)", "(6)")
+baseline_col_headers <- c("", "(1)", "(2)", "(3)", "(4)", "(5)", "(6)")
 baseline_sub_headers <- c(
   paste(c("", "\\multicolumn{2}{c}{No miscl.}",
           "\\multicolumn{2}{c}{Symmetric}",
@@ -288,7 +303,8 @@ names(bl_fits) <- baseline_labels
 bl_boots <- lapply(baseline_labels, function(lbl)
   .load_boot(lbl, boot_baseline_dir))
 names(bl_boots) <- baseline_labels
-bl_se    <- lapply(bl_boots, .se_map)  # named SE vectors for O(1) lookup
+bl_se    <- lapply(bl_boots, .se_map)   # named SE vectors for O(1) lookup
+rm(bl_boots)  # $boot_results replicate vectors not needed; free memory
 
 model_types_bl <- c(none_stat = "none", none_free = "none",
                     sym_stat = "symmetric", sym_free = "symmetric",
@@ -448,7 +464,13 @@ cov_implied <- lapply(cov_labels_all, function(lbl) {
   fit <- cov_fits[[lbl]]
   if (is.null(fit)) return(NULL)
   X <- X_list[[cov_xmat[[lbl]]]]
-  tryCatch(implied_covariates(fit$params, X, cov_mt[[lbl]]), error = function(e) NULL)
+  tryCatch(
+    implied_covariates(fit$params, X, cov_mt[[lbl]]),
+    error = function(e) {
+      warning(sprintf("implied_covariates failed for '%s': %s", lbl, conditionMessage(e)))
+      NULL
+    }
+  )
 })
 names(cov_implied) <- cov_labels_all
 
@@ -636,11 +658,18 @@ names(fmm_fits) <- fmm_labels
 fmm_boots <- lapply(fmm_labels, function(lbl) .load_boot(lbl, boot_ext_dir))
 names(fmm_boots) <- fmm_labels
 fmm_se    <- lapply(fmm_boots, .se_map)  # named SE vectors for O(1) lookup
+rm(fmm_boots)  # $boot_results replicate vectors not needed; free memory
 
 fmm_implied <- lapply(fmm_labels, function(lbl) {
   fit <- fmm_fits[[lbl]]
   if (is.null(fit)) return(NULL)
-  tryCatch(implied_fmm(fit$params, fmm_mt[[lbl]]), error = function(e) NULL)
+  tryCatch(
+    implied_fmm(fit$params, fmm_mt[[lbl]]),
+    error = function(e) {
+      warning(sprintf("implied_fmm failed for '%s': %s", lbl, conditionMessage(e)))
+      NULL
+    }
+  )
 })
 names(fmm_implied) <- fmm_labels
 
@@ -723,13 +752,22 @@ if (nrow(df_incons_tbl) != nrow(df_ext))
     "compute_inconsistencies returned %d rows; expected %d (= nrow(df_ext)).",
     nrow(df_incons_tbl), nrow(df_ext)
   ))
+# Validate required columns before subsetting
+stopifnot(all(c("Y_age_1", "Y_age_2", "Y_age_3",
+                "Y_edu_1", "Y_edu_2", "Y_edu_3") %in% names(df_incons_tbl)))
 inc_mat_tbl   <- as.matrix(df_incons_tbl[, c("Y_age_1", "Y_age_2", "Y_age_3",
                                                "Y_edu_1", "Y_edu_2", "Y_edu_3")])
 
 incons_implied <- lapply(incons_labels, function(lbl) {
   fit <- incons_fits[[lbl]]
   if (is.null(fit)) return(NULL)
-  tryCatch(implied_inconsistency(fit$params, inc_mat_tbl), error = function(e) NULL)
+  tryCatch(
+    implied_inconsistency(fit$params, inc_mat_tbl),
+    error = function(e) {
+      warning(sprintf("implied_inconsistency failed for '%s': %s", lbl, conditionMessage(e)))
+      NULL
+    }
+  )
 })
 names(incons_implied) <- incons_labels
 
@@ -747,19 +785,40 @@ names(incons_implied) <- incons_labels
   )
 }
 
-.incons_param_row <- function(idx, row_label) {
-  cells <- lapply(incons_labels, function(lbl) {
-    fit <- incons_fits[[lbl]]
-    if (is.null(fit) || is.null(fit$params$delta)) return(c("---", "(---)"))
-    v  <- fit$params$delta[idx]
-    se <- NA_real_  # delta SEs not yet bootstrapped
-    .fmt_param(v, se)
-  })
-  list(
-    est = c(row_label, sapply(cells, `[[`, 1L)),
-    se  = c("",        sapply(cells, `[[`, 2L))
-  )
+# Compute bootstrap SEs for implied misclassification quantities from raw
+# replicate deltas.  These quantities are nonlinear transforms of delta,
+# so the SE comes from the empirical SD across bootstrap draws (not delta method).
+#
+# Logistic-link model for misclassification:
+#   pi_base         = 0.5 * plogis(delta[1])
+#   pi_age_additional = 0.5 * plogis(delta[1] + delta[2]) - pi_base
+#   pi_edu_additional = 0.5 * plogis(delta[1] + delta[3]) - pi_base
+# where delta[1] is the base logit, delta[2]/delta[3] are increments for
+# age/education inconsistency. The 0.5 factor caps pi at 0.5 (by design).
+.incons_implied_boot_se <- function(boot_obj) {
+  if (is.null(boot_obj) || is.null(boot_obj$boot_results)) return(NULL)
+  results <- boot_obj$boot_results
+  flags   <- vapply(results, function(r) r$flag, character(1L))
+  ok_idx  <- which(flags == "ok")
+  if (length(ok_idx) < 2L) return(NULL)
+
+  vals <- t(vapply(ok_idx, function(i) {
+    d <- results[[i]]$params$delta
+    if (length(d) < 3L) return(c(pi_age_additional = NA_real_, pi_edu_additional = NA_real_))
+    pi_base <- 0.5 * plogis(d[1L])
+    c(pi_age_additional = 0.5 * plogis(d[1L] + d[2L]) - pi_base,
+      pi_edu_additional = 0.5 * plogis(d[1L] + d[3L]) - pi_base)
+  }, numeric(2L)))
+
+  setNames(apply(vals, 2L, sd, na.rm = TRUE), colnames(vals))
 }
+
+# Merge the new SEs into the existing incons_se maps
+for (.lbl in incons_labels) {
+  extra <- .incons_implied_boot_se(incons_boots[[.lbl]])
+  if (!is.null(extra)) incons_se[[.lbl]] <- c(incons_se[[.lbl]], extra)
+}
+rm(.lbl)
 
 .write_latex_table(
   col_headers = incons_col_headers,
@@ -770,11 +829,10 @@ names(incons_implied) <- incons_labels
       .incons_pct_row("employment_rate", "Employment rate $\\alpha^*$ (\\%)")
     )),
     list(header = "Misclassification (logistic link)", rows = list(
-      .incons_param_row(1L, "$\\delta_0$ (intercept)"),
-      .incons_param_row(2L, "$\\delta_1$ (age incons.)"),
-      .incons_param_row(3L, "$\\delta_2$ (educ. incons.)"),
-      .incons_pct_row("pi_base", "$\\pi^{\\text{base}}$ (\\%)"),
-      .incons_pct_row("mean_pi", "Mean $\\bar{\\pi}$ (\\%)")
+      .incons_pct_row("pi_base",           "$\\pi^{\\text{base}}$ (\\%)"),
+      .incons_pct_row("pi_age_additional", "Add'l miscl.\\ (age incons.) (pp)"),
+      .incons_pct_row("pi_edu_additional", "Add'l miscl.\\ (educ.\\ incons.) (pp)"),
+      .incons_pct_row("mean_pi",           "Mean $\\bar{\\pi}$ (Pop.\\ avg.\\ rate) (\\%)")
     )),
     list(header = NULL, rows = list(
       list(
@@ -794,7 +852,7 @@ names(incons_implied) <- incons_labels
   label       = "tab:inconsistency",
   path        = file.path(tables_ext_dir, "table_inconsistency.tex"),
   sub_headers = incons_sub_headers,
-  note        = sprintf("Implied rates in \\%%. $\\delta$ SEs pending bootstrap. Bootstrap SE for other quantities ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
+  note        = sprintf("Implied rates in \\%%, additional effects in pp. Bootstrap SE ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
 )
 
 cat("\n\nAll tables written.\n")

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.5.9)  11 MAY 2026 22:45
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.5.9)  12 MAY 2026 09:35
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -488,17 +488,22 @@ Overfull \hbox (2.0006pt too wide) in paragraph at lines 151--153
 \tf@toc=\write4
 \openout4 = `paper.toc'.
 
- [8] (./sections/introduction.tex [9] [10] [11] [12]) [13] (./sections/data.tex [14] [15]) (./output/table_descriptive.tex) (./sections/methodology.tex [16] [17] [18]
+ [8] (./sections/introduction.tex [9] [10] [11] [12]) [13] (./sections/data.tex [14] [15] [16]) [17] (./output/table_descriptive.tex) (./output/table_tenure_diagnostics.tex
+Overfull \hbox (18.78679pt too wide) in paragraph at lines 9--33
+ [] 
+ []
+
+) (./sections/methodology.tex [18] [19] [20] [21]
 Overfull \hbox (1.45354pt too wide) in paragraph at lines 85--89
 \T1/cmr/m/n/12 The EM al-go-rithm max-imises the complete-data log-likelihood---the log-likelihood
  []
 
-[19]
+
 Overfull \hbox (25.48566pt too wide) in paragraph at lines 109--118
 \T1/cmr/m/n/12 The M-step up-dates []--[] have a trans-par-ent in-ter-pre-ta-tion: $\OML/cmm/m/it/12 ^^R[]$ \T1/cmr/m/n/12 is the responsibility-
  []
 
-[20] [21] [22]
+[22] [23] [24]
 Overfull \hbox (3.25163pt too wide) in paragraph at lines 220--224
 \T1/cmr/m/n/12 The base-line model and its ex-ten-sions above iden-tify mis-clas-si-fi-ca-tion from Markov
  []
@@ -508,7 +513,7 @@ Overfull \hbox (14.0242pt too wide) in paragraph at lines 220--224
 \T1/cmr/m/n/12 pro-vides an in-de-pen-dent iden-ti-fi-ca-tion chan-nel us-ing job tenure and non-employment
  []
 
-[23]) (./sections/results.tex [24] [25] [26] [27]) (../EM-baseline/output/tables/table_baseline_implied.tex
+[25]) (./sections/results.tex [26] [27] [28] [29]) (../EM-baseline/output/tables/table_baseline_implied.tex
 ! Extra alignment tab has been changed to \cr.
 <recently read> \endtemplate 
                              
@@ -835,12 +840,12 @@ Overfull \hbox (145.03969pt too wide) in paragraph at lines 5--41
  [][] 
  []
 
-) (./sections/alternatives.tex [28] [29] [30] [31] [32] [33]
+) (./sections/alternatives.tex [30] [31] [32] [33] [34] [35]
 Overfull \hbox (28.72066pt too wide) in paragraph at lines 66--75
 \T1/cmr/m/n/12 ment spell length is ap-prox-i-mately 5.85 years (70.2 months), with $\OML/cmm/m/it/12 P\OT1/cmr/m/n/12 ([]) =
  []
 
-[34] [35]) (../EM-AR2/output/tables/table_AR2_implied.tex
+[36] [37]) (../EM-AR2/output/tables/table_AR2_implied.tex
 Overfull \hbox (187.61407pt too wide) in paragraph at lines 5--34
  [][] 
  []
@@ -1057,16 +1062,16 @@ Overfull \hbox (371.25076pt too wide) in paragraph at lines 5--48
  [][] 
  []
 
-) (../EM-baseline/output/tables/table_matching_implied.tex) (./sections/conclusion.tex [36] [37] [38] [39] [40] [41] [42]) [43] [44] (./paper.bbl [45
+) (../EM-baseline/output/tables/table_matching_implied.tex) (./sections/conclusion.tex [38] [39] [40] [41] [42] [43] [44]) [45] [46] (./paper.bbl [47
 
-]) [46] (./sections/appendix_baseline.tex [47
+]) [48] (./sections/appendix_baseline.tex [49
 
 ]
 Overfull \hbox (139.41988pt too wide) detected at line 61
 [][][]\OML/cmm/m/it/12 p\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 H \OT1/cmr/m/n/12 = \OML/cmm/m/it/12 h \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 ^^R[]; ^^R[]\OT1/cmr/m/n/12 ) = \OML/cmm/m/it/12 []\OT1/cmr/m/n/12 (1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 \OT1/cmr/m/n/12 )[] [] []\OML/cmm/m/it/12 ^^R[] \OT1/cmr/m/n/12 (1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 )[] \OML/cmm/m/it/12 ^^R[] \OT1/cmr/m/n/12 (1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 )[][]\OML/cmm/m/it/12 ;
  []
 
-[48] [49]
+[50] [51]
 Overfull \hbox (15.63199pt too wide) in paragraph at lines 183--184
  []\T1/cmr/bx/n/12 Sufficient statis-tics.[] \T1/cmr/m/n/12 From the re-spon-si-bil-i-ties, ac-cu-mu-late the fol-low-ing weighted
  []
@@ -1076,12 +1081,12 @@ Overfull \hbox (43.08693pt too wide) detected at line 201
 []
  []
 
-[50] [51] [52] [53] [54] [55]
+[52] [53] [54] [55] [56] [57]
 Overfull \hbox (33.8856pt too wide) in paragraph at lines 431--442
 \T1/cmr/m/n/12 ments. Generic iden-ti-fi-ca-tion re-quires the Ja-co-bian of the map $\OT1/cmr/m/n/12 ^^B \OMS/cmsy/m/n/12 7! f\OML/cmm/m/it/12 p[]\OT1/cmr/m/n/12 (^^B)\OMS/cmsy/m/n/12 g[]$
  []
 
-[56] [57]
+[58] [59]
 Overfull \hbox (74.62611pt too wide) detected at line 544
 [][][]\OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 ) \OMS/cmsy/m/n/12 ^^Q []\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 h[] \OT1/cmr/m/n/12 = 1 \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 h[] \OT1/cmr/m/n/12 = 1\OML/cmm/m/it/12 ;  x[]\OT1/cmr/m/n/12 ) = ^^H(\OML/cmm/m/it/12 ^^L[]x[]\OT1/cmr/m/n/12 )\OML/cmm/m/it/12 ;  ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 ) \OMS/cmsy/m/n/12 ^^Q []\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 h[] \OT1/cmr/m/n/12 = 1 \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 h[] \OT1/cmr/m/n/12 = 0\OML/cmm/m/it/12 ;  x[]\OT1/cmr/m/n/12 ) = ^^H(\OML/cmm/m/it/12 ^^L[]x[]\OT1/cmr/m/n/12 )\OML/cmm/m/it/12 ;
  []
@@ -1091,7 +1096,7 @@ Overfull \hbox (281.17598pt too wide) detected at line 568
 \OML/cmm/m/it/12 p\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 H \OT1/cmr/m/n/12 = \OML/cmm/m/it/12 h \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 ^^L[]; ^^L[]; x[]\OT1/cmr/m/n/12 ) = \OML/cmm/m/it/12 \OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 )[](1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 \OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 ))[] [] []\OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 )[] (1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 ))[] \OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 )[] (1 \OMS/cmsy/m/n/12 ^^@ \OML/cmm/m/it/12 ^^R[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 x[]\OT1/cmr/m/n/12 ))[][]\OML/cmm/m/it/12 :
  []
 
-[58] [59] [60] [61] [62]
+[60] [61] [62] [63] [64]
 Overfull \hbox (30.42346pt too wide) detected at line 784
 []
  []
@@ -1101,17 +1106,17 @@ Overfull \hbox (7.30084pt too wide) detected at line 804
 [][][]\OML/cmm/m/it/12 ^^M[] \OMS/cmsy/m/n/12 ^^Q \U/msb/m/n/12 E\OT1/cmr/m/n/12 [\OML/cmm/m/it/12 z[] \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 y[]\OT1/cmr/m/n/12 ;  ^^B[]] = []\OML/cmm/m/it/12 ;
  []
 
-[63]
+[65]
 Overfull \hbox (8.1075pt too wide) detected at line 834
 []
  []
 
-[64] [65] [66] [67]) (./sections/appendix_ar2.tex [68] [69] [70] [71]
+[66] [67] [68] [69]) (./sections/appendix_ar2.tex [70] [71] [72] [73]
 Overfull \hbox (15.63199pt too wide) in paragraph at lines 188--192
  []\T1/cmr/bx/n/12 Sufficient statis-tics.[] \T1/cmr/m/n/12 From the re-spon-si-bil-i-ties, ac-cu-mu-late the fol-low-ing weighted
  []
 
-[72] [73] [74]) (./sections/appendix_tenure.tex
+[74] [75] [76]) (./sections/appendix_tenure.tex
 Overfull \hbox (29.88744pt too wide) in paragraph at lines 10--16
 \T1/cmr/m/n/12 ment den-sity $\OML/cmm/m/it/12 N\OT1/cmr/m/n/12 (0\OML/cmm/m/it/12 ; \OT1/cmr/m/n/12 2\OML/cmm/m/it/12 ^^[[]\OT1/cmr/m/n/12 )$ \T1/cmr/m/n/12 for the tenure-measurement com-po-nent, an EMG $\OML/cmm/m/it/12 f[]\OT1/cmr/m/n/12 (\OMS/cmsy/m/n/12 ^^A\OT1/cmr/m/n/12 ; \OML/cmm/m/it/12 ^^U[]; ^^[[]\OT1/cmr/m/n/12 )$
  []
@@ -1121,12 +1126,12 @@ Overfull \hbox (0.56569pt too wide) in paragraph at lines 18--21
 []\T1/cmr/bx/n/12 Tenure is integer-month, not con-tin-u-ous Gaus-sian. \T1/cmr/m/n/12 Re-ported tenures
  []
 
-[75] [76] [77] [78]
+[77] [78] [79] [80]
 Overfull \hbox (30.59258pt too wide) detected at line 155
 [][][]\OML/cmm/m/it/12 g[] \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 h; m[] \OT1/cmr/m/n/12 = 0\OML/cmm/m/it/12 ;  s[] \OT1/cmr/m/n/12 = 1  =  \OML/cmm/m/it/12 g[]\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 h\OT1/cmr/m/n/12 ) []\OML/cmm/m/it/12 ;  g[] \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 h; m[] \OT1/cmr/m/n/12 = 1\OML/cmm/m/it/12 ;  s[] \OT1/cmr/m/n/12 = 1  \OMS/cmsy/m/n/12 ^^X  []\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 ^^U[]\OT1/cmr/m/n/12 )\OML/cmm/m/it/12 ;
  []
 
-[79] [80] [81] [82] [83]
+[81] [82] [83] [84] [85]
 Overfull \hbox (6.10573pt too wide) in paragraph at lines 401--408
 \T1/cmr/m/n/12 where $\OML/cmm/m/it/12 s[] \OT1/cmr/m/n/12 = 1$\T1/cmr/m/n/12 , and the re-ported nonemployment-timegap cat-e-gories $\OML/cmm/m/it/12 k[] \OMS/cmsy/m/n/12 2 f\OT1/cmr/m/n/12 1\OML/cmm/m/it/12 ; [] ; \OT1/cmr/m/n/12 7\OMS/cmsy/m/n/12 g$
  []
@@ -1136,7 +1141,7 @@ Overfull \hbox (83.88892pt too wide) detected at line 414
 [][][]\OML/cmm/m/it/12 p\OT1/cmr/m/n/12 (\OML/cmm/m/it/12 y[] \OMS/cmsy/m/n/12 j \OML/cmm/m/it/12 h\OT1/cmr/m/n/12 ; ^^B) = [] \OMS/cmsy/m/n/12 ^^A [] ^^A [] ^^A []\OML/cmm/m/it/12 ;
  []
 
-[84] [85] [86]
+[86] [87] [88]
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 550.
@@ -1145,7 +1150,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `\varepsilon' on input line 550.
 
-[87]
+[89]
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 564.
@@ -1154,7 +1159,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `\pi' on input line 564.
 
-[88]
+[90]
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 600.
@@ -1163,7 +1168,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `\varepsilon' on input line 600.
 
-[89]
+[91]
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `math shift' on input line 677.
@@ -1176,7 +1181,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `subscript' on input line 677.
 
-[90]
+[92]
 Overfull \hbox (38.33237pt too wide) in paragraph at lines 689--700
  [] 
  []
@@ -1206,7 +1211,7 @@ Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
 (hyperref)                removing `\rho' on input line 715.
 
-[91] [92] [93] [94] [95]) [96] (./paper.aux)
+[93] [94] [95] [96] [97]) [98] (./paper.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
@@ -1216,21 +1221,21 @@ L3 programming layer <2026-03-20>
 LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `paper.out' has not changed.
-(rerunfilecheck)             Checksum: 369F36AF61809479BB4873571957A92A;19327.
+(rerunfilecheck)             Checksum: 9E25D7EDDCF32666CD526274EA53FF40;19515.
  ) 
 Here is how much of TeX's memory you used:
- 14286 strings out of 469339
- 229797 string characters out of 5465415
- 674486 words of memory out of 5000000
- 42431 multiletter control sequences out of 15000+600000
+ 14312 strings out of 469339
+ 230458 string characters out of 5465415
+ 674630 words of memory out of 5000000
+ 42449 multiletter control sequences out of 15000+600000
  655004 words of font info for 113 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 67i,16n,77p,542b,619s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 67i,16n,77p,602b,619s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1000.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1000.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1200.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0800.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecti1000.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecti1200.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1440.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1200.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1728.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1200.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm0700.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm0700.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1095.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1095.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1000.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1440.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1440.600pk> </Users/zprinsloo/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm2074.600pk></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></Users/zprinsloo/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on paper.pdf (96 pages, 621032 bytes).
+Output written on paper.pdf (98 pages, 625784 bytes).
 PDF statistics:
- 2187 PDF objects out of 2487 (max. 8388607)
- 1429 compressed objects within 15 object streams
- 395 named destinations out of 1000 (max. 500000)
- 793 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 2208 PDF objects out of 2487 (max. 8388607)
+ 1447 compressed objects within 15 object streams
+ 400 named destinations out of 1000 (max. 500000)
+ 801 words of extra memory for PDF output out of 10000 (max. 10000000)
 

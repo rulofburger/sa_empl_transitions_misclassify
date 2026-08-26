@@ -1,0 +1,652 @@
+---
+title: "EM-Tenure Model: Progress Update & Discussion Points"
+author: "Zander Prinsloo"
+date: "2026-04-07"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    theme: cosmo
+---
+
+## Purpose of This Document
+
+Prepared for supervisor meeting on **7 April 2026**. Summarises:
+
+1. Where the project stands
+2. What works and what doesn't
+3. The core technical problem (with toy calculations)
+4. Proposed path forward and where I need input
+
+---
+
+## Project Status
+
+### Data
+
+We use the South African Quarterly Labour Force Survey (QLFS), a rotating panel
+where individuals are observed at 3 quarterly waves.
+
+| Statistic | Value |
+|:---|---:|
+| Raw observations (post-ingest) | 402,923 |
+| After excluding never-worked | ~261,000 |
+| Employment rate (wave 1) | 47.0% |
+| Employment rate (wave 2) | 47.0% |
+| Employment rate (wave 3) | 47.2% |
+
+### Observed (naïve) transition rates
+
+These ignore misclassification — they are the raw quarter-to-quarter flows:
+
+| From → To | Count | % of total |
+|:---|---:|---:|
+| Nonemployed → Nonemployed | 195,525 | 48.5% |
+| Nonemployed → Employed | 17,910 | 4.5% |
+| Employed → Nonemployed | 18,173 | 4.5% |
+| Employed → Employed | 171,315 | 42.5% |
+
+Implied naïve transition probabilities:
+
+- $\hat\theta_1^{\text{naïve}} = P(\text{emp}_{t+1} \mid \text{emp}_t) = 0.904$
+- $\hat\theta_0^{\text{naïve}} = P(\text{emp}_{t+1} \mid \text{nonemp}_t) = 0.084$
+- Exit rate: $1 - \hat\theta_1 = 9.6\%$
+- Entry rate: $\hat\theta_0 = 8.4\%$
+
+### Duration data
+
+For employed individuals at wave 1:
+
+| Statistic | Tenure (years) |
+|:---|---:|
+| Min | 0.02 |
+| 1st Quartile | 1.17 |
+| Median | 3.83 |
+| Mean | 6.52 |
+| 3rd Quartile | 9.33 |
+| Max | 69.92 |
+
+For nonemployed individuals at wave 1:
+
+| Statistic | Timegap (years) |
+|:---|---:|
+| Min | 0.00 |
+| 1st Quartile | 0.33 |
+| Median | 0.88 |
+| Mean | 2.33 |
+| 3rd Quartile | 3.25 |
+| Max | 7.50 |
+
+::: {.callout-note}
+Timegap is observed as **categorical** (7 bins: [0,3), [3,6), [6,9), [9,12),
+[12,36), [36,60), [60,∞) months) and mapped to midpoints.
+55% of wave-1 nonemployed have **never worked** — these are excluded from the
+EM-tenure estimation sample.
+:::
+
+---
+
+## What Works
+
+### Simple binary-sequence MLE (no duration data)
+
+The existing model that uses **only the 3-wave binary employment sequences**
+$(y_1, y_2, y_3)$ — without any tenure or timegap information — gives plausible
+results:
+
+| Parameter | Estimate | Interpretation |
+|:---|---:|:---|
+| $\pi$ | ~3% | Misclassification rate |
+| $\theta_0$ | ~3–4% | Entry rate (corrected) |
+| $\theta_1$ | ~96–97% | Retention rate (corrected) |
+
+These are consistent with the literature and pass sense-checks.
+
+### Synthetic data validation of the EM-tenure code
+
+The EM-tenure algorithm **correctly recovers known true parameters** on
+synthetic data generated from the model:
+
+| Parameter | True | Estimated (n=5000) |
+|:---|---:|---:|
+| $\alpha$ | 0.55 | 0.551 |
+| $\theta_1$ | 0.97 | 0.969 |
+| $\theta_0$ | 0.03 | 0.048 |
+| $\pi$ | 0.03 | 0.026 |
+| $\sigma^2_g$ | 0.005 | 0.005 |
+
+The code is correct. Log-likelihood is monotonically non-decreasing. The problem
+is not a bug — it is a model–data mismatch.
+
+---
+
+## The Current Problem {#sec-problem}
+
+### EM-tenure diverges on real data
+
+Running the EM-tenure model on the QLFS data (with misclassification,
+non-stationary, discrete timegap mode) produces **implausible estimates**:
+
+```
+EM iter 1 | ll = -1.87e9 | theta1=0.628 theta0=0.419 pi=0.076 sig2g=3.08
+EM iter 2 | ll = -1.60e9 | theta1=0.568 theta0=0.457 pi=0.086 sig2g=1.31
+EM iter 3 | ll = -1.53e9 | theta1=0.540 theta0=0.456 pi=0.103 sig2g=0.56
+EM iter 4 | ll = -1.47e9 | theta1=0.522 theta0=0.448 pi=0.121 sig2g=0.25
+EM iter 5 | ll = -1.41e9 | theta1=0.508 theta0=0.439 pi=0.139 sig2g=0.12
+```
+
+::: {.callout-important}
+**$\theta_1 \approx 0.50$ and $\theta_0 \approx 0.45$ are nonsensical.**
+
+They imply employed and nonemployed individuals have roughly equal probability
+of being employed next quarter — contradicting the strong persistence we see in
+the raw data (90.4% vs 8.4%).
+
+The simple model without tenure gives $\theta_1 \approx 0.97$, $\theta_0 \approx 0.03$. The EM-tenure model is converging to a completely different (and wrong) part of the parameter space.
+:::
+
+---
+
+## The CTMC Link: Why We Used It & Why It Fails {#sec-ctmc}
+
+### What is the CTMC link?
+
+The model assumes a **continuous-time Markov chain** (CTMC) underlies
+employment dynamics. This creates a deterministic mapping between transition
+probabilities and duration distribution rates:
+
+$$
+\lambda_g = \frac{-\log(1 - \theta_1)}{3}, \qquad
+\lambda_d = \frac{-\log(1 - \theta_0)}{3}
+$$
+
+where $\lambda_g$ is the exponential rate for employment spells (tenure)
+and $\lambda_d$ is the rate for nonemployment spells (timegap). The spacing
+$\Delta = 3$ months is one quarter.
+
+This means $\theta_1$ simultaneously controls:
+
+1. The **Markov prior**: $P(\text{employed}_t \mid \text{employed}_{t-1})$
+2. The **tenure distribution**: $G \sim \text{Exp}(\lambda_g(\theta_1))$, i.e., $E[G] = 1/\lambda_g$
+
+And $\theta_0$ simultaneously controls:
+
+1. The **Markov prior**: $P(\text{employed}_t \mid \text{nonemployed}_{t-1})$
+2. The **timegap distribution**: $D \sim \text{Exp}(\lambda_d(\theta_0))$, i.e., $E[D] = 1/\lambda_d$
+
+
+### Reasons for using the CTMC link
+
+::: {.callout-tip title="Arguments in favour of the linked specification"}
+
+**1. Parsimony (6 vs 8 parameters)**
+
+The linked model has parameters $(\alpha, \theta_0, \theta_1, \pi, \sigma^2_g, \sigma^2_d)$ — just 6.
+The free model adds $\lambda_g$ and $\lambda_d$ as independent parameters — 8 total.
+With only 3 waves (2 transitions per person), fewer parameters is better.
+
+**2. Identification of $\lambda$ and $\sigma^2$**
+
+The EMG density (exponential + Gaussian) for left-censored spells confounds
+$\lambda$ and $\sigma^2$. A toy example:
+
+> **Toy: EMG is under-determined when λ is free**
+>
+> An EMG$(λ, σ^2)$ distribution has mean $1/λ$ and variance $1/λ^2 + σ^2$.
+> Suppose we observe spells with sample mean $\bar{x} = 5$ years and sample
+> variance $s^2 = 30$ years².
+>
+> - Solution A: $λ = 0.20 \Rightarrow σ^2 = 30 - 25 = 5$
+> - Solution B: $λ = 0.50 \Rightarrow σ^2 = 30 - 4 = 26$
+> - Solution C: $λ = 0.17 \Rightarrow σ^2 = 30 - 35 < 0$ (infeasible)
+>
+> Infinitely many $(λ, σ^2)$ pairs fit the same moments. The link **pins** $λ$
+> via the transition data, resolving the ambiguity.
+
+```{r}
+#| label: toy-emg-identification
+#| code-summary: "Verify: EMG moment-matching is under-determined"
+
+# EMG(lambda, sigma2) has mean = 1/lambda, var = 1/lambda^2 + sigma2
+xbar <- 5   # observed mean (years)
+s2   <- 30  # observed variance (years^2)
+
+lambdas <- c(0.20, 0.50, 0.17)
+results <- data.frame(
+  lambda     = lambdas,
+  implied_mean = 1 / lambdas,
+  sigma2     = s2 - 1 / lambdas^2,
+  feasible   = (s2 - 1 / lambdas^2) > 0
+)
+results
+# Multiple (lambda, sigma2) pairs yield the same moments — not identified
+```
+
+**3. Structural consistency**
+
+If the true process is a two-state CTMC, then spell durations *must* be
+exponential and $\lambda$ *must* equal the CTMC intensity. The link enforces
+this consistency rather than allowing the two data sources to tell contradictory
+stories.
+
+**4. Computational simplicity**
+
+The free specification requires nested numerical optimisation of the EMG
+log-likelihood at each M-step. The linked specification avoids this — $\lambda$
+is deterministic from $\theta$, and the joint FOC is a simple 1D root-finding
+problem (Brent's method, 2–5 iterations).
+:::
+
+
+### Why the CTMC link fails on real data
+
+::: {.callout-warning title="The fundamental tension"}
+The CTMC link forces $\theta$ to satisfy **two conflicting signals simultaneously**:
+
+- Binary transition data says: $\theta_1 \approx 0.97$
+- Tenure distribution data says: $\theta_1$ should be much lower (to match
+  the long observed spells)
+
+The M-step FOC is:
+
+$$
+\underbrace{\frac{T_{11}}{\theta_1} - \frac{D_1 - T_{11}}{1-\theta_1}}_{\text{Markov prior: wants } \theta_1 \approx 0.97}
+\;+\;
+\underbrace{\frac{1}{3(1-\theta_1)} \cdot E_g}_{\text{EMG emission: pulls } \theta_1 \text{ down}}
+\;=\; 0
+$$
+
+The EM "compromises" at $\theta_1 \approx 0.5$, which satisfies neither signal.
+:::
+
+Here is the core conflict, demonstrated with arithmetic:
+
+::: {.callout-important title="Toy Calculation: The 60× Discrepancy"}
+
+**What $\theta_1 = 0.97$ implies for tenure:**
+
+$$\lambda_g = \frac{-\log(1 - 0.97)}{3} = \frac{-\log(0.03)}{3} = \frac{3.51}{3} = 1.17 \text{ /month}$$
+
+$$E[\text{tenure}] = \frac{1}{\lambda_g} = \frac{1}{1.17} = 0.85 \text{ months} \approx 0.07 \text{ years}$$
+
+**What the data actually shows:**
+
+- Median tenure: **3.83 years** (46 months)
+- Mean tenure: **6.52 years** (78 months)
+
+**The CTMC with $\theta_1 = 0.97$ predicts a mean tenure of 0.85 months.
+The observed mean tenure is 78 months — a factor of ~92× larger.**
+
+The only way to match long tenure spells under the link is to push $\theta_1$
+down, which increases $1/\lambda_g$. For example, $\theta_1 = 0.50$ gives:
+
+$$\lambda_g = \frac{-\log(0.50)}{3} = 0.231 \text{ /month} \quad \Rightarrow \quad E[\text{tenure}] = 4.3 \text{ months}$$
+
+Still much too short, but at least in the same order of magnitude — which is
+exactly where the EM converges.
+
+```{r}
+#| label: toy-tenure-discrepancy
+#| code-summary: "Verify: CTMC-implied vs observed tenure"
+
+# CTMC link: lambda_g = -log(1 - theta1) / 3
+ctmc_lambda <- function(theta) -log(1 - theta) / 3
+
+# What theta1 = 0.97 implies
+theta1_true <- 0.97
+lambda_g_97 <- ctmc_lambda(theta1_true)
+E_tenure_97 <- 1 / lambda_g_97  # in months
+
+cat(sprintf("theta1 = %.2f  =>  lambda_g = %.4f /month  =>  E[tenure] = %.2f months (%.2f years)\n",
+            theta1_true, lambda_g_97, E_tenure_97, E_tenure_97 / 12))
+
+# Observed tenure stats (from data diagnostics)
+obs_median_tenure_yrs <- 3.83
+obs_mean_tenure_yrs   <- 6.52
+
+cat(sprintf("Observed mean tenure:   %.1f months (%.2f years)\n",
+            obs_mean_tenure_yrs * 12, obs_mean_tenure_yrs))
+cat(sprintf("Discrepancy factor:    %.0f×\n",
+            (obs_mean_tenure_yrs * 12) / E_tenure_97))
+
+# What theta1 = 0.50 implies (where the EM converges)
+theta1_em <- 0.50
+lambda_g_50 <- ctmc_lambda(theta1_em)
+E_tenure_50 <- 1 / lambda_g_50
+
+cat(sprintf("\ntheta1 = %.2f  =>  lambda_g = %.4f /month  =>  E[tenure] = %.1f months (%.2f years)\n",
+            theta1_em, lambda_g_50, E_tenure_50, E_tenure_50 / 12))
+
+# What theta1 would we NEED to match observed mean tenure?
+# E[tenure] = 1/lambda = 78 months => lambda = 1/78
+# theta = 1 - exp(-lambda * 3) = 1 - exp(-3/78)
+theta1_needed <- 1 - exp(-3 / (obs_mean_tenure_yrs * 12))
+cat(sprintf("\nTo match observed mean tenure (%.0f months): theta1 = %.4f\n",
+            obs_mean_tenure_yrs * 12, theta1_needed))
+cat("This is far below the transition-data estimate of 0.97\n")
+```
+:::
+
+::: {.callout-important title="Toy Calculation: Timegap side is less severe but still mismatched"}
+
+**What $\theta_0 = 0.08$ implies for nonemployment duration:**
+
+$$\lambda_d = \frac{-\log(1 - 0.08)}{3} = \frac{-\log(0.92)}{3} = \frac{0.083}{3} = 0.028 \text{ /month}$$
+
+$$E[\text{timegap}] = \frac{1}{\lambda_d} = \frac{1}{0.028} = 36 \text{ months} = 3.0 \text{ years}$$
+
+**Observed mean timegap: 2.33 years (28 months)** — actually in the right
+ballpark, but this includes the coarse categorical measurement (7 bins) and
+the data is interval-censored, so the comparison is approximate.
+
+The mismatch is much less severe on the timegap side, but the fundamental issue
+is the same: forcing a single parameter to satisfy two constraints.
+
+```{r}
+#| label: toy-timegap-discrepancy
+#| code-summary: "Verify: CTMC-implied vs observed timegap"
+
+ctmc_lambda <- function(theta) -log(1 - theta) / 3
+
+# What theta0 = 0.08 (naive observed) implies
+theta0_naive <- 0.084
+lambda_d <- ctmc_lambda(theta0_naive)
+E_timegap <- 1 / lambda_d
+
+cat(sprintf("theta0 = %.3f  =>  lambda_d = %.4f /month  =>  E[timegap] = %.1f months (%.2f years)\n",
+            theta0_naive, lambda_d, E_timegap, E_timegap / 12))
+
+# Observed timegap stats
+obs_mean_timegap_yrs <- 2.33
+cat(sprintf("Observed mean timegap: %.1f months (%.2f years)\n",
+            obs_mean_timegap_yrs * 12, obs_mean_timegap_yrs))
+cat(sprintf("Ratio (implied/observed): %.1f×\n", E_timegap / (obs_mean_timegap_yrs * 12)))
+
+# What theta0 = 0.03 (simple model estimate) implies
+theta0_simple <- 0.03
+lambda_d_03 <- ctmc_lambda(theta0_simple)
+E_timegap_03 <- 1 / lambda_d_03
+cat(sprintf("\ntheta0 = %.2f (simple model)  =>  E[timegap] = %.0f months (%.1f years)\n",
+            theta0_simple, E_timegap_03, E_timegap_03 / 12))
+cat("Also in the right ballpark — timegap side is less problematic\n")
+```
+:::
+
+```{r}
+#| label: toy-mapping-table
+#| code-summary: "Full mapping: theta -> implied mean spell duration"
+
+ctmc_lambda <- function(theta) -log(1 - theta) / 3
+
+thetas <- c(0.97, 0.90, 0.80, 0.50, 0.30, 0.10, 0.08, 0.03)
+mapping <- data.frame(
+  theta        = thetas,
+  lambda       = round(ctmc_lambda(thetas), 4),
+  E_spell_months = round(1 / ctmc_lambda(thetas), 1),
+  E_spell_years  = round(1 / ctmc_lambda(thetas) / 12, 2)
+)
+cat("CTMC link: theta -> lambda -> E[spell duration]\n")
+cat("(lambda in per-month units, delta = 3 months)\n\n")
+mapping
+```
+
+::: {.callout-note title="Toy Calculation: Why synthetic data works"}
+
+In synthetic data, durations are **generated from** the exponential model:
+
+$$G = \text{Exp}(\lambda_g) + \epsilon_g, \quad \epsilon_g \sim N(0, \sigma^2_g)$$
+
+The CTMC link is *exactly correct by construction*. True $\theta_1 = 0.97$
+generates short spells ($E[G] \approx 0.85$ months) as expected.
+
+In real data, employment spells exhibit **positive duration dependence** — longer
+spells are more stable. The tenure distribution (median 3.8 yrs, mean 6.5 yrs,
+max 70 yrs) has a heavy right tail completely inconsistent with any single
+exponential rate. The memoryless property of the exponential fundamentally does
+not hold for real employment tenure.
+:::
+
+
+```{r}
+#| label: summary-tension
+#| code-summary: "Summary: the two signals and their implied theta"
+
+ctmc_lambda <- function(theta) -log(1 - theta) / 3
+ctmc_theta  <- function(lambda) 1 - exp(-lambda * 3)
+
+cat("=== EMPLOYMENT SIDE (theta1) ===")
+cat("\n\nSignal 1 (transition counts): theta1 ≈ 0.904 (naive) or 0.97 (corrected)")
+cat("\n  => lambda_g =", round(ctmc_lambda(0.97), 4), "/month")
+cat("\n  => E[tenure] =", round(1/ctmc_lambda(0.97), 1), "months")
+cat("\n  => But observed mean tenure = 78 months\n")
+
+cat("\nSignal 2 (tenure distribution): need E[tenure] ≈ 78 months")
+cat("\n  => lambda_g = 1/78 =", round(1/78, 5), "/month")
+cat("\n  => theta1 =", round(ctmc_theta(1/78), 4))
+cat("\n  => But transition data says theta1 ≈ 0.97\n")
+
+cat("\nEM compromise: theta1 ≈ 0.50")
+cat("\n  => E[tenure] =", round(1/ctmc_lambda(0.50), 1), "months (too short)")
+cat("\n  => P(stay employed) = 0.50 (too low)")
+cat("\n  => Satisfies NEITHER signal\n")
+
+cat("\n=== NONEMPLOYMENT SIDE (theta0) ===")
+cat("\n\nSignal 1 (transition counts): theta0 ≈ 0.084 (naive) or 0.03 (corrected)")
+cat("\nSignal 2 (timegap distribution): mean timegap ≈ 28 months")
+cat("\n  => lambda_d = 1/28 =", round(1/28, 5))
+cat("\n  => theta0 =", round(ctmc_theta(1/28), 4))
+cat("\n  Less severe mismatch — signals are in the same ballpark\n")
+```
+
+---
+
+## Root Cause Diagnosis Summary
+
+The estimation failure has **one primary cause and several contributing factors**:
+
+### Primary: Model misspecification (exponential duration assumption)
+
+The CTMC assumption implies exponential (memoryless) spell durations.
+Real employment tenure is heavy-tailed with strong positive duration
+dependence. This creates an irreconcilable tension within the linked
+specification:
+
+- **Transition counts** identify $\theta_1 \approx 0.97$ (short exit hazard)
+- **Tenure levels** demand $\lambda_g$ be small (long spells), which via the
+  link requires $\theta_1$ to be small
+- The EM compromise sits at $\theta_1 \approx 0.5$, satisfying neither
+
+### Contributing: Wrong-state duration imputation
+
+The ingest script imputes "plausible" durations for the wrong state
+(e.g., timegap values for employed waves) via nearest-non-zero donor
+imputation. These fabricated values enter the likelihood for all
+misclassifying latent histories. If the imputed values are "too
+plausible," they inflate $\pi$ and further distort $\theta$.
+
+### Contributing: Local optima
+
+With 8 latent histories and a mixture likelihood, the EM has
+multiple local optima. The default initialisation ($\theta_1 = 0.9$,
+$\theta_0 = 0.1$) may place the algorithm in the basin of the wrong
+optimum — but even with initialisation closer to the truth, the
+fundamental tension from the CTMC link would remain.
+
+### Contributing: Extreme tenure values and right-tail leverage {#sec-tail}
+
+The tenure distribution has a very heavy right tail (mean 6.5 yrs vs median
+3.8 yrs, max 70 yrs). Under the exponential model, each observation contributes
+a term $-\lambda_g \cdot g_i$ to the log-likelihood. For an individual with
+$g = 70$ years (840 months), this term dominates. A few hundred extreme-tenure
+observations can overwhelm the transition-count signal from the entire sample.
+
+::: {.callout-warning title="Extreme tenure leverage on the likelihood"}
+Under the EMG/exponential model, the log-likelihood contribution of one
+observation with tenure $g$ includes $-\lambda_g \cdot g$. At $\theta_1 = 0.97$
+($\lambda_g = 1.17$/month), a 70-year tenure contributes $-1.17 \times 840 = -983$
+to the log-likelihood — a catastrophic penalty. The EM reduces $\lambda_g$ (and
+hence $\theta_1$) to make these observations less costly, even though doing so
+wrecks the transition-probability estimates.
+:::
+
+```{r}
+#| label: toy-tail-leverage
+#| code-summary: "Verify: extreme tenure observations' leverage on log-likelihood"
+
+ctmc_lambda <- function(theta) -log(1 - theta) / 3
+
+# Log-likelihood contribution of Exp(lambda) at observation g:
+#   log(lambda) - lambda * g
+ll_exp <- function(g_months, lambda) log(lambda) - lambda * g_months
+
+# Representative observations
+g_vals <- c(0.5, 1, 3.83, 6.52, 20, 40, 70) # in years
+g_months <- g_vals * 12
+
+# Compare LL contributions at theta1 = 0.97 vs 0.50
+lambda_97 <- ctmc_lambda(0.97)
+lambda_50 <- ctmc_lambda(0.50)
+
+leverage <- data.frame(
+  tenure_yrs = g_vals,
+  tenure_months = g_months,
+  ll_theta097 = round(ll_exp(g_months, lambda_97), 1),
+  ll_theta050 = round(ll_exp(g_months, lambda_50), 1),
+  ll_gain_from_lower_theta = round(ll_exp(g_months, lambda_50) - ll_exp(g_months, lambda_97), 1)
+)
+
+cat("Log-likelihood contribution per observation (exponential component only)\n")
+cat("Positive 'll_gain' = observation prefers theta1=0.50 over theta1=0.97\n\n")
+leverage
+
+cat("\n\nKey insight: the 70-year tenure observation gains",
+    round(ll_exp(70*12, lambda_50) - ll_exp(70*12, lambda_97), 0),
+    "log-lik points\nby moving theta1 from 0.97 to 0.50.")
+cat("\nA median-tenure (3.83 yr) observation loses only",
+    round(abs(ll_exp(3.83*12, lambda_50) - ll_exp(3.83*12, lambda_97)), 1),
+    "points.\n")
+cat("So a SINGLE 70-year obs outweighs ~",
+    round(abs(ll_exp(70*12, lambda_50) - ll_exp(70*12, lambda_97)) /
+          abs(ll_exp(3.83*12, lambda_50) - ll_exp(3.83*12, lambda_97))),
+    " median-tenure observations.\n")
+```
+
+::: {.callout-note}
+**Diagnostic to try**: Trim or winsorise tenure at the 99th percentile and
+re-run the EM. If $\theta_1$ moves substantially toward 0.97, the right tail
+is a major driver — independent of the broader CTMC misspecification question.
+This is a quick test that doesn't require any model changes.
+:::
+
+### Contributing: Coarse timegap categories
+
+Nonemployment duration is observed in 7 coarse bins. While the
+discrete interval-censored model handles this correctly in
+principle, the coarseness reduces the information content and may
+interact with the exponential misspecification.
+
+---
+
+## Proposed Next Steps
+
+### Immediate diagnostics (I can do these now)
+
+1. **Inspect sufficient statistics at each iteration**: Print $T_{11}/D_1$
+   and $T_{01}/D_0$ (the Markov-only $\theta$ estimates) alongside the
+   EMG gradient $E_g$ to confirm the tension quantitatively.
+
+2. **Run with free $\lambda$**: Decouple $\lambda_g$ and $\lambda_d$ from
+   $\theta$ and re-estimate. If the Markov-only estimates normalise to
+   $\theta_1 \approx 0.97$, $\theta_0 \approx 0.03$, this confirms the
+   link is the sole driver.
+
+3. **Trim the tenure right tail**: Winsorise tenure at the 95th or 99th
+   percentile and re-run. If $\theta_1$ moves substantially toward 0.97,
+   the extreme-value leverage (see @sec-tail) is a major driver and may
+   be addressable without changing the model structure.
+
+4. **Try initialisation closer to truth**: Set $\theta_1 = 0.97$,
+   $\theta_0 = 0.03$, $\pi = 0.03$ and check whether the EM stays near
+   these values or drifts away.
+
+### Model modifications (need supervisor input)
+
+4. **Drop the CTMC link entirely**: Use $\lambda_g$ and $\lambda_d$ as
+   free parameters (or reparametrise via a more flexible duration model).
+   The free specification has identification concerns (see
+   @sec-ctmc), but these may be resolvable with
+   regularisation or informative priors.
+
+5. **Replace exponential with a more flexible duration model**: Options
+   include:
+   - **Mixture of exponentials**: $G \sim p \cdot \text{Exp}(\lambda_1) + (1-p) \cdot \text{Exp}(\lambda_2)$ — captures short and long spells with 3 parameters per side
+   - **Weibull**: $f(t) = k\lambda(t\lambda)^{k-1}e^{-(t\lambda)^k}$ — shape parameter $k > 1$ captures positive duration dependence
+   - **Piecewise exponential**: different rates for different tenure segments
+   - Each option breaks the clean CTMC link but may be necessary
+
+6. **Use duration data only for identification, not via the link**:
+   Keep the binary-sequence Markov model for $\theta$ estimation.
+   Use tenure/timegap data separately to identify $\pi$ via the
+   different distributional shapes of correctly-classified vs
+   misclassified observations — without linking $\lambda$ to $\theta$.
+
+---
+
+## Help Needed from Supervisor {#sec-help}
+
+::: {.callout-caution title="Questions for discussion"}
+
+**Q1. Is the exponential duration assumption viable for South African
+labour markets?**
+
+Observed tenure has median 3.8 years and mean 6.5 years with a max of
+70 years. This heavy right tail is inconsistent with memoryless
+exponential spells. Is there an economic argument for maintaining the
+CTMC assumption, or should we accept that duration dependence is
+present and move to a more flexible model?
+
+**Q2. Should we run a free-$\lambda$ diagnostic?**
+
+The TeX document argues the free specification is "potentially poorly
+identified" and "theoretically redundant." But running it as a
+*diagnostic* (not final model) would isolate whether the link itself
+drives the divergence vs other data issues. Is this worth doing?
+
+**Q3. What is the best path to a more flexible duration model?**
+
+If we drop the CTMC link, we need an alternative duration model that:
+
+- Is flexible enough to capture heavy-tailed tenure distributions
+- Still allows identification of $\pi$ (misclassification)
+- Doesn't add too many parameters given only 3 waves
+
+The leading candidates are mixture-of-exponentials, Weibull, or
+dropping the duration emission from $\theta$ estimation entirely. Which
+direction makes the most economic sense?
+
+**Q4. Should we consider a staged approach?**
+
+- **Stage 1**: Estimate $(\alpha, \theta_0, \theta_1, \pi)$ from
+  binary sequences only (this already works and gives plausible
+  results)
+- **Stage 2**: Conditional on $\hat\theta$, estimate the duration
+  parameters $(\sigma^2_g, \lambda_g)$ to validate or refine the
+  misclassification estimate
+
+This sacrifices joint efficiency but avoids the link tension entirely.
+:::
+
+---
+
+## Appendix: Key References Within the Project
+
+| File | Description |
+|:---|:---|
+| `EM-tenure/estimate_pipeline.R` | End-to-end estimation script (currently running) |
+| `EM-tenure/R/` | All EM functions (E-step, M-step, emissions, driver) |
+| `EM-tenure/CONCERNS.md` | Known methodological concerns (13 items) |
+| `troubleshoot/diagnose_em_tenure.R` | Diagnostic script (§1–§5) |
+| `documents/EM tenure.tex` | Full model derivation |
+| `scripts/ingest_data_3waves_SA.R` | Data ingestion and imputation |
