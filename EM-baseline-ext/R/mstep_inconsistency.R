@@ -2,7 +2,8 @@
 # EM-baseline-ext: M-step for Extension IV (inconsistency-augmented model)
 # Created: 2026-05-06
 #
-# Theta updates: closed form (identical to baseline).
+# Theta updates: closed form with free alpha; joint numerical maximisation when
+# stationarity couples alpha to both transition probabilities.
 # Delta update:  one Fisher-scoring Newton-Raphson step on Q_miscl(delta).
 #
 # Q_miscl(delta) = sum_{i,t} w_i * [p_it * log(pi_it) + (1-p_it)*log(1-pi_it)]
@@ -20,6 +21,43 @@
 # ==============================================================================
 
 .INCNS_RIDGE <- 1e-6   # ridge for (I + lambda * I_3)^{-1} solve
+
+# Under stationarity alpha = theta0 / (theta0 + 1 - theta1), so the
+# initial-state contribution couples theta0 and theta1.  The legacy closed-form
+# transition updates omitted that contribution and were therefore not a valid
+# stationary M-step.  Maximise the complete-data transition block jointly.
+.update_inconsistency_transitions <- function(suff, params_old, stationary,
+                                               theta_cap = 0.999) {
+  eps <- 1e-12
+  if (!stationary) {
+    theta1 <- min(.bound01(suff$T11 / max(suff$D1, eps)), theta_cap)
+    theta0 <- min(.bound01(suff$T01 / max(suff$D0, eps)), theta_cap)
+    alpha <- .bound01(suff$C1 / max(suff$C1 + suff$C0, eps))
+    return(list(theta0 = theta0, theta1 = theta1, alpha = alpha))
+  }
+
+  unpack <- function(z) theta_cap * plogis(z)
+  pack <- function(p) qlogis(pmin(pmax(p / theta_cap, 1e-10), 1 - 1e-10))
+  q_transition <- function(z) {
+    theta <- unpack(z)
+    theta0 <- theta[1L]; theta1 <- theta[2L]
+    alpha <- stationary_alpha(theta0, theta1)
+    suff$C1 * log(pmax(alpha, eps)) + suff$C0 * log(pmax(1 - alpha, eps)) +
+      suff$T01 * log(pmax(theta0, eps)) + suff$T00 * log(pmax(1 - theta0, eps)) +
+      suff$T11 * log(pmax(theta1, eps)) + suff$T10 * log(pmax(1 - theta1, eps))
+  }
+  z0 <- pack(c(params_old$theta0, params_old$theta1))
+  opt <- tryCatch(
+    optim(z0, function(z) -q_transition(z), method = "BFGS",
+          control = list(maxit = 200L, reltol = 1e-12)),
+    error = function(e) NULL
+  )
+  z_new <- if (!is.null(opt) && is.finite(opt$value) &&
+               q_transition(opt$par) >= q_transition(z0) - 1e-8) opt$par else z0
+  theta <- unpack(z_new)
+  list(theta0 = unname(theta[1L]), theta1 = unname(theta[2L]),
+       alpha = stationary_alpha(theta[1L], theta[2L]))
+}
 
 #' Evaluate Q_miscl(delta) given fixed posterior mismatch probs
 #'
@@ -94,8 +132,9 @@
 
 #' M-step for the inconsistency-augmented model
 #'
-#' Performs closed-form theta updates and one Newton-Raphson (Fisher scoring)
-#' step for the misclassification coefficient vector \eqn{\delta}. Armijo
+#' Performs closed-form transition updates when alpha is free and a joint
+#' stationary transition update otherwise, followed by one Newton-Raphson
+#' (Fisher scoring) step for the misclassification coefficient vector \eqn{\delta}. Armijo
 #' backtracking ensures \eqn{Q_{\text{miscl}}} does not decrease.
 #'
 #' TeX ref: EM baseline.tex Section 8, Eqs (31)--(35).
@@ -128,14 +167,13 @@ m_step_inconsistency <- function(suff, incons_mat, params_old,
                                   nr_max_backtrack  = 10L) {
   eps <- 1e-10
 
-  # ---- Closed-form theta updates ------------------------------------------
-  theta1 <- min(.bound01(suff$T11 / max(suff$D1, eps)), theta_cap)
-  theta0 <- min(.bound01(suff$T01 / max(suff$D0, eps)), theta_cap)
-  alpha  <- if (stationary) {
-    stationary_alpha(theta0, theta1)
-  } else {
-    .bound01(suff$C1 / max(suff$C1 + suff$C0, eps))
-  }
+  # ---- Transition update --------------------------------------------------
+  transition <- .update_inconsistency_transitions(
+    suff, params_old, stationary = stationary, theta_cap = theta_cap
+  )
+  theta0 <- transition$theta0
+  theta1 <- transition$theta1
+  alpha <- transition$alpha
 
   # ---- NR step for delta ---------------------------------------------------
   N      <- length(suff$weights)

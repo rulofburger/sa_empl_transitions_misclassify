@@ -69,6 +69,11 @@ if (!exists("%||%", mode = "function"))
 #' }
 #' @export
 implied_ar2 <- function(params, model_type = "symmetric") {
+  required <- c("theta0", "theta01", "theta1", "theta10")
+  missing <- required[!vapply(required, function(x)
+    !is.null(params[[x, exact = TRUE]]), logical(1L))]
+  if (length(missing))
+    stop("implied_ar2: missing required parameters: ", paste(missing, collapse = ", "))
   stopifnot(
     is.list(params),
     is.numeric(params$theta0),  length(params$theta0)  == 1L, !is.na(params$theta0),
@@ -84,10 +89,10 @@ implied_ar2 <- function(params, model_type = "symmetric") {
     model_type %in% c("symmetric", "asymmetric", "none")
   )
 
-  theta0  <- params$theta0
-  theta01 <- params$theta01
-  theta1  <- params$theta1
-  theta10 <- params$theta10
+  theta0  <- params[["theta0", exact = TRUE]]
+  theta01 <- params[["theta01", exact = TRUE]]
+  theta1  <- params[["theta1", exact = TRUE]]
+  theta10 <- params[["theta10", exact = TRUE]]
 
   # Four AR(2) transition probabilities (paper eq. 4)
   p_00 <- theta0

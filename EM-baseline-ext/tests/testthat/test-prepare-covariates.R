@@ -11,7 +11,18 @@
     educ1        = sample(1:5,   n, replace = TRUE),
     race1        = sample(1:4,   n, replace = TRUE),
     female1      = sample(0:1,   n, replace = TRUE),
-    contracttype1 = sample(1:3,  n, replace = TRUE)
+    tenure_cov1  = runif(n, 0, 12), tenure_cov2 = runif(n, 0, 12),
+    timegap_cov1 = runif(n, 0, 8), timegap_cov2 = runif(n, 0, 8),
+    neverworked_cov1 = sample(0:1, n, replace = TRUE),
+    neverworked_cov2 = sample(0:1, n, replace = TRUE),
+    tenure_missing_cov1 = sample(0:1, n, replace = TRUE),
+    tenure_missing_cov2 = sample(0:1, n, replace = TRUE),
+    timegap_missing_cov1 = sample(0:1, n, replace = TRUE),
+    timegap_missing_cov2 = sample(0:1, n, replace = TRUE),
+    contracttype1 = sample(1:3,  n, replace = TRUE),
+    contracttype2 = sample(1:3,  n, replace = TRUE),
+    informal_sector1 = sample(0:1, n, replace = TRUE),
+    informal_sector2 = sample(0:1, n, replace = TRUE)
   )
 }
 
@@ -35,12 +46,51 @@ test_that("set 2 includes race dummies and female on top of set 1", {
   expect_true(any(grepl("^race_", colnames(out2$X))))
 })
 
-test_that("set 3 includes contract type dummies on top of set 2", {
+test_that("set 3 includes equation-specific duration covariates", {
   df  <- .make_cov_df()
   out2 <- prepare_covariate_matrix(df, covariate_set = 2L)
   out3 <- prepare_covariate_matrix(df, covariate_set = 3L)
   expect_true(ncol(out3$X) > ncol(out2$X))
-  expect_true(any(grepl("^contracttype_", colnames(out3$X))))
+  expect_true(all(c("log_tenure", "log_time_since_work", "never_worked") %in% colnames(out3$X)))
+  expect_false(any(grepl("^(contracttype_|informal_sector$)", colnames(out3$X))))
+  exit_only <- colnames(out3$X) == "log_tenure"
+  expect_true(all(!out3$entry_active[exit_only]))
+  entry_only <- colnames(out3$X) %in% c("log_time_since_work", "never_worked")
+  expect_true(all(!out3$persistence_active[entry_only]))
+})
+
+test_that("set 3 equation-specific inactive coefficients remain zero", {
+  set.seed(12L)
+  n <- 250L
+  cov_df <- .make_cov_df(n)
+  prep <- prepare_covariate_matrix(cov_df, covariate_set = 3L)
+  panel <- data.frame(
+    y1 = rbinom(n, 1L, 0.5),
+    y2 = rbinom(n, 1L, 0.5),
+    y3 = rbinom(n, 1L, 0.5),
+    weight = rep(1, n)
+  )
+  fit <- em_fit_covariates(panel, prep$X_transition, model_type = "symmetric",
+                           stationary = FALSE,
+                           max_iter = 100L, verbose = 0L)
+  exit_only <- colnames(prep$X) == "log_tenure"
+  expect_equal(unname(fit$params$beta0[exit_only]), rep(0, sum(exit_only)))
+  entry_only <- colnames(prep$X) %in% c("log_time_since_work", "never_worked")
+  expect_equal(unname(fit$params$beta1[entry_only]), rep(0, sum(entry_only)))
+})
+
+test_that("wave-1 informal sector is merged and coded from sector2", {
+  panel <- data.frame(
+    hhnr = c(10, 11, 12), pnr = c(1, 1, 2), period1 = c(5, 5, 6),
+    y1 = c(1L, 1L, 0L)
+  )
+  upstream <- data.frame(
+    hhnr = c(10, 11, 12), pnr_methodA = c(1, 1, 2), wave = c(5, 5, 6),
+    sector2 = c(1, 2, NA)
+  )
+  out <- attach_wave1_informal_sector(panel, upstream)
+  expect_equal(out$informal_sector1, c(0L, 1L, 0L))
+  expect_equal(out$sector2_1[1:2], c(1, 2))
 })
 
 # ---- Intercept -------------------------------------------------------------
@@ -92,7 +142,7 @@ test_that("race dummies are binary 0/1", {
 
 test_that("contract type dummies are binary 0/1", {
   df   <- .make_cov_df()
-  out  <- prepare_covariate_matrix(df, covariate_set = 3L)
+  out  <- prepare_covariate_matrix(df, covariate_set = 4L)
   ct_cols <- grep("^contracttype_", colnames(out$X), value = TRUE)
   for (col in ct_cols) {
     expect_true(all(out$X[, col] %in% c(0L, 1L)),
@@ -134,7 +184,7 @@ test_that("return value has components X, col_names, center, scale", {
 test_that("invalid covariate_set raises an error", {
   df <- .make_cov_df()
   expect_error(prepare_covariate_matrix(df, covariate_set = 0L), "covariate_set must be")
-  expect_error(prepare_covariate_matrix(df, covariate_set = 4L), "covariate_set must be")
+  expect_error(prepare_covariate_matrix(df, covariate_set = 5L), "covariate_set must be")
 })
 
 test_that("missing required columns raise an error", {

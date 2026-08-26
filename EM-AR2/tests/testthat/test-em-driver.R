@@ -67,11 +67,14 @@ test_that("em_fit_ar2 returns correct output structure", {
 
   fit <- em_fit_ar2(df, max_iter = 20L, verbose = 0L)
 
-  expect_named(fit, c("params", "loglik", "history", "converged", "iterations", "gamma"))
+  expect_named(fit, c("params", "loglik", "history", "converged", "iterations",
+                      "gamma", "cells", "n_obs", "estimator", "diagnostics"))
   expect_true(is.list(fit$params))
   expect_true(is.numeric(fit$loglik))
   expect_true(is.data.frame(fit$history))
-  expect_equal(dim(fit$gamma), c(200L, 16L))
+  expect_equal(nrow(fit$gamma), nrow(fit$cells))
+  expect_equal(ncol(fit$gamma), 16L)
+  expect_equal(fit$n_obs, 200L)
 })
 
 test_that("em_fit_ar2 log-likelihood is non-decreasing across iterations", {

@@ -168,6 +168,22 @@ test_that("NA in educ column results in 0 education indicators", {
   expect_equal(out$Y_edu_3, 0L)
 })
 
+test_that("compute_inconsistency_extent attributes and sums middle-wave severity", {
+  df <- .make_incons_df(30, 35, 31, 3L, 7L, 3L)
+  out <- compute_inconsistency_extent(df)
+  expect_equal(out$extent_age_1, 0)
+  expect_equal(out$extent_age_2, 8)  # distances 4 and 4 from [0,1]
+  expect_equal(out$extent_age_3, 0)
+  expect_equal(out$extent_edu_2, 7)  # distances 3 and 4 from [0,1]
+})
+
+test_that("compute_inconsistency_extent assigns zero to missing gaps", {
+  df <- .make_incons_df(30, NA, 31, 3L, NA, 3L)
+  out <- compute_inconsistency_extent(df)
+  expect_equal(unname(unlist(out[paste0("extent_age_", 1:3)])), rep(0, 3))
+  expect_equal(unname(unlist(out[paste0("extent_edu_", 1:3)])), rep(0, 3))
+})
+
 # ---- Error handling ---------------------------------------------------------
 
 test_that("compute_inconsistencies errors on missing required columns", {

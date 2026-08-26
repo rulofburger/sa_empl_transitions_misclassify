@@ -2,31 +2,98 @@
 # EM-baseline-ext: Build covariate design matrix for Extension I
 # Created: 2026-05-06
 #
-# Constructs one of three fixed covariate specifications for the observable
+# Constructs one of four covariate specifications for the observable
 # heterogeneity extension (EM baseline.tex Section 5). Uses wave-1 values
-# only (time-invariant covariates assumption). Continuous variables are
+# for demographics. Contract type and sector use the origin-wave value for
+# each transition. Continuous variables are
 # standardised to mean 0, sd 1 for numerical stability of the probit IRLS.
 #
 # Covariate sets:
 #   Set 1 (parsimonious): intercept, age, age^2, education
 #   Set 2 (demographics): Set 1 + race dummies + female
-#   Set 3 (full):         Set 2 + contract type dummies
+#   Set 3 (duration):     Set 2 + log tenure (persistence only) and log time
+#                         since work plus never worked (entry only).
+#   Set 4 (job traits):   Set 3 + contract type and informal sector
+#                         (persistence only).
 # ==============================================================================
+
+#' Attach transition-origin informal-sector indicators to a three-wave panel
+#'
+#' The estimation panel was built with person-matching method A, while sector
+#' is retained only in the upstream long-format file. This helper performs a
+#' validated many-to-one merge using household ID, method-A person ID, and
+#' survey wave. Informal sector uses sector2 == 2, the QLFS definition that
+#' allocates agriculture between formal and informal employment.
+#'
+#' @param df Three-wave panel containing hhnr, pnr, period1/period2, and y1/y2.
+#' @param sector_long Upstream long-format QLFS data containing hhnr,
+#'   pnr_methodA, wave, and sector2.
+#' @return df with sector2_1/sector2_2 and informal_sector1/informal_sector2.
+attach_transition_informal_sector <- function(df, sector_long) {
+  panel_required <- c("hhnr", "pnr", "period1", "period2", "y1", "y2")
+  source_required <- c("hhnr", "pnr_methodA", "wave", "sector2")
+  missing_panel <- setdiff(panel_required, names(df))
+  missing_source <- setdiff(source_required, names(sector_long))
+  if (length(missing_panel))
+    stop("attach_wave1_informal_sector: panel is missing: ",
+         paste(missing_panel, collapse = ", "))
+  if (length(missing_source))
+    stop("attach_wave1_informal_sector: sector source is missing: ",
+         paste(missing_source, collapse = ", "))
+
+  relevant <- sector_long$wave %in% unique(c(df$period1, df$period2)) &
+    !is.na(sector_long$pnr_methodA)
+  src <- sector_long[relevant, source_required, drop = FALSE]
+  source_key <- paste(src$hhnr, src$pnr_methodA, src$wave, sep = "|")
+  if (anyDuplicated(source_key))
+    stop("attach_wave1_informal_sector: upstream merge key is not unique")
+
+  for (t in 1:2) {
+    panel_key <- paste(df$hhnr, df$pnr, df[[paste0("period", t)]], sep = "|")
+    idx <- match(panel_key, source_key)
+    if (anyNA(idx))
+      stop(sprintf(
+        "attach_transition_informal_sector: wave %d: %d of %d rows did not match",
+        t, sum(is.na(idx)), length(idx)
+      ))
+    sector2 <- as.numeric(unclass(src$sector2[idx]))
+    employed <- df[[paste0("y", t)]] == 1L
+    if (anyNA(sector2[employed]))
+      stop(sprintf("attach_transition_informal_sector: sector2_%d missing for employed respondents", t))
+    if (!all(sector2[employed] %in% c(1, 2, 4)))
+      stop(sprintf("attach_transition_informal_sector: unexpected sector2_%d code", t))
+    df[[paste0("sector2_", t)]] <- sector2
+    df[[paste0("informal_sector", t)]] <-
+      as.integer(employed & !is.na(sector2) & sector2 == 2)
+  }
+  df
+}
+
+# Backward-compatible wave-1 helper used by older scripts/tests.
+attach_wave1_informal_sector <- function(df, sector_long) {
+  if (!"period2" %in% names(df)) df$period2 <- df$period1
+  if (!"y2" %in% names(df)) df$y2 <- df$y1
+  attach_transition_informal_sector(df, sector_long)
+}
 
 #' Build the probit covariate design matrix
 #'
-#' Constructs an N × p design matrix for the covariate extension of the
-#' baseline EM model (TeX Section~5). Wave-1 values are used for all
-#' variables (time-invariant covariates assumption). Continuous predictors
+#' Constructs one or two N × p design matrices for the covariate extension of
+#' the baseline EM model (TeX Section~5). Wave-1 values are used for fixed
+#' demographics; contract type and sector vary by transition. Continuous predictors
 #' are standardised to mean 0 / sd 1 on the provided sample.
 #'
 #' @param df Data frame containing the following columns (from
 #'   \code{ingest_data_3waves_SA.R}):
 #'   \code{age1}, \code{educ1} (required for all sets);
-#'   \code{race1}, \code{female1} (required for sets 2 and 3);
-#'   \code{contracttype1} (required for set 3).
+#'   \code{race1}, \code{female1} (required for sets 2--4);
+#'   state-appropriate tenure, time-since-work, never-worked, and duration
+#'   missingness columns (required for sets 3--4);
+#'   \code{contracttype1}, \code{contracttype2}, \code{informal_sector1},
+#'   \code{informal_sector2} (required for set 4).
 #' @param covariate_set Integer scalar: \code{1L} (parsimonious),
-#'   \code{2L} (demographics), or \code{3L} (full). Default \code{1L}.
+#'   \code{2L} (demographics), \code{3L} (duration), or \code{4L} (full).
+#'   Default \code{1L}.
 #' @return A named list with:
 #'   \describe{
 #'     \item{X}{N × p numeric matrix with an intercept column as the first
@@ -47,7 +114,9 @@
 #'   \item \code{educ1}: standardised to mean 0 / sd 1.
 #'   \item \code{race1}: one-hot encoded (first category dropped as reference).
 #'   \item \code{female1}: included as-is (already binary 0/1).
-#'   \item \code{contracttype1}: one-hot encoded (first category dropped; wave-1 value).
+#'   \item Duration, contract type, and informal sector use their transition-origin
+#'     values: wave 1 for transition 1--2 and wave 2 for transition 2--3.
+#'     They enter the persistence equation only.
 #' }
 #' @examples
 #' \dontrun{
@@ -57,16 +126,23 @@
 #' }
 #' @export
 prepare_covariate_matrix <- function(df, covariate_set = 1L) {
-  if (!covariate_set %in% c(1L, 2L, 3L))
+  if (!covariate_set %in% c(1L, 2L, 3L, 4L))
     stop(sprintf(
-      "prepare_covariate_matrix: covariate_set must be 1, 2, or 3. Got: %s",
+      "prepare_covariate_matrix: covariate_set must be 1, 2, 3, or 4. Got: %s",
       covariate_set
     ))
 
   # Required columns per set
   required <- c("age1", "educ1")
   if (covariate_set >= 2L) required <- c(required, "race1", "female1")
-  if (covariate_set >= 3L) required <- c(required, "contracttype1")
+  if (covariate_set >= 3L)
+    required <- c(required, "tenure_cov1", "tenure_cov2",
+                  "timegap_cov1", "timegap_cov2", "neverworked_cov1", "neverworked_cov2",
+                  "tenure_missing_cov1", "tenure_missing_cov2",
+                  "timegap_missing_cov1", "timegap_missing_cov2")
+  if (covariate_set >= 4L)
+    required <- c(required, "contracttype1", "contracttype2",
+                  "informal_sector1", "informal_sector2")
   missing_cols <- setdiff(required, names(df))
   if (length(missing_cols) > 0L)
     stop(sprintf(
@@ -133,6 +209,7 @@ prepare_covariate_matrix <- function(df, covariate_set = 1L) {
 
   # ---- Build column list ---------------------------------------------------
   col_parts <- list()
+  transition_t2 <- list()
 
   # Intercept (always first)
   intercept_mat <- matrix(1, nrow = N, ncol = 1L, dimnames = list(NULL, "intercept"))
@@ -187,22 +264,95 @@ prepare_covariate_matrix <- function(df, covariate_set = 1L) {
   }
 
   if (covariate_set >= 3L) {
-    # contract type dummies (one-hot, reference = first category)
-    ct_res <- .onehot(df$contracttype1, "contracttype")
+    duration_specs <- list(
+      log_tenure = log1p(c(df$tenure_cov1, df$tenure_cov2)),
+      log_time_since_work = log1p(c(df$timegap_cov1, df$timegap_cov2))
+    )
+    for (nm in names(duration_specs)) {
+      z <- .std(duration_specs[[nm]], nm)
+      col_parts[[nm]] <- matrix(z$val[seq_len(N)], ncol = 1L,
+                                dimnames = list(NULL, nm))
+      transition_t2[[nm]] <- z$val[N + seq_len(N)]
+      center_vals[nm] <- z$mu
+      scale_vals[nm] <- z$sig
+    }
+    nw1 <- df$neverworked_cov1
+    nw2 <- df$neverworked_cov2
+    if (!all(nw1 %in% c(0, 1)) || !all(nw2 %in% c(0, 1)))
+      stop("prepare_covariate_matrix: never-worked indicators must be binary (0/1 only).")
+    col_parts[["never_worked"]] <- matrix(nw1, ncol = 1L,
+                                            dimnames = list(NULL, "never_worked"))
+    transition_t2[["never_worked"]] <- nw2
+    center_vals["never_worked"] <- 0
+    scale_vals["never_worked"] <- 1
+    missing_specs <- list(
+      tenure_missing = c("tenure_missing_cov1", "tenure_missing_cov2"),
+      timegap_missing = c("timegap_missing_cov1", "timegap_missing_cov2")
+    )
+    for (nm in names(missing_specs)) {
+      vars <- missing_specs[[nm]]
+      if (!any(c(df[[vars[1L]]], df[[vars[2L]]]) == 1L)) next
+      col_parts[[nm]] <- matrix(df[[vars[1L]]], ncol = 1L, dimnames = list(NULL, nm))
+      transition_t2[[nm]] <- df[[vars[2L]]]
+      center_vals[nm] <- 0; scale_vals[nm] <- 1
+    }
+  }
+
+  if (covariate_set >= 4L) {
+    # Use the union of origin-wave categories so both transition matrices have
+    # an identical coefficient layout.
+    ct_res <- .onehot(c(df$contracttype1, df$contracttype2), "contracttype")
     if (ncol(ct_res$mat) > 0L) {
-      col_parts[["contracttype"]] <- ct_res$mat
+      col_parts[["contracttype"]] <- ct_res$mat[seq_len(N), , drop = FALSE]
+      transition_t2[["contracttype"]] <- ct_res$mat[N + seq_len(N), , drop = FALSE]
       center_vals                  <- c(center_vals, ct_res$centers)
       scale_vals                   <- c(scale_vals,  ct_res$scales)
     }
+
+    if (!all(df$informal_sector1 %in% c(0, 1)) ||
+        !all(df$informal_sector2 %in% c(0, 1)))
+      stop("prepare_covariate_matrix: informal-sector indicators must be binary (0/1 only).")
+    informal_mat <- matrix(as.integer(df$informal_sector1), ncol = 1L,
+                           dimnames = list(NULL, "informal_sector"))
+    col_parts[["informal_sector"]] <- informal_mat
+    center_vals["informal_sector"] <- 0
+    scale_vals["informal_sector"] <- 1
   }
 
   # ---- Assemble final matrix -----------------------------------------------
   X <- do.call(cbind, col_parts)
+  X_transition <- list(X12 = X, X23 = X)
+  if (covariate_set >= 3L) {
+    for (nm in intersect(c("log_tenure", "log_time_since_work", "never_worked",
+                           "tenure_missing", "timegap_missing"), colnames(X)))
+      X_transition$X23[, nm] <- transition_t2[[nm]]
+  }
+  if (covariate_set >= 4L) {
+    contract_cols <- grepl("^contracttype_", colnames(X))
+    if (any(contract_cols))
+      X_transition$X23[, contract_cols] <- transition_t2[["contracttype"]]
+    X_transition$X23[, "informal_sector"] <- as.integer(df$informal_sector2)
+  }
+
+  # Contract type and informal sector are defined only for employed
+  # respondents. Keep a common coefficient layout, but mark both inactive in
+  # the entry equation. The EM driver fixes their beta0 coefficients at zero.
+  entry_active <- !grepl("^(log_tenure$|tenure_missing$|contracttype_|informal_sector$)", colnames(X))
+  persistence_active <- !grepl("^(log_time_since_work$|never_worked$|timegap_missing$)", colnames(X))
+  attr(X, "entry_active") <- entry_active
+  attr(X, "persistence_active") <- persistence_active
+  attr(X_transition$X12, "entry_active") <- entry_active
+  attr(X_transition$X23, "entry_active") <- entry_active
+  attr(X_transition$X12, "persistence_active") <- persistence_active
+  attr(X_transition$X23, "persistence_active") <- persistence_active
 
   list(
     X         = X,
     col_names = colnames(X),
     center    = center_vals,
-    scale     = scale_vals
+    scale     = scale_vals,
+    entry_active = entry_active,
+    persistence_active = persistence_active,
+    X_transition = X_transition
   )
 }

@@ -50,10 +50,20 @@ source(file.path(.ext_r, "em_driver_covariates.R"), local = FALSE)
 source(file.path(.ext_r, "estep_fmm.R"),     local = FALSE)
 source(file.path(.ext_r, "mstep_fmm.R"),     local = FALSE)
 source(file.path(.ext_r, "em_driver_fmm.R"), local = FALSE)
+source(file.path(.baseline_r, "mle_baseline.R"), local = FALSE)
+source(file.path(.ext_r, "mle_fmm.R"),       local = FALSE)
 
 # Extension IV: Inconsistency
 source(file.path(.ext_r, "estep_inconsistency.R"),     local = FALSE)
 source(file.path(.ext_r, "mstep_inconsistency.R"),     local = FALSE)
 source(file.path(.ext_r, "em_driver_inconsistency.R"), local = FALSE)
+
+# Publication transforms and bootstrap wrappers are tested separately but rely
+# on all model families above.
+source(file.path(.ext_r, "implied_quantities_ext.R"), local = FALSE)
+source(file.path(.baseline_r, "bootstrap_utils.R"), local = FALSE)
+source(file.path(.ext_r, "bootstrap_utils_ext.R"), local = FALSE)
+source(file.path(.ext_r, "analytical_se_covariates.R"), local = FALSE)
+source(file.path(.ext_r, "covariate_reliability.R"), local = FALSE)
 
 rm(.baseline_r, .ext_r)

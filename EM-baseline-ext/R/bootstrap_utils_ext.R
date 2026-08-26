@@ -37,7 +37,24 @@
 #'   \code{bootstrap_one_baseline()} for flag values.
 bootstrap_one_covariates <- function(df, X, seed, model_type, stationary,
                                      params_start, point_loglik, pi_cap = 0.49) {
-  boot <- bootstrap_resample(df, seed, X = X)
+  required_cols <- c("y1", "y2", "y3", "weight")
+  missing_cols <- setdiff(required_cols, names(df))
+  if (length(missing_cols))
+    stop(sprintf("bootstrap_one_covariates: df missing required columns: %s",
+                 paste(missing_cols, collapse = ", ")))
+  set.seed(seed)
+  idx <- sample.int(nrow(df), replace = TRUE)
+  X_transition <- .as_transition_design(X, nrow(df))
+  boot <- list(
+    df = df[idx, , drop = FALSE],
+    X = list(
+      X12 = X_transition$X12[idx, , drop = FALSE],
+      X23 = X_transition$X23[idx, , drop = FALSE]
+    )
+  )
+  entry_active <- attr(X_transition$X12, "entry_active")
+  attr(boot$X$X12, "entry_active") <- entry_active
+  attr(boot$X$X23, "entry_active") <- entry_active
   fit  <- tryCatch(
     em_fit_covariates(
       df         = boot$df,
@@ -58,10 +75,38 @@ bootstrap_one_covariates <- function(df, X, seed, model_type, stationary,
                 converged = FALSE, flag = "error"))
   }
 
+  # For symmetric models, also fit from the nested no-error solution. This
+  # supplies a likelihood floor in every bootstrap sample rather than relying
+  # on a single interior warm start.
+  if (model_type == "symmetric") {
+    fit_nested <- tryCatch({
+      p_none <- params_start
+      p_none$pi <- NULL
+      restricted <- em_fit_covariates(
+        df = boot$df, X = boot$X, model_type = "none",
+        stationary = stationary, params0 = p_none,
+        max_iter = 500L, tol = 1e-6, pi_cap = pi_cap, verbose = 0L
+      )
+      p_nested <- restricted$params
+      p_nested$pi <- 1e-8
+      candidate <- em_fit_covariates(
+        df = boot$df, X = boot$X, model_type = "symmetric",
+        stationary = stationary, params0 = p_nested,
+        max_iter = 500L, tol = 1e-6, pi_cap = pi_cap, verbose = 0L
+      )
+      if (candidate$loglik < restricted$loglik - 1e-5)
+        stop("symmetric bootstrap fit failed no-error nesting check")
+      candidate
+    }, error = function(e) NULL)
+    if (!is.null(fit_nested) && fit_nested$loglik > fit$loglik)
+      fit <- fit_nested
+  }
+
   flag <- .flag_fit(fit, point_loglik)
 
   implied <- tryCatch(
-    implied_covariates(fit$params, boot$X, model_type),
+    implied_covariates(fit$params, boot$X, model_type,
+                       df = boot$df, gamma = fit$gamma),
     error = function(e) NULL
   )
 
@@ -204,6 +249,15 @@ summarise_bootstrap_ame <- function(boot_results, point_ame_entry, point_ame_exi
   }
 
   .ame_summary <- function(point_ame, type) {
+    if (n_ok == 0L) {
+      return(data.frame(
+        covariate = cov_nms, outcome = type,
+        estimate = point_ame[cov_nms], se = NA_real_,
+        ci_lower = NA_real_, ci_upper = NA_real_,
+        n_ok = 0L, n_reps = n_reps, row.names = NULL,
+        stringsAsFactors = FALSE
+      ))
+    }
     vecs <- .extract_ame(type)
     K    <- length(cov_nms)
     bmat <- matrix(NA_real_, nrow = n_ok, ncol = K,

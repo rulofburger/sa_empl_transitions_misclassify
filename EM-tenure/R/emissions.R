@@ -215,6 +215,132 @@ log_emission_start_d <- function(d, sigma2_d) {
 
 # --- Helper: log interval probability of Exp(lambda) -------------------------
 
+# Shifted power hazard used by the duration-dependent extension:
+#   h(x) = lambda * (1 + x)^beta, x measured in years.
+# beta = 0 nests the exponential model. beta must exceed -1 for a proper
+# duration distribution (cumulative hazard diverges as x -> Inf).
+.duration_baseline_integral <- function(x, beta = 0) {
+  if (any(x < 0, na.rm = TRUE)) stop("duration must be non-negative")
+  k <- beta + 1
+  out <- if (abs(k) < 1e-8) log1p(x) else expm1(k * log1p(x)) / k
+  out[is.infinite(x)] <- if (k > 0) Inf else log1p(x[is.infinite(x)])
+  out
+}
+
+.DURATION_PIECEWISE_KNOTS <- c(0, .25, 1, 3, 5, Inf)
+
+.is_piecewise_hazard <- function(lambda) length(lambda) > 1L
+
+.piecewise_duration_cumhaz <- function(x, hazards,
+                                       knots=.DURATION_PIECEWISE_KNOTS) {
+  if (length(hazards) != length(knots)-1L ||
+      any(!is.finite(hazards)) || any(hazards <= 0))
+    stop("piecewise hazards must be positive and match the duration intervals")
+  out <- numeric(length(x))
+  for (k in seq_along(hazards)) {
+    width <- pmax(pmin(x, knots[k+1L]) - knots[k], 0)
+    out <- out + hazards[k] * width
+  }
+  out
+}
+
+.piecewise_duration_hazard <- function(x, hazards,
+                                        knots=.DURATION_PIECEWISE_KNOTS) {
+  idx <- findInterval(x, knots, rightmost.closed=TRUE, all.inside=TRUE)
+  hazards[pmin(idx, length(hazards))]
+}
+
+.duration_cumhaz <- function(x, lambda, beta = 0) {
+  if (.is_piecewise_hazard(lambda))
+    return(.piecewise_duration_cumhaz(x, lambda))
+  lambda * .duration_baseline_integral(x, beta)
+}
+
+.log_duration_density <- function(x, lambda, beta = 0) {
+  out <- rep(-Inf, length(x))
+  valid <- is.finite(x) & x > 0
+  hazard <- if (.is_piecewise_hazard(lambda))
+    .piecewise_duration_hazard(x[valid], lambda) else
+    lambda * (1 + x[valid])^beta
+  out[valid] <- log(hazard) - .duration_cumhaz(x[valid], lambda, beta)
+  out
+}
+
+.log_duration_interval_prob <- function(a, b, lambda, beta = 0) {
+  Ha <- .duration_cumhaz(a, lambda, beta)
+  if (is.infinite(b)) return(-Ha)
+  span <- .duration_cumhaz(b, lambda, beta) - Ha
+  if (span > 700) return(-Ha)
+  -Ha + log1p(-exp(-span))
+}
+
+.duration_transition_probability <- function(duration, lambda, beta = 0,
+                                               delta = .QUARTER_YEARS) {
+  inc <- .duration_cumhaz(duration + delta, lambda, beta) -
+    .duration_cumhaz(duration, lambda, beta)
+  -expm1(-inc)
+}
+
+# Average transition risk when current spell duration is unavailable.  The
+# integration is with respect to the model-implied duration distribution.  It
+# is used only for a latent state that differs from the reported state, where
+# the corresponding tenure/timegap clock was not collected.
+.duration_marginal_transition_probability <- function(lambda, beta = 0) {
+  if (length(lambda) == 1L && beta == 0)
+    return(.duration_transition_probability(0, lambda, 0))
+  integrate(function(u) {
+    y <- -log1p(-u)
+    d <- .duration_inverse_cumhaz(y, lambda, beta)
+    ans <- .duration_transition_probability(d, lambda, beta)
+    ans[is.infinite(d)] <- if (.is_piecewise_hazard(lambda))
+      .duration_transition_probability(1e8, lambda, beta) else
+      if (beta < 0) 0 else 1
+    ans
+  }, 0, 1, rel.tol = 1e-8, subdivisions = 300L)$value
+}
+
+.duration_inverse_cumhaz <- function(y, lambda, beta = 0) {
+  if (.is_piecewise_hazard(lambda)) {
+    knots <- .DURATION_PIECEWISE_KNOTS
+    finite_widths <- diff(knots[-length(knots)])
+    Hbreaks <- c(0, cumsum(lambda[-length(lambda)] * finite_widths))
+    idx <- pmin(findInterval(y,Hbreaks,rightmost.closed=TRUE),length(lambda))
+    idx <- pmax(idx,1L)
+    return(knots[idx] + (y - Hbreaks[idx]) / lambda[idx])
+  }
+  k <- beta + 1
+  if (abs(k) < 1e-8) return(expm1(y / lambda))
+  lx <- log1p(k * y / lambda) / k
+  ifelse(lx > 700, Inf, expm1(lx))
+}
+
+.duration_category_transition_probability <- function(cat, lambda, beta = 0) {
+  if (length(lambda) == 1L && beta == 0) {
+    return(rep(.duration_transition_probability(0, lambda, 0), length(cat)))
+  }
+  lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
+    iv <- .timegap_interval(k)
+    Ha <- .duration_cumhaz(iv[1], lambda, beta)
+    Hb <- if (is.infinite(iv[2])) Inf else
+      .duration_cumhaz(iv[2], lambda, beta)
+    Sa <- exp(-Ha); Sb <- if (is.infinite(Hb)) 0 else exp(-Hb)
+    integrate(function(u) {
+      survival <- Sa - u * (Sa - Sb)
+      y <- -log(survival)
+      d <- .duration_inverse_cumhaz(y, lambda, beta)
+      ans <- .duration_transition_probability(d, lambda, beta)
+      ans[is.infinite(d)] <- if (.is_piecewise_hazard(lambda))
+        .duration_transition_probability(1e8, lambda, beta) else
+        if (beta < 0) 0 else 1
+      ans
+    }, 0, 1, rel.tol = 1e-7, subdivisions = 200L)$value
+  }, numeric(1))
+  out <- rep(NA_real_, length(cat))
+  valid <- !is.na(cat) & cat %in% seq_len(.N_TIMEGAP_CATS)
+  out[valid] <- lut[cat[valid]]
+  out
+}
+
 #' Log interval probability: log P(D in [a, b) | D ~ Exp(lambda))
 #'
 #' Numerically stable implementation:
@@ -267,11 +393,11 @@ log_emission_start_d <- function(d, sigma2_d) {
 #' @param lambda_d Exponential rate for nonemployment durations (> 0).
 #' @return Log-probability vector. -Inf for cat outside 1:7.
 #' @export
-log_emission_interval_d <- function(cat, lambda_d) {
+log_emission_interval_d <- function(cat, lambda_d, beta_d = 0) {
   # Build 7-element lookup table (only 7 distinct inputs possible)
   lut <- vapply(seq_len(.N_TIMEGAP_CATS), function(k) {
     iv <- .timegap_interval(k)
-    .log_interval_prob(iv[1], iv[2], lambda_d)
+    .log_duration_interval_prob(iv[1], iv[2], lambda_d, beta_d)
   }, numeric(1))
   result        <- rep(-Inf, length(cat))
   valid         <- !is.na(cat) & cat >= 1L & cat <= .N_TIMEGAP_CATS
@@ -305,7 +431,8 @@ log_emission_interval_d <- function(cat, lambda_d) {
 #' @param lambda_d Exponential rate for nonemployment durations (> 0).
 #' @return Log-probability vector. -Inf for invalid or unreachable transitions.
 #' @export
-log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
+log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d,
+                                      beta_d = 0, delta = .QUARTER_YEARS) {
   n <- length(cat_curr)
   stopifnot(length(cat_prev) == n)
 
@@ -315,15 +442,15 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
   for (j in seq_len(K)) {
     iv_j <- .timegap_interval(j)
     a_j <- iv_j[1]; b_j <- iv_j[2]
-    log_denom <- .log_cat_mass(j, lambda_d)
+    log_denom <- .log_duration_interval_prob(a_j, b_j, lambda_d, beta_d)
     if (is.infinite(log_denom) && log_denom < 0) next
     for (k in seq_len(K)) {
       iv_k <- .timegap_interval(k)
       a_k <- iv_k[1]; b_k <- iv_k[2]
-      L <- max(a_j, a_k - .QUARTER_YEARS)
-      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - .QUARTER_YEARS)
+      L <- max(a_j, a_k - delta)
+      U <- min(b_j, if (is.infinite(b_k)) Inf else b_k - delta)
       if (L >= U) next
-      tmat[j, k] <- .log_interval_prob(L, U, lambda_d) - log_denom
+      tmat[j, k] <- .log_duration_interval_prob(L, U, lambda_d, beta_d) - log_denom
     }
   }
 
@@ -333,6 +460,96 @@ log_emission_transition_d <- function(cat_curr, cat_prev, lambda_d) {
             cat_curr >= 1L & cat_curr <= K
   result[valid] <- tmat[cbind(cat_prev[valid], cat_curr[valid])]
   result
+}
+
+#' Contaminated conditional timegap-category emission
+#'
+#' During a latent nonemployment continuation, the follow-up report is
+#' clock-consistent with probability 1-eps_d.  With probability eps_d it is an
+#' independent draw from the model-implied cross-sectional duration-category
+#' distribution.  Setting eps_d=0 exactly recovers
+#' log_emission_transition_d().  Marginal and isolated timegap reports do not
+#' identify eps_d because the clean and contaminated distributions coincide.
+#'
+#' @keywords internal
+log_emission_transition_d_contaminated <- function(cat_curr, cat_prev,
+                                                    lambda_d, beta_d = 0,
+                                                    eps_d = 0,
+                                                    contamination_model = "marginal",
+                                                    local_decay = 1) {
+  if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1)
+    stop("eps_d must be in [0, 1)")
+  log_clock <- log_emission_transition_d(cat_curr, cat_prev,
+                                         lambda_d, beta_d)
+  if (eps_d == 0) return(log_clock)
+  log_pop <- if (identical(contamination_model,"marginal")) {
+    log_emission_interval_d(cat_curr, lambda_d, beta_d)
+  } else if (identical(contamination_model,"local")) {
+    .log_timegap_local_contamination(cat_curr,cat_prev,lambda_d,beta_d,
+      local_decay)
+  } else stop("unknown conditional timegap contamination model")
+  .log_mix_rho(log_clock, log_pop, eps_d)
+}
+
+.timegap_local_cache <- new.env(parent=emptyenv())
+
+.log_timegap_local_contamination <- function(cat_curr,cat_prev,lambda_d,
+                                              beta_d=0,decay=1) {
+  if (!is.finite(decay) || decay<=0) stop("local_decay must be positive")
+  K <- .N_TIMEGAP_CATS
+  key <- format(decay,digits=16,scientific=FALSE,trim=TRUE)
+  if (exists(key,envir=.timegap_local_cache,inherits=FALSE)) {
+    log_q <- get(key,envir=.timegap_local_cache,inherits=FALSE)
+  } else {
+    q <- matrix(0,K,K)
+    for (j in seq_len(K)) {
+      iv_j <- .timegap_interval(j)
+      reachable <- which(vapply(seq_len(K),function(k) {
+        iv_k <- .timegap_interval(k)
+        L <- max(iv_j[1],iv_k[1]-.QUARTER_YEARS)
+        U <- min(iv_j[2],if(is.infinite(iv_k[2])) Inf else
+          iv_k[2]-.QUARTER_YEARS)
+        L<U
+      },logical(1)))
+      distance <- vapply(seq_len(K),function(k) min(abs(k-reachable)),numeric(1))
+      raw <- exp(-decay*distance)
+      q[j,] <- raw/sum(raw)
+    }
+    log_q <- log(q)
+    assign(key,log_q,envir=.timegap_local_cache)
+  }
+  out <- rep(-Inf,length(cat_curr))
+  valid <- !is.na(cat_prev) & !is.na(cat_curr) & cat_prev %in% 1:K &
+    cat_curr %in% 1:K
+  out[valid] <- log_q[cbind(cat_prev[valid],cat_curr[valid])]
+  out
+}
+
+log_emission_timegap_triplet_joint <- function(cat1,cat2,cat3,lambda_d,
+                                                beta_d=0,eps_d) {
+  if (!is.finite(eps_d) || eps_d<=0 || eps_d>=1)
+    stop("eps_d must be in (0, 1) for joint timegap emission")
+  cats <- cbind(cat1,cat2,cat3); n <- nrow(cats)
+  terms <- matrix(-Inf,n,8L)
+  patterns <- as.matrix(expand.grid(z1=0:1,z2=0:1,z3=0:1))
+  marg <- lapply(1:3,function(t)
+    log_emission_interval_d(cats[,t],lambda_d,beta_d))
+  for (r in seq_len(nrow(patterns))) {
+    z <- patterns[r,]; clean <- which(z==0L)
+    val <- rep(sum(z)*log(eps_d)+(3L-sum(z))*log1p(-eps_d),n)
+    if (any(z==1L)) for (t in which(z==1L)) val <- val+marg[[t]]
+    if (length(clean)) {
+      val <- val+marg[[clean[1L]]]
+      if (length(clean)>1L) for (u in 2:length(clean)) {
+        curr <- clean[u]; prev <- clean[u-1L]
+        val <- val+log_emission_transition_d(cats[,curr],cats[,prev],
+          lambda_d,beta_d,delta=(curr-prev)*.QUARTER_YEARS)
+      }
+    }
+    terms[,r] <- val
+  }
+  mx <- do.call(pmax,as.data.frame(terms))
+  mx+log(rowSums(exp(terms-mx)))
 }
 
 #' Log emission for within-panel nonemployment start (discrete model)

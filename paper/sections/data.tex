@@ -10,7 +10,8 @@ conducted by Statistics South Africa, introduced in 2008 to replace the
 biannual Labour Force Survey. The survey is representative of the civilian
 non-institutionalised population of South Africa and collects information on
 employment status, earnings, industry, occupation, and individual and household
-characteristics. It has a rotating panel structure that allows a subset of
+characteristics. Its rotating panel structure---each sampled dwelling is visited
+for four consecutive quarterly waves before being replaced---allows a subset of
 individuals to be followed longitudinally.
 
 We use the QLFS panel for the period 2010Q1 to 2019Q4. Individuals are matched
@@ -67,84 +68,33 @@ three-wave moments. Our structural estimator attributes this violation to
 misclassification error, while simultaneously testing the alternative explanations
 of worker heterogeneity and duration dependence.
 
-\subsection{Evidence of measurement error}
+\subsection{Evidence of linked-record inconsistencies}
 
-Panel C of Table~\ref{tab:descriptive} provides direct evidence that the QLFS
-panel contains substantial measurement error, using two variables---age and
-education---for which errors are more easily detected than in employment status.
+Panel C of Table~\ref{tab:descriptive} documents inconsistencies in the linked
+QLFS panel using age and education, for which implausible progressions are easier
+to detect than for employment status.
 An age inconsistency is defined as a wave-to-wave change in reported age that
-is not in $\{0, 1\}$ years; since quarterly surveys are conducted 0.25 years apart,
-age should remain constant or increase by one because responses are rounded to the nearest
-integer year. An education
+is not in $\{0, 1\}$ years; since consecutive interviews are one quarter apart,
+age should remain constant or increase by exactly one year. An education
 inconsistency is a wave-to-wave change that is negative or exceeds one year,
 since education should be non-decreasing and cannot advance by more than one
-level per quarter. These inconsistencies represent clear measurement error:
-biological age cannot decrease, and educational attainment cannot be removed.
+level per quarter. They may reflect response or coding errors, or an incorrect
+match across waves: biological age cannot decrease, and completed education
+cannot be ``forgotten.''
 
-We find that approximately 11.6\% of individuals in our sample have at least one
-age inconsistency across any pair of consecutive waves, and 26.8\% have at least
+We find that approximately 11.5\% of individuals in our sample have at least one
+age inconsistency across any pair of consecutive waves, and 24.6\% have at least
 one education inconsistency. Overall, nearly one in three panel observations
-(31.2\%) contains an inconsistent response in at least one of these two verifiable
-variables. These figures, which are, if anything, an underestimate of overall
-measurement error since they exclude undetectable errors in age (e.g., a plausible
-but false age of 35 reported as 34), suggest that measurement error is widespread
-in the QLFS panel. Crucially, we exploit the link between response unreliability
+(29.2\%) contains an inconsistent response in at least one of these two variables.
+These survey-weighted figures exclude inconsistencies that remain observationally
+plausible. Crucially, we exploit the link between record unreliability
 and employment misclassification in Section~\ref{sec:results}, where we show that
-survey respondents who produce age or education inconsistencies also exhibit
+linked records with age or education inconsistencies also exhibit
 employment dynamics that are consistent with significantly higher misclassification
 rates.
-
-\subsubsection{Tenure and duration data}\label{sec:data:tenure}
 
 In addition to employment status, the QLFS collects information on job tenure
 (how long the employed person has been with their current employer) and
 non-employment duration (how long since the non-employed person last worked).
 These duration variables are used in the tenure contamination model described
-in Section~\ref{subsec:tenure}. They also provide direct
-evidence of employment misclassification. Table~\ref{tab:tenure_diagnostics}
-summarises three diagnostic moments from the linked panel that make this
-evidence visible in the raw data.
-
-Panel A begins with observed tenure, $g_t$ in period $t$. Job tenure evolves
-deterministically: a worker who remains employed with the
-same employer between two consecutive quarterly waves should report a tenure
-increase of exactly three months (i.e. 0.25 years). Among all observed employed--employed
-continuation pairs in the sample, approximately 65\% report precisely this
-expected increment. The remaining 35\% report tenure changes that deviate from
-the three-month clock---including negative changes, zero changes, and changes
-that exceed a year---in a pattern consistent with a contamination process as in 
-\citet{goldstein1982contamination} and \citet{horowitz1995identification}
-rather than the classic "errors-in-variables" approach that 
-would add, for example, a mean-zero Gaussian measurement noise. 
-This two-component structure, in which
-most reports are exact and a non-trivial minority are drawn from a dispersed
-distribution, motivates the point-mass--plus--contamination measurement model
-that we formalise in Section~\ref{subsec:tenure}.
-
-Panel B shows that tenure data also reveal direct evidence that observed
-employment status changes are sometimes spurious. Consider the subset of
-individuals observed with the
-sequence employed--non-employed--employed--- $(s_1, s_2, s_3) = (1,0,1)$--- who
-appear to have lost a job and then found a new one. If the job loss at wave~2
-was genuine and the worker was re-employed at wave~3, tenure at wave~3 should
-be short---no more than three months. Instead, for nearly 30\% of these
-individuals, tenure at wave~3 is approximately equal to tenure at wave~1 plus
-six months, exactly the progression expected if the worker was continuously
-employed throughout and the non-employment report at wave~2 was a
-misclassification. The tenure flanks are thus informative about which
-$(1,0,1)$ sequences reflect genuine transitions and which reflect classification
-error.
-
-Panel C reports a complementary pattern among within-panel ``fresh
-starts''---individuals
-observed as non-employed at wave~$t-1$ and employed at wave~$t$. If these
-transitions were genuine, the worker would have started a new job within the
-past three months, and reported tenure should be short. Yet approximately 37\%
-of these apparent new entrants report tenure exceeding twelve months. A genuine
-job entrant cannot have more than one year of tenure with the current employer;
-these observations are therefore direct evidence of either misclassification of
-employment status at wave~$t-1$ (the worker was actually employed all along) or
-measurement error in reported tenure. Either way, they confirm that observed
-employment transitions contain a substantial spurious component that is
-corroborated by a variable---tenure---that the employment status question does
-not directly reference.
+in Section~\ref{subsec:tenure}.

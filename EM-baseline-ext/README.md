@@ -14,36 +14,50 @@ a different assumption of the baseline model.
 | III | Section 7 | 2-type FMM | Latent type mixture (stable vs unstable employment) |
 | IV | Section 8 | Inconsistency-augmented | Wave-specific π tied to age/education inconsistencies |
 
-Extensions II (asymmetric covariates) and duration-dependence covariates are
-excluded; these would require separate identification conditions beyond the 3-wave
-design used here and are left for future work.
+The duration covariates here are observed origin-wave controls. A structural
+model of endogenous duration dependence remains separate future work.
 
 ## Model Descriptions
 
 ### Extension I: Observable heterogeneity (covariate model)
 
 Transition probabilities θ₀ᵢ and θ₁ᵢ are individual-specific via probit link
-functions: θ₁ᵢ = Φ(Xᵢ β₁), θ₀ᵢ = Φ(Xᵢ β₀). The M-step uses a GEM step
-(one IRLS update per EM iteration) rather than full probit maximisation.
+functions: θ₁ᵢₜ = Φ(X₁ᵢₜ β₁), θ₀ᵢₜ = Φ(X₀ᵢₜ β₀). Under stationarity, the initial
+employment term couples β₀ and β₁. The M-step therefore applies limited joint
+BFGS updates to the full Q-function, with Q-function and observed-likelihood
+backtracking safeguards.
 
-Three covariate sets:
+Four nested covariate sets:
 
 | Set | Variables | p |
 |-----|-----------|---|
 | 1 | intercept, age (std), age² (std), educ (std) | 4 |
 | 2 | Set 1 + race dummies + female | 4 + r |
-| 3 | Set 2 + contracttype dummies | 4 + r + c |
+| 3 | Set 2 + log tenure in persistence; log time since work and never worked in entry | 12 on the current sample |
+| 4 | Set 3 + origin-wave contract type + informal-sector dummy in persistence only | 14 on the current sample |
 
-For each set: symmetric and no-error model × stationary and free α → **12 models**.
+Sets 1 and 2 use symmetric and no-error models under stationary and free
+initial conditions. Sets 3 and 4 use free α because their origin-wave
+covariates change between transitions → **12 models** in total.
 
 ### Extension III: 2-type finite mixture model (FMM)
 
 Individuals belong to one of two latent employment types (A = stable/high
 persistence, B = unstable/low persistence) with unknown mixing weight φ. All
-M-step updates are in closed form. Label switching is resolved post-convergence
-by enforcing θ₁ᴬ ≥ θ₁ᴮ.
+free-initial-condition M-step updates are in closed form. Label switching is
+resolved post-convergence by enforcing θ₁ᴬ ≥ θ₁ᴮ. Under stationarity, however,
+the initial-state likelihood couples each type's transition parameters, so the
+legacy closed-form transition update is not an exact stationary M-step.
 
 Symmetric and no-error model × stationary and free α → **4 models**.
+
+**Identification warning.** The direct eight-cell likelihood audit in
+`estimate_fmm_table5.R` finds local Jacobian ranks 4/5 (no error, stationary),
+4/6 (symmetric, stationary), 7/7 (no error, free), and 7/8 (symmetric, free).
+Thus three binary waves do not identify three of the four Table 5 columns; in
+particular, the symmetric-error FMM cannot separately identify π from type
+heterogeneity. Numerical values in those columns are points on likelihood
+ridges and do not have unique structural interpretations or standard errors.
 
 ### Extension IV: Inconsistency-augmented misclassification
 
@@ -52,16 +66,27 @@ Wave-specific misclassification probability:
 
 where σ(·) is the logistic function, ensuring πᵢₜ ∈ (0, ½). Inconsistency
 indicators are computed from age and education reports across waves (see
-`compute_inconsistencies.R`). The δ vector is updated via one Newton–Raphson
-(Fisher scoring) step per EM iteration (GEM guarantee).
+`compute_inconsistencies.R`). The production Table 6 estimates the exact
+observed-data likelihood on collapsed outcome/indicator cells, uses a free
+initial employment probability, and reports analytical survey-weighted
+sandwich/delta-method standard errors. The EM implementation remains available;
+its stationary transition block now jointly maximises the complete-data
+objective because stationarity couples the initial probability to both
+transition parameters.
 
-Symmetric model only × stationary and free α → **2 models**.
+Robustness specifications allow the true transition process to differ between
+records with and without an inconsistency and allow misclassification to differ
+between mild and severe inconsistencies. The indicators are interpreted as
+linked-record reliability measures that encompass response and matching errors.
 
 ## File Structure
 
 ```
 EM-baseline-ext/
 ├── estimate_extensions_pipeline.R   # Main estimation script
+├── estimate_analytical_se_table4.R  # Sandwich/delta SEs for Table 4
+├── estimate_fmm_table5.R             # Direct-MLE replication + rank audit
+├── replicate_table6.R                # Direct MLE, analytical SEs, robustness
 ├── README.md                        # This file
 ├── R/
 │   ├── source_all.R                 # Sources all extension modules
@@ -69,11 +94,13 @@ EM-baseline-ext/
 │   ├── compute_inconsistencies.R    # Wave-specific age/edu inconsistency indicators
 │   ├── prepare_covariates.R         # Build covariate design matrices (3 sets)
 │   ├── estep_covariates.R           # E-step: covariate extension
-│   ├── mstep_covariates.R           # M-step: IRLS GEM for β
+│   ├── mstep_covariates.R           # M-step: joint monotone GEM for β
 │   ├── em_driver_covariates.R       # Driver + init + loglik: covariate
+│   ├── analytical_se_covariates.R   # Weighted sandwich + delta method
 │   ├── estep_fmm.R                  # E-step: 2-type FMM
 │   ├── mstep_fmm.R                  # M-step: closed form for FMM + label switch
 │   ├── em_driver_fmm.R              # Driver + init + loglik: FMM
+│   ├── mle_fmm.R                    # Exact eight-cell FMM MLE + rank diagnostics
 │   ├── estep_inconsistency.R        # E-step: inconsistency model
 │   ├── mstep_inconsistency.R        # M-step: NR GEM for δ
 │   ├── em_driver_inconsistency.R    # Driver + init + loglik: inconsistency
@@ -177,8 +204,8 @@ Rscript build_tables.R
 ```
 
 Outputs (in `EM-baseline-ext/output/tables/`):
-- `table_cov_params.tex` — covariate model parameter estimates
-- `table_cov_implied.tex` — population-average implied probabilities
+- `table_cov_risk_weighted.tex` — main risk-set and survey-weighted transitions
+- `table_cov_coefficients_appendix.tex` — raw coefficients and hazard distributions
 - `table_cov_ame.tex` — Average Marginal Effects (all 3 sets side-by-side)
 - `table_fmm.tex` — FMM implied probabilities
 - `table_inconsistency.tex` — inconsistency model results
@@ -205,13 +232,14 @@ All model derivations are in `documents/EM baseline.tex`:
 ## Data Availability
 
 The pipeline requires `data/raw/df_qlfs_A.rds` (South Africa QLFS 3-wave balanced
-panel). This file is **not committed** to the repository as it contains
-confidential microdata. To obtain it:
+panel) and `data/raw/QLFSmerged_mapped.rds` (the upstream long-format file used
+to restore wave-1 sector). These files are **not committed** to the repository
+as they contain confidential microdata. To obtain them:
 
 1. Contact the DECDG team at the World Bank for access to the project data share.
-2. Place the file at `data/raw/df_qlfs_A.rds` relative to the project root.
+2. Place both files in `data/raw/` relative to the project root.
 3. The ingest script `scripts/ingest_data_3waves_SA.R` will be called automatically
    by the pipeline.
 
-Unit tests do **not** require this file — they use synthetic panel data generated
+Unit tests do **not** require these files — they use synthetic panel data generated
 by helper functions within each test file.

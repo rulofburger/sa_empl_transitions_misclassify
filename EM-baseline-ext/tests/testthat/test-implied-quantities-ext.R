@@ -11,8 +11,14 @@ test_that("implied_covariates returns correct names", {
   X    <- cbind(1, c(-1, 0, 1))
   p    <- list(beta0 = c(qnorm(0.1), 0.3), beta1 = c(qnorm(0.9), -0.2), pi = 0.05)
   out  <- implied_covariates(p, X, "symmetric")
-  expect_named(out, c("mean_entry_rate", "mean_exit_rate", "mean_employment_rate",
-                       "pi", "ame_entry", "ame_exit"))
+  expect_named(out, c(
+    "mean_entry_rate", "mean_exit_rate", "mean_employment_rate",
+    "entry_flow", "exit_flow", "total_churn_flow",
+    "entry_p10", "entry_median", "entry_p90",
+    "exit_p10", "exit_median", "exit_p90",
+    "contract_exit_effect", "informal_exit_effect", "alpha", "pi",
+    "ame_entry", "ame_exit"
+  ))
 })
 
 test_that("implied_covariates mean_entry_rate is mean(pnorm(Xbeta0))", {
@@ -155,7 +161,8 @@ test_that("implied_inconsistency returns correct names", {
   imat <- matrix(rbinom(60, 1, 0.1), ncol = 6)
   out  <- implied_inconsistency(p, imat)
   expect_named(out, c("entry_rate", "exit_rate", "employment_rate",
-                       "mean_pi", "delta", "pi_base"))
+                       "mean_pi", "delta", "pi_base",
+                       "pi_age_additional", "pi_edu_additional"))
 })
 
 test_that("implied_inconsistency entry/exit rates match theta0/theta1", {
@@ -187,6 +194,20 @@ test_that("implied_inconsistency pi_base is 0.5 * plogis(delta[1])", {
   expect_equal(out$pi_base,  expected_pi_base, tolerance = 1e-12)
   # With all zeros, mean_pi should equal pi_base
   expect_equal(out$mean_pi, expected_pi_base, tolerance = 1e-12)
+})
+
+test_that("implied_inconsistency uses supplied survey weights for mean_pi", {
+  p <- list(theta0 = 0.10, theta1 = 0.90, alpha = 0.5,
+            delta = c(-3, 3, 0))
+  imat <- matrix(0L, nrow = 2L, ncol = 6L)
+  imat[1L, 1:3] <- 1L
+  unweighted <- implied_inconsistency(p, imat)$mean_pi
+  weighted <- implied_inconsistency(p, imat, weights = c(1, 100))$mean_pi
+  expect_lt(weighted, unweighted)
+  expect_equal(weighted,
+    (sum(0.5 * plogis(p$delta[1L] + p$delta[2L] * imat[1L, 1:3])) +
+       100 * sum(0.5 * plogis(p$delta[1L] + p$delta[2L] * imat[2L, 1:3]))) /
+      (3 * 101))
 })
 
 test_that("implied_inconsistency errors on wrong ncol of incons_mat", {
@@ -249,4 +270,3 @@ test_that("implied_covariates errors when X contains NA", {
   params <- list(beta0 = c(qnorm(0.1), 0.5), beta1 = c(qnorm(0.9), -0.2), pi = 0.05)
   expect_error(implied_covariates(params, X, "symmetric"), "NA values")
 })
-

@@ -1,0 +1,46 @@
+\begin{table}[htbp]
+\centering
+\caption{Baseline latent-state model: implied probabilities (\%)}
+\label{tab:baseline_implied}
+\begin{tabular}{lcccccc}
+\toprule
+ & (1) & (2) & (3) & (4) & (5) & (6)
+
+ & \multicolumn{2}{c}{No miscl.} & \multicolumn{2}{c}{Symmetric} & \multicolumn{2}{c}{Asymmetric}
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+ & Stat. & Free & Stat. & Free & Stat. & Free
+\midrule
+Entry rate (\%) & 8.18 & 8.28 & 2.86 & 2.98 & 2.86 & 2.98
+
+ & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+
+Exit rate (\%) & 8.64 & 8.54 & 3.04 & 2.91 & 3.04 & 2.91
+
+ & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+
+Misclassification rate (\%) & --- & --- & 2.99 & 2.99 & --- & ---
+
+ &  &  & (0.03) & (0.03) &  &
+
+False-positive rate (\%) & --- & --- & --- & --- & 3.05 & 3.05
+
+ &  &  &  &  & (0.04) & (0.04)
+
+False-negative rate (\%) & --- & --- & --- & --- & 2.93 & 2.92
+
+ &  &  &  &  & (0.04) & (0.04)
+
+Employment rate (\%) & 48.63 & 49.23 & 48.50 & 50.57 & 48.46 & 50.58
+
+ & (0.09) & (0.18) & (0.09) & (0.53) & (0.09) & (0.53)
+
+Log-likelihood & -357.208M & -357.204M & -349.378M & -349.371M & -349.376M & -349.368M
+
+$N$ & 402,923 & 402,923 & 402,923 & 402,923 & 402,923 & 402,923
+
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.98\linewidth}
+\footnotesize \textit{Note:} Rates are percentages. Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix and the delta method. Employment is the model-implied steady-state share. The asymmetric specifications report false-positive and false-negative rates separately. The calculation does not incorporate strata or PSU clustering.
+\end{minipage}
+\end{table}

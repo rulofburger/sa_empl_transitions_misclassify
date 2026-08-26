@@ -119,8 +119,12 @@ test_that("summarise_bootstrap handles all-failed boots gracefully", {
 
 test_that("bootstrap_one_baseline returns flag='ok' for well-conditioned data", {
   set.seed(99L)
-  N  <- 200L
-  y1 <- rbinom(N, 1, 0.5); y2 <- rbinom(N, 1, 0.5); y3 <- rbinom(N, 1, 0.5)
+  N  <- 1500L
+  h1 <- rbinom(N, 1, 0.5)
+  h2 <- ifelse(h1 == 1, rbinom(N, 1, 0.9), rbinom(N, 1, 0.1))
+  h3 <- ifelse(h2 == 1, rbinom(N, 1, 0.9), rbinom(N, 1, 0.1))
+  flip <- function(h) ifelse(rbinom(N, 1, 0.03) == 1, 1 - h, h)
+  y1 <- flip(h1); y2 <- flip(h2); y3 <- flip(h3)
   df <- data.frame(y1 = y1, y2 = y2, y3 = y3, weight = rep(1, N))
   p0 <- list(theta0 = 0.10, theta1 = 0.90, pi = 0.05, alpha = 0.5)
   res <- bootstrap_one_baseline(df, seed = 1L, model_type = "symmetric",

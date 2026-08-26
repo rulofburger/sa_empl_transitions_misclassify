@@ -13,15 +13,18 @@ crossed with no misclassification, symmetric misclassification, and asymmetric
 misclassification.
 
 Without misclassification correction---the standard Markov transition matrix
-applied to observed employment status---the estimated quarterly entry rate is
-8.28\% and the exit rate is 8.54\%. These estimates are close to the raw
+applied to observed employment status---the free-initial-condition estimates
+of the quarterly entry and exit rates are 8.28\% (SE 0.05) and 8.54\%
+(SE 0.05). Imposing stationarity gives 8.18\% and 8.64\%, respectively. These estimates are close to the raw
 transition rates in Table~\ref{tab:descriptive}, confirming that the
 no-misclassification specification simply recovers the moments of the observed
 transition matrix.
 
 The symmetric misclassification specification yields a dramatically different
-picture. The estimated misclassification probability is $\hat{\pi} = 2.98\%$,
-and the implied entry and exit rates fall to 2.93\% and 3.00\% respectively.
+picture. The estimated misclassification probability is $\hat{\pi} = 2.99\%$
+in both initial-condition specifications. The stationary model implies entry
+and exit rates of 2.86\% (SE 0.05) and 3.04\% (SE 0.05); the free-initial-condition
+model gives 2.98\% (SE 0.06) and 2.91\% (SE 0.06).
 The correction factor is approximately three: a single additional parameter
 reduces the estimated transition rates by two-thirds. This is the main finding
 of the paper. The factor-of-three correction is driven by the severity of the
@@ -32,22 +35,25 @@ substantially because each transient error fabricates two transitions.
 The asymmetric misclassification specification, which allows the probabilities
 of falsely reporting employment and non-employment to differ, produces estimates
 that are virtually indistinguishable from the symmetric specification. The
-estimated misclassification probabilities for both directions are approximately
-3\%, and the implied transition rates are within a rounding error of the
-symmetric case. The symmetric restriction is not rejected and we adopt it in
-all subsequent specifications for parsimony.
+estimated false-positive and false-negative probabilities are approximately
+3.05\% and 2.93\%, and the implied transition rates are within a rounding error
+of the symmetric case. The directional difference is only about 0.12 percentage
+points, although it is statistically detectable in this large sample. We adopt
+the symmetric specification subsequently because the economic implications are
+unchanged and the restriction is substantially more parsimonious.
 
 Comparing the stationarity-restricted and free initial-probability specifications
-yields similarly negligible differences. The data are consistent with the
-estimated Markov chain having been in the stationary distribution at the start
-of the observation window, and the stationarity assumption is maintained in
-subsequent models.
+yields modest differences in the transition rates but a larger difference in
+the implied steady-state employment share. We therefore report both versions
+for the baseline model and use a free initial probability in the revised
+covariate comparison, where transition-varying characteristics also make a
+time-homogeneous stationarity restriction unattractive.
 
-The standard errors, obtained from 200 parametric bootstrap replications,
-indicate that the misclassification probability is estimated with considerable
-precision. The 95\% bootstrap confidence interval for $\hat{\pi}$ in the
-symmetric stationarity-restricted specification is approximately
-[2.5\%, 3.4\%], comfortably above zero and well below magnitudes that would
+The analytical survey-weighted sandwich standard errors indicate that the
+misclassification probability is estimated with considerable precision. The
+delta-method 95\% interval for $\hat{\pi}$ in the symmetric
+stationarity-restricted specification is approximately [2.92\%, 3.06\%],
+comfortably above zero and well below magnitudes that would
 be necessary to explain the raw transition matrix moments without correction.
 
 \subsection{Observable worker heterogeneity}\label{subsec:results:covariates}
@@ -60,23 +66,29 @@ if these workers are a small share of the sample, their high transition rates
 could generate Markov violations when the average transition rate is treated as
 homogeneous.
 
-Table~\ref{tab:cov_implied_stat} reports the implied transition rates from the
+Table~\ref{tab:cov_risk_weighted} reports the implied transition rates from the
 observable heterogeneity extension. We consider three covariate sets of
 increasing richness: (1) age and education only; (2) additionally controlling
-for gender, race, and urban/rural status; (3) additionally controlling for
-contract type and sector. Allowing transition probabilities to vary with these
-characteristics substantially affects the composition of the entry and exit
-hazards---the average implied entry and exit rates shift as the model accounts
-for the composition of the sample across covariate cells. Nonetheless, the
-estimated misclassification probability remains economically and statistically
-significant in all three specifications, at 2.36\%, 2.23\%, and 1.17\%
-respectively. Even the most flexible covariate specification, which allows
-transition rates to differ by gender, race, age, education, urban status,
-contract type, and sector, cannot account for the Markov violations in the
-data without retaining a meaningful misclassification probability. The
-conclusion that conventional transition matrices overstate true transition rates
-by a factor of approximately two to three is robust to controlling for
-observable worker heterogeneity.
+for gender and race; and (3) additionally controlling for origin-wave contract
+type and informal-sector employment in the exit equation. Rural or urban
+residence is not used, so the sample is not restricted on its availability.
+All columns estimate the initial employment probability freely. Rates are
+averaged with survey weights and posterior probabilities of membership in the
+relevant origin-state risk set.
+
+In the no-error models, entry is 8.14\% and exit is 8.58\% per quarter in all
+three sets. With symmetric reporting error, the corresponding rates range from
+3.62--3.99\% and 3.71--4.16\%, while the estimated per-wave error probability
+declines only modestly from 2.58\% to 2.39\%. Expected entry and exit flows are
+nearly balanced in every specification; Table~\ref{tab:cov_risk_weighted}
+therefore reports their sum as total churn, rather than presenting the two
+component flows separately. The appendix shows substantial
+heterogeneity: in symmetric Set 3, the risk-weighted 10th--90th percentile
+ranges are 1.07--7.97\% for entry and 0.46--9.61\% for exit. A permanent
+contract raises employment persistence, whereas informal-sector employment
+lowers it. Thus observable heterogeneity changes who faces high transition
+risk, but does not eliminate the estimated reporting-error component; ignoring
+it continues to overstate average transition hazards by roughly a factor of two.
 
 \subsection{Unobserved worker heterogeneity}\label{subsec:results:fmm}
 
@@ -109,26 +121,26 @@ misclassification resolves the implausible coin-flip type.
 \subsection{Inconsistency-augmented misclassification}\label{subsec:results:inconsistency}
 
 Table~\ref{tab:inconsistency} reports the results of the inconsistency-augmented
-model. If misclassification in employment status is driven by the same underlying
-propensity for survey response error that generates age and education
-inconsistencies, then conditioning misclassification on inconsistency indicators
-should significantly improve the model fit, and the coefficient on the
-inconsistency indicators should be positive and significant.
+model. Both response error and incorrect panel linkage can generate age or
+education inconsistencies alongside employment-status misclassification.
+Conditioning misclassification on these indicators therefore tests whether
+unreliable linked records contain more misclassification-consistent employment
+histories, without attempting to distinguish the two mechanisms.
 
-The results confirm this prediction strongly. The baseline misclassification
-probability---for respondents with no age or education inconsistency---is
-estimated at $\hat{\pi}_0 = 2.22\%$, slightly lower than the homogeneous
-baseline estimate. An age inconsistency in any wave pair raises the estimated
-misclassification probability by 15.72 percentage points, and an education
-inconsistency raises it by 4.22 percentage points, both statistically
-significant at conventional levels. The implied mean misclassification
-probability across the full sample, integrating over the distribution of
-inconsistency indicators, is 3.40\%.
+In the preferred free-initial-probability specification, the baseline
+misclassification probability for a wave with no attributed age or education
+inconsistency is 2.26\%. An age inconsistency raises the estimated probability
+by 15.74 percentage points and an education inconsistency raises it by 4.24
+percentage points. The survey-weighted mean misclassification probability is
+3.35\%. All three estimates are reported with analytical standard errors in
+Table~\ref{tab:inconsistency}.
 
-These results support the interpretation that misclassification is driven by
-genuine survey measurement error rather than by model misspecification.
-Respondents who produce objectively incorrect responses to verifiable questions
-(age and education) are substantially more likely to produce
-misclassification-consistent employment dynamics. This mechanism evidence
-is independent of the employment status data itself and cannot be explained
-by heterogeneity in true transition rates.
+These estimates show that unreliable linked records are substantially more
+likely to exhibit employment histories that the model attributes to
+misclassification. They do not distinguish response error from incorrect panel
+matches: either mechanism can jointly generate inconsistent demographic
+responses and implausible employment sequences. The association remains large
+when the true entry and exit processes are allowed to differ between records
+with and without any inconsistency (Table~\ref{tab:inconsistency_reliability}).
+It is also increasing in severity for age inconsistencies, while the severity
+gradient is much smaller for education (Table~\ref{tab:inconsistency_extent}).

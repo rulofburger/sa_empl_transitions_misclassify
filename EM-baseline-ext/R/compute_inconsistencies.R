@@ -70,6 +70,8 @@ compute_inconsistencies <- function(df) {
 
   # Type check: arithmetic on ordered factors throws cryptic errors
   for (col in required_cols) {
+    if (is.logical(df[[col]]) && all(is.na(df[[col]])))
+      df[[col]] <- as.numeric(df[[col]])
     if (!is.numeric(df[[col]]) && !is.integer(df[[col]]))
       stop(sprintf(
         "compute_inconsistencies: column '%s' must be numeric or integer (got %s). Convert factors before calling.",
@@ -85,9 +87,9 @@ compute_inconsistencies <- function(df) {
 
   # Use tolerance-based check rather than %in% c(0L,1L) to handle floating-point
   # age differences gracefully (e.g. 1.0000001 from double arithmetic).
-  .age_ok <- function(d) !is.na(d) & (abs(d - 0) < 0.01 | abs(d - 1) < 0.01)
-  V12_age <- as.integer(!.age_ok(d12_age))
-  V23_age <- as.integer(!.age_ok(d23_age))
+  .age_ok <- function(d) abs(d - 0) < 0.01 | abs(d - 1) < 0.01
+  V12_age <- as.integer(!is.na(d12_age) & !.age_ok(d12_age))
+  V23_age <- as.integer(!is.na(d23_age) & !.age_ok(d23_age))
 
   df$Y_age_1 <- V12_age * (1L - V23_age)
   df$Y_age_2 <- V12_age * V23_age
@@ -99,13 +101,42 @@ compute_inconsistencies <- function(df) {
   d23_edu <- df$educ3 - df$educ2
 
   # Education: non-decreasing with at most +1 per wave
-  .edu_ok <- function(d) !is.na(d) & (abs(d - 0) < 0.01 | abs(d - 1) < 0.01)
-  V12_edu <- as.integer(!.edu_ok(d12_edu))
-  V23_edu <- as.integer(!.edu_ok(d23_edu))
+  .edu_ok <- function(d) abs(d - 0) < 0.01 | abs(d - 1) < 0.01
+  V12_edu <- as.integer(!is.na(d12_edu) & !.edu_ok(d12_edu))
+  V23_edu <- as.integer(!is.na(d23_edu) & !.edu_ok(d23_edu))
 
   df$Y_edu_1 <- V12_edu * (1L - V23_edu)
   df$Y_edu_2 <- V12_edu * V23_edu
   df$Y_edu_3 <- (1L - V12_edu) * V23_edu
 
+  df
+}
+
+#' Compute the magnitude of wave-attributed inconsistencies
+#'
+#' Magnitude is the distance of a consecutive-wave change from the admissible
+#' interval [0, 1].  When both adjacent gaps are inconsistent, their magnitudes
+#' are summed and attributed to the middle wave, matching the indicator rule.
+#' Missing gaps contribute zero.
+#' @export
+compute_inconsistency_extent <- function(df) {
+  df <- compute_inconsistencies(df)
+  distance <- function(d) ifelse(is.na(d), 0, ifelse(d < 0, -d,
+                                                     ifelse(d > 1, d - 1, 0)))
+  attribute_extent <- function(v12, v23, s12, s23) cbind(
+    s12 * v12 * (1L - v23),
+    (s12 + s23) * v12 * v23,
+    s23 * (1L - v12) * v23
+  )
+  d12_age <- df$age2 - df$age1; d23_age <- df$age3 - df$age2
+  d12_edu <- df$educ2 - df$educ1; d23_edu <- df$educ3 - df$educ2
+  va12 <- as.integer(df$Y_age_1 == 1L | df$Y_age_2 == 1L)
+  va23 <- as.integer(df$Y_age_2 == 1L | df$Y_age_3 == 1L)
+  ve12 <- as.integer(df$Y_edu_1 == 1L | df$Y_edu_2 == 1L)
+  ve23 <- as.integer(df$Y_edu_2 == 1L | df$Y_edu_3 == 1L)
+  age_extent <- attribute_extent(va12, va23, distance(d12_age), distance(d23_age))
+  edu_extent <- attribute_extent(ve12, ve23, distance(d12_edu), distance(d23_edu))
+  df[paste0("extent_age_", 1:3)] <- age_extent
+  df[paste0("extent_edu_", 1:3)] <- edu_extent
   df
 }

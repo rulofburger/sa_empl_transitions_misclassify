@@ -71,18 +71,22 @@ validate_df_eps <- function(df) {
   missing_cats <- setdiff(cat_cols, names(df))
   if (length(missing_cats) > 0)
     stop("e_step_eps requires columns: ", paste(missing_cats, collapse = ", "))
-  na_timegap <- is.na(df$timegap_cat1) | is.na(df$timegap_cat2) | is.na(df$timegap_cat3)
-  if (any(na_timegap))
-    stop(sprintf("e_step_eps: %d obs have NA in timegap_cat columns.", sum(na_timegap)))
-  bad_cats <- !all(df$timegap_cat1 %in% 1:7) || !all(df$timegap_cat2 %in% 1:7) ||
-              !all(df$timegap_cat3 %in% 1:7)
-  if (bad_cats) stop("e_step_eps: timegap_cat1/2/3 must contain only integers 1-7.")
   # Check y before tenure: NA in y would propagate through y == 1L comparisons.
   na_y <- is.na(df$y1) | is.na(df$y2) | is.na(df$y3)
   if (any(na_y))
     stop(sprintf("e_step_eps: %d obs have NA in y1/y2/y3.", sum(na_y)))
   bad_y <- !all(df$y1 %in% 0:1) || !all(df$y2 %in% 0:1) || !all(df$y3 %in% 0:1)
   if (bad_y) stop("e_step_eps: y1/y2/y3 must be binary (0 or 1).")
+  na_timegap_nonemp <- (df$y1 == 0L & is.na(df$timegap_cat1)) |
+                       (df$y2 == 0L & is.na(df$timegap_cat2)) |
+                       (df$y3 == 0L & is.na(df$timegap_cat3))
+  if (any(na_timegap_nonemp))
+    stop(sprintf("e_step_eps: %d obs have NA timegap at a nonemployed wave.",
+                 sum(na_timegap_nonemp)))
+  bad_cats <- any(!is.na(df$timegap_cat1) & !df$timegap_cat1 %in% 1:7) ||
+              any(!is.na(df$timegap_cat2) & !df$timegap_cat2 %in% 1:7) ||
+              any(!is.na(df$timegap_cat3) & !df$timegap_cat3 %in% 1:7)
+  if (bad_cats) stop("e_step_eps: observed timegap categories must be integers 1-7.")
   na_tenure_emp <- (df$y1 == 1L & is.na(df$tenure1)) |
                    (df$y2 == 1L & is.na(df$tenure2)) |
                    (df$y3 == 1L & is.na(df$tenure3))
@@ -103,8 +107,46 @@ validate_df_eps <- function(df) {
   invisible(NULL)
 }
 
+.log_duration_history_prior_eps <- function(hmat, alpha, s_list, g_list, c_list,
+                                             lambda_g, beta_g,
+                                             lambda_d, beta_d) {
+  N <- length(g_list[[1]])
+  H <- nrow(hmat)
+  out <- matrix(0, N, H)
+  p_entry <- lapply(c_list[1:2], function(z)
+    .duration_category_transition_probability(z, lambda_d, beta_d))
+  p_exit_missing <- .duration_marginal_transition_probability(
+    lambda_g, beta_g)
+  p_entry_missing <- .duration_marginal_transition_probability(
+    lambda_d, beta_d)
+  for (j in seq_len(H)) {
+    h <- hmat[j, ]
+    out[, j] <- if (h[1] == 1L) log(alpha) else log1p(-alpha)
+    for (t in 1:2) {
+      if (h[t] == 1L) {
+        # Tenure is observed only when employment is reported.  Under a
+        # latent-employed/reported-nonemployed mismatch, integrate the
+        # unavailable spell age out rather than using an imputed clock.
+        p_change <- .duration_transition_probability(
+          g_list[[t]], lambda_g, beta_g)
+        p_change[s_list[[t]] == 0L | !is.finite(p_change)] <- p_exit_missing
+      } else {
+        p_change <- p_entry[[t]]
+        p_change[s_list[[t]] == 1L | !is.finite(p_change)] <- p_entry_missing
+      }
+      p_change <- pmin(pmax(p_change, 1e-12), 1 - 1e-12)
+      out[, j] <- out[, j] + if (h[t + 1L] == h[t]) {
+        log1p(-p_change)
+      } else {
+        log(p_change)
+      }
+    }
+  }
+  out
+}
+
 #' @export
-e_step_eps <- function(df, params, check_df = TRUE) {
+e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   # --- Validate df inputs (skipped from the EM loop for efficiency) ---
   if (check_df) validate_df_eps(df)
   # --- Unpack parameters ---
@@ -113,35 +155,51 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   theta1   <- params$theta1
   pi_par   <- params$pi
   eps      <- params$eps
+  eps_d    <- if (is.null(params$eps_d)) 0 else params$eps_d
+  timegap_model <- if (is.null(params$timegap_contamination_model))
+    "marginal" else params$timegap_contamination_model
+  local_decay <- if (is.null(params$timegap_local_decay)) 1 else
+    params$timegap_local_decay
   lambda_g <- params$lambda_g
   lambda_d <- params$lambda_d
+  duration_dependent <- !is.null(params$beta_g) || !is.null(params$beta_d)
+  beta_g <- if (is.null(params$beta_g)) 0 else params$beta_g
+  beta_d <- if (is.null(params$beta_d)) 0 else params$beta_d
 
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("e_step_eps: params$eps must be in (0, 1); got %.4g", eps))
   }
-  if (!is.finite(lambda_g) || lambda_g <= 0) {
-    stop(sprintf("e_step_eps: params$lambda_g must be > 0; got %.4g", lambda_g))
+  if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1) {
+    stop(sprintf("e_step_eps: params$eps_d must be in [0, 1); got %.4g", eps_d))
+  }
+  if (!timegap_model %in% c("marginal","local","joint_marginal"))
+    stop("e_step_eps: unknown timegap contamination model")
+  if (!is.finite(local_decay) || local_decay<=0)
+    stop("e_step_eps: timegap_local_decay must be positive")
+  if (any(!is.finite(lambda_g)) || any(lambda_g <= 0)) {
+    stop("e_step_eps: all params$lambda_g hazards must be finite and positive")
   }
   if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) {
     stop(sprintf("e_step_eps: params$alpha must be in (0, 1); got %.4g", alpha))
   }
-  if (!is.finite(theta0) || theta0 <= 0 || theta0 >= 1) {
+  if (!duration_dependent && (!is.finite(theta0) || theta0 <= 0 || theta0 >= 1)) {
     stop(sprintf("e_step_eps: params$theta0 must be in (0, 1); got %.4g", theta0))
   }
-  if (!is.finite(theta1) || theta1 <= 0 || theta1 >= 1) {
+  if (!duration_dependent && (!is.finite(theta1) || theta1 <= 0 || theta1 >= 1)) {
     stop(sprintf("e_step_eps: params$theta1 must be in (0, 1); got %.4g", theta1))
   }
   if (!is.finite(pi_par) || pi_par < 0 || pi_par >= 1) {
     stop(sprintf("e_step_eps: params$pi must be in [0, 1); got %.4g", pi_par))
   }
-  if (!is.finite(lambda_d) || lambda_d <= 0) {
-    stop(sprintf("e_step_eps: params$lambda_d must be > 0; got %.4g", lambda_d))
+  if (any(!is.finite(lambda_d)) || any(lambda_d <= 0)) {
+    stop("e_step_eps: all params$lambda_d hazards must be finite and positive")
+  }
+  if (!all(is.finite(c(beta_g, beta_d))) || beta_g <= -1 || beta_d <= -1) {
+    stop("e_step_eps: beta_g and beta_d must be finite and greater than -1")
   }
 
   # --- Latent structure (H = 8) ---
   hmat      <- latent_histories()
-  prior_h   <- prior_over_histories(hmat, theta1, theta0, alpha)
-  log_prior <- log(.bound01(prior_h))
 
   N  <- nrow(df)
   H  <- nrow(hmat)
@@ -166,6 +224,15 @@ e_step_eps <- function(df, params, check_df = TRUE) {
   s_list <- list(s1, s2, s3)
   g_list <- list(g1, g2, g3)
   c_list <- list(c1, c2, c3)
+
+  if (duration_dependent) {
+    log_prior <- .log_duration_history_prior_eps(
+      hmat, alpha, s_list, g_list, c_list,
+      lambda_g, beta_g, lambda_d, beta_d)
+  } else {
+    prior_h <- prior_over_histories(hmat, theta1, theta0, alpha)
+    log_prior <- log(.bound01(prior_h))
+  }
 
   # --- Misclassification log-probability: N x H ---
   # Vectorised via n_mis_mat: no per-history loop or ifelse() allocation. [P1-1]
@@ -199,7 +266,8 @@ e_step_eps <- function(df, params, check_df = TRUE) {
       s_mat     <- s_full[, spell, drop = FALSE]
       t_offsets <- as.integer(spell - spell[1L])
 
-      out <- log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps)
+      out <- log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps,
+                                  beta_g = beta_g)
 
       ld[, j]               <- ld[, j]               + out$loglik
       lambda_count_mat[, j] <- lambda_count_mat[, j] + out$lambda_count
@@ -221,7 +289,8 @@ e_step_eps <- function(df, params, check_df = TRUE) {
         g_t  <- g_list[[t]]
         mask <- (s_t == 1L)
         if (any(mask)) {
-          ld[mask, j] <- ld[mask, j] + log(lambda_g) - lambda_g * g_t[mask]
+          ld[mask, j] <- ld[mask, j] +
+            .log_duration_density(g_t[mask], lambda_g, beta_g)
           lambda_count_mat[mask, j] <- lambda_count_mat[mask, j] + 1
           lambda_xsum_mat[mask, j]  <- lambda_xsum_mat[mask, j]  + g_t[mask]
         }
@@ -229,43 +298,56 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     }
 
     # ---- (c) Timegap emissions: marginal + transition (mirror base model) ----
+    # The joint model differs only for a fully observed three-wave latent
+    # nonemployment spell. Two-wave blocks reduce to a conditional mixture with
+    # contamination probability 1-(1-eps_d)^2.
+    joint3 <- identical(timegap_model,"joint_marginal") && all(h_j==0L) &
+      eps_d>0
+    joint3_mask <- if (joint3) s1==0L & s2==0L & s3==0L else rep(FALSE,N)
+    if (any(joint3_mask)) ld[joint3_mask,j] <- ld[joint3_mask,j] +
+      log_emission_timegap_triplet_joint(c1[joint3_mask],c2[joint3_mask],
+        c3[joint3_mask],lambda_d,beta_d,eps_d)
+    pair_eps_d <- if (identical(timegap_model,"joint_marginal"))
+      1-(1-eps_d)^2 else eps_d
+    conditional_model <- if (identical(timegap_model,"local")) "local" else
+      "marginal"
     # Wave 1: marginal interval whenever s_1 = 0.
-    mask_w1 <- (s1 == 0L)
+    mask_w1 <- (s1 == 0L) & !joint3_mask
     if (any(mask_w1)) {
       ld[mask_w1, j] <- ld[mask_w1, j] +
-        log_emission_interval_d(c1[mask_w1], lambda_d)
+        log_emission_interval_d(c1[mask_w1], lambda_d, beta_d)
     }
     # Waves 2 and 3: inlined timegap transitions (avoids 2× rep(0,N) alloc) [P2-9]
     # --- Transition (2 ← 1) ---
     {
       hp12 <- h_j[1L]; hc12 <- h_j[2L]
       if (hp12 == 0L && hc12 == 0L) {
-        m12 <- (s2 == 0L) & (s1 == 0L)
-        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d(c2[m12], c1[m12], lambda_d)
+        m12 <- (s2 == 0L) & (s1 == 0L) & !joint3_mask
+        if (any(m12))  ld[m12, j] <- ld[m12, j] + log_emission_transition_d_contaminated(c2[m12], c1[m12], lambda_d, beta_d, pair_eps_d,conditional_model,local_decay)
         m12m <- (s2 == 0L) & (s1 == 1L)
-        if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d)
+        if (any(m12m)) ld[m12m, j] <- ld[m12m, j] + log_emission_interval_d(c2[m12m], lambda_d, beta_d)
       } else if (hp12 == 1L && hc12 == 0L) {
         m12 <- (s2 == 0L)
-        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d)
+        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d, beta_d)
       } else if (hc12 == 1L) {
         m12 <- (s2 == 0L)
-        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d)
+        if (any(m12)) ld[m12, j] <- ld[m12, j] + log_emission_interval_d(c2[m12], lambda_d, beta_d)
       }
     }
     # --- Transition (3 ← 2) ---
     {
       hp23 <- h_j[2L]; hc23 <- h_j[3L]
       if (hp23 == 0L && hc23 == 0L) {
-        m23 <- (s3 == 0L) & (s2 == 0L)
-        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d(c3[m23], c2[m23], lambda_d)
+        m23 <- (s3 == 0L) & (s2 == 0L) & !joint3_mask
+        if (any(m23))  ld[m23, j] <- ld[m23, j] + log_emission_transition_d_contaminated(c3[m23], c2[m23], lambda_d, beta_d, pair_eps_d,conditional_model,local_decay)
         m23m <- (s3 == 0L) & (s2 == 1L)
-        if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d)
+        if (any(m23m)) ld[m23m, j] <- ld[m23m, j] + log_emission_interval_d(c3[m23m], lambda_d, beta_d)
       } else if (hp23 == 1L && hc23 == 0L) {
         m23 <- (s3 == 0L)
-        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d)
+        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d, beta_d)
       } else if (hc23 == 1L) {
         m23 <- (s3 == 0L)
-        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d)
+        if (any(m23)) ld[m23, j] <- ld[m23, j] + log_emission_interval_d(c3[m23], lambda_d, beta_d)
       }
     }
   }
@@ -277,10 +359,14 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     match_idx <- 1L + s1 + 2L * s2 + 4L * s3
     gamma_mat <- matrix(0, nrow = N, ncol = H)
     gamma_mat[cbind(seq_len(N), match_idx)] <- 1
-    log_lik_i <- log_prior[match_idx] + ld[cbind(seq_len(N), match_idx)]
+    lp_match <- if (is.matrix(log_prior)) {
+      log_prior[cbind(seq_len(N), match_idx)]
+    } else log_prior[match_idx]
+    log_lik_i <- lp_match + ld[cbind(seq_len(N), match_idx)]
     ll <- sum(wi * log_lik_i)
   } else {
-    log_kernel <- sweep(lq + ld, 2, log_prior, "+")
+    log_kernel <- if (is.matrix(log_prior)) lq + ld + log_prior else
+      sweep(lq + ld, 2, log_prior, "+")
     # log-sum-exp normalization (H=8 is fixed so explicit-column pmax avoids the
     # as.data.frame() copy overhead of do.call(pmax, ...))
     row_max   <- pmax(log_kernel[,1], log_kernel[,2], log_kernel[,3], log_kernel[,4],
@@ -288,6 +374,10 @@ e_step_eps <- function(df, params, check_df = TRUE) {
     log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
     gamma_mat <- exp(log_kernel - log_denom)
     ll        <- sum(wi * log_denom)
+  }
+
+  if (!suff_stats) {
+    return(list(gamma = gamma_mat, loglik = ll, suff = NULL))
   }
 
   # --- Sufficient statistics ---

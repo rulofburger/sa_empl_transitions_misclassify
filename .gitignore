@@ -5,11 +5,8 @@
 # Session Data files
 .RData
 
-# Project environment files
+# Project environment files (the project .Rprofile is tracked so renv activates)
 .Renviron
-
-# R Profile files
-.Rprofile
 
 # Temporary files created by R markdown
 *.utf8.md
@@ -30,24 +27,36 @@ data-use/
 .github/copilot-instructions.md
 .cg-docs/
 C:\WBG\.compound-gpid/
-compound-gpid.local.md
 prompts/
 documents/2025-05-05-contamination-presentation_files/
 documents/2025-05-05-contamination-model-presentation_files/
 
 # Large binary outputs (fitted models, results) — untrack with: git rm --cached
-# Nested output directories (EM-AR2, EM-baseline, etc.) and root-level
-**/output/results/*.rds
+output/results/*.rds
+output/results/*.csv
 **/output/results/*.csv
-**/output/results/bootstrap/
+**/output/results/**/*.csv
 # R data objects — both conventional cases (.rds lowercase and .Rds mixed-case
 # both appear in data-use/ from older serialization code)
 *.rds
 *.Rds
 
-# Generated output tables/figures — do not commit; regenerate from pipeline
+# Generated working tables/figures — do not commit directly. A compact,
+# paper-facing snapshot is tracked under paper/generated/ and refreshed with
+# scripts/snapshot_paper_artifacts.R.
 **/output/tables/
 **/output/figures/
+diagnostics/output/
+
+# The reviewed paper snapshot is the intentional exception to those rules.
+!paper/generated/
+!paper/generated/**
+
+# R Markdown intermediates (source .Rmd and selected final PDFs remain trackable)
+paper/branch_changes_summary*.tex
+
+# Compound GPID local config (user-specific, never commit)
+compound-gpid.local.md
 
 # OS files
 .DS_Store

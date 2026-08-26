@@ -107,7 +107,7 @@ test_that("e_step_covariates suff has required fields", {
   params <- init_params_covariates(1L)
   out    <- e_step_covariates(df, X, params)
   required_suff <- c("eff_w_1", "eff_wy_1", "eff_w_0", "eff_wy_0",
-                     "M", "C1", "C0", "total_weight")
+                     "M", "C1", "C0", "init_w1", "init_w0", "total_weight")
   expect_true(all(required_suff %in% names(out$suff)))
 })
 
@@ -177,6 +177,25 @@ test_that("m_step_covariates: beta values are finite", {
   expect_true(all(is.finite(out$beta1)))
 })
 
+test_that("stationary Q analytic gradient matches central differences", {
+  df <- .make_panel_cov(n = 120L)
+  X <- cbind(intercept = 1, x = seq(-1, 1, length.out = nrow(df)))
+  params <- init_params_covariates(ncol(X))
+  suff <- e_step_covariates(df, X, params)$suff
+  active <- rep(TRUE, ncol(X))
+  z <- c(params$beta0, params$beta1)
+  analytic <- .covariate_q(z, suff, X, active, TRUE, gradient = TRUE)
+  h <- 1e-6
+  numeric_grad <- vapply(seq_along(z), function(j) {
+    zp <- zm <- z
+    zp[j] <- zp[j] + h
+    zm[j] <- zm[j] - h
+    (.covariate_q(zp, suff, X, active, TRUE) -
+       .covariate_q(zm, suff, X, active, TRUE)) / (2 * h)
+  }, numeric(1))
+  expect_equal(analytic, numeric_grad, tolerance = 1e-5)
+})
+
 # ---- em_fit_covariates: convergence ----------------------------------------
 
 test_that("em_fit_covariates converges on synthetic data", {
@@ -194,6 +213,39 @@ test_that("em_fit_covariates: LL is monotone non-decreasing", {
   ll_vec <- fit$history$loglik
   diffs  <- diff(ll_vec)
   expect_true(all(diffs >= -1e-5), label = "LL must be non-decreasing")
+})
+
+test_that("stationary symmetric fit weakly dominates nested no-error start", {
+  df <- .make_panel_cov(n = 400L, pi = 0.04)
+  X <- .make_X_intercept(nrow(df))
+  fit_none <- em_fit_covariates(df, X, model_type = "none", verbose = 0L)
+  p0 <- fit_none$params
+  p0$pi <- 1e-8
+  fit_sym <- em_fit_covariates(df, X, model_type = "symmetric",
+                               params0 = p0, verbose = 0L)
+  expect_gte(fit_sym$loglik, fit_none$loglik - 1e-6)
+})
+
+test_that("free-alpha model uses its free initial probability", {
+  df <- .make_panel_cov(n = 300L)
+  X <- .make_X_intercept(nrow(df))
+  p1 <- init_params_covariates(1L)
+  p1$alpha <- 0.2
+  p2 <- p1
+  p2$alpha <- 0.8
+  ll1 <- e_step_covariates(df, X, p1, stationary = FALSE)$loglik
+  ll2 <- e_step_covariates(df, X, p2, stationary = FALSE)$loglik
+  expect_false(isTRUE(all.equal(ll1, ll2)))
+})
+
+test_that("common weight rescaling leaves coefficients unchanged", {
+  df <- .make_panel_cov(n = 250L, pi = 0)
+  X <- .make_X_intercept(nrow(df))
+  fit1 <- em_fit_covariates(df, X, model_type = "none", verbose = 0L)
+  df$weight <- df$weight * 100
+  fit2 <- em_fit_covariates(df, X, model_type = "none", verbose = 0L)
+  expect_equal(fit1$params$beta0, fit2$params$beta0, tolerance = 1e-8)
+  expect_equal(fit1$params$beta1, fit2$params$beta1, tolerance = 1e-8)
 })
 
 test_that("em_fit_covariates: no-error variant converges", {
@@ -253,4 +305,35 @@ test_that("covariate model estimates non-zero slope on age-structured data", {
   fit <- em_fit_covariates(df, X, verbose = 0L, max_iter = 200L)
   expect_true(abs(fit$params$beta0[2L]) > 1e-4 || abs(fit$params$beta1[2L]) > 1e-4,
               label = "age slope should be non-zero on age-structured data")
+})
+
+test_that("time-varying transition designs require free alpha and fit", {
+  df <- .make_panel_cov(n = 120L, pi = 0)
+  z1 <- rep(c(0, 1), length.out = nrow(df))
+  z2 <- 1 - z1
+  X12 <- cbind(intercept = 1, origin_attribute = z1)
+  X23 <- cbind(intercept = 1, origin_attribute = z2)
+  design <- list(X12 = X12, X23 = X23)
+
+  expect_error(
+    em_fit_covariates(df, design, model_type = "none", stationary = TRUE,
+                      verbose = 0L),
+    "stationary=FALSE"
+  )
+  fit <- em_fit_covariates(df, design, model_type = "none",
+                           stationary = FALSE, verbose = 0L)
+  expect_true(is.finite(fit$loglik))
+  expect_equal(dim(fit$gamma), c(nrow(df), 8L))
+})
+
+test_that("analytical sandwich/delta SEs are finite on a free-alpha fit", {
+  df <- .make_panel_cov(n = 180L, pi = 0)
+  df$weight <- runif(nrow(df), 0.5, 2)
+  X <- cbind(intercept = 1, z = rnorm(nrow(df)))
+  fit <- em_fit_covariates(df, X, model_type = "none", stationary = FALSE,
+                           max_iter = 150L, verbose = 0L)
+  out <- analytical_se_covariates(df, X, fit, "none")
+  expect_true(all(is.finite(out$summary$se)))
+  expect_true(all(out$summary$se > 0))
+  expect_gt(out$diagnostics$min_bread_eigenvalue, 0)
 })

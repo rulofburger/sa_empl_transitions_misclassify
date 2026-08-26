@@ -14,5 +14,6 @@
   }
 )
 
+source(file.path(.test_root, "EM-baseline", "R", "source_all.R"))
 source(file.path(.test_root, "EM-AR2", "R", "source_all.R"))
 rm(.test_root)

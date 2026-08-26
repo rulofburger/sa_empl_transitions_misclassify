@@ -1,4 +1,39 @@
 # ==============================================================================
+
+# ---- Transition-specific covariate designs ----------------------------------
+
+#' Normalize a covariate design to one matrix per transition
+#'
+#' A single matrix is retained as a backward-compatible shorthand for a
+#' time-invariant design. A list must contain X12 and X23 with identical column
+#' layouts.
+.as_transition_design <- function(X, N = NULL) {
+  if (is.matrix(X)) {
+    out <- list(X12 = X, X23 = X)
+  } else if (is.list(X) && all(c("X12", "X23") %in% names(X))) {
+    out <- X[c("X12", "X23")]
+  } else {
+    stop("Covariate design must be a matrix or a list with X12 and X23")
+  }
+  if (!all(vapply(out, is.matrix, logical(1L))))
+    stop("X12 and X23 must both be matrices")
+  if (!is.null(N) && any(vapply(out, nrow, integer(1L)) != N))
+    stop("Each transition design must have one row per observation")
+  if (ncol(out$X12) != ncol(out$X23) ||
+      !identical(colnames(out$X12), colnames(out$X23)))
+    stop("X12 and X23 must have identical columns")
+  entry_active <- attr(out$X12, "entry_active") %||%
+    attr(out$X23, "entry_active") %||% rep(TRUE, ncol(out$X12))
+  attr(out$X12, "entry_active") <- entry_active
+  attr(out$X23, "entry_active") <- entry_active
+  out
+}
+
+.transition_design_is_time_invariant <- function(X) {
+  X <- .as_transition_design(X)
+  isTRUE(all.equal(unclass(X$X12), unclass(X$X23),
+                   check.attributes = FALSE, tolerance = 0))
+}
 # EM-baseline-ext: Shared helpers used across extension E-steps
 # Created: 2026-05-06
 #

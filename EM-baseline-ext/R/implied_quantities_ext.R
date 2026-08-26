@@ -79,46 +79,108 @@
 #' beta <- c(qnorm(0.10), 0.5, -0.3)
 #' p    <- list(beta0 = beta, beta1 = c(qnorm(0.90), -0.2, 0.1), pi = 0.05)
 #' implied_covariates(p, X, "symmetric")
-implied_covariates <- function(params, X, model_type = "symmetric") {
+implied_covariates <- function(params, X, model_type = "symmetric",
+                               df = NULL, gamma = NULL) {
+  X_transition <- .as_transition_design(X)
+  X12 <- X_transition$X12
+  X23 <- X_transition$X23
   stopifnot(
     is.list(params),
     is.numeric(params$beta0), !anyNA(params$beta0),
     is.numeric(params$beta1), !anyNA(params$beta1),
-    is.matrix(X), is.numeric(X),
-    ncol(X) == length(params$beta0),
-    ncol(X) == length(params$beta1),
+    is.matrix(X12), is.numeric(X12),
+    ncol(X12) == length(params$beta0),
+    ncol(X12) == length(params$beta1),
     model_type %in% c("symmetric", "none")
   )
-  if (anyNA(X))
+  if (anyNA(X12) || anyNA(X23))
     stop("implied_covariates: X contains NA values — impute or filter before calling.")
 
+  # Contract-type columns are inactive in the entry equation. Enforce the mask
+  # here as a defensive guard for older saved parameter objects.
+  entry_active <- attr(X12, "entry_active")
+  if (is.null(entry_active)) entry_active <- rep(TRUE, ncol(X12))
+  beta0 <- params$beta0
+  beta0[!entry_active] <- 0
+
   # Cache linear predictors to avoid recomputing X %*% beta for both pnorm and dnorm
-  xb0 <- as.vector(X %*% params$beta0)
-  xb1 <- as.vector(X %*% params$beta1)
+  xb0 <- list(as.vector(X12 %*% beta0), as.vector(X23 %*% beta0))
+  xb1 <- list(as.vector(X12 %*% params$beta1), as.vector(X23 %*% params$beta1))
+  theta0 <- lapply(xb0, pnorm)
+  exit <- lapply(xb1, function(z) 1 - pnorm(z))
 
-  theta0_i <- pnorm(xb0)
-  theta1_i <- pnorm(xb1)
-  alpha_i  <- .stationary_alpha(theta0_i, theta1_i)
+  .weighted_quantile <- function(x, w, probs = c(.1, .5, .9)) {
+    ok <- is.finite(x) & is.finite(w) & w > 0
+    if (!any(ok)) return(rep(NA_real_, length(probs)))
+    x <- x[ok]; w <- w[ok]
+    ord <- order(x); x <- x[ord]; w <- w[ord]
+    x[pmax(1L, findInterval(probs * sum(w), cumsum(w)) + 1L)]
+  }
 
-  # Population-average implied probabilities
-  mean_entry_rate      <- mean(theta0_i,       na.rm = TRUE)
-  mean_exit_rate       <- mean(1 - theta1_i,   na.rm = TRUE)
-  mean_employment_rate <- mean(alpha_i,         na.rm = TRUE)
+  if (!is.null(df) && !is.null(gamma)) {
+    if (nrow(df) != nrow(X12) || nrow(gamma) != nrow(X12) || ncol(gamma) != 8L)
+      stop("implied_covariates: df, gamma, and X dimensions do not agree")
+    h <- .hmat_cache()
+    risk0 <- list(
+      as.vector(gamma %*% as.integer(h[, 1L] == 0L)),
+      as.vector(gamma %*% as.integer(h[, 2L] == 0L))
+    )
+    risk1 <- lapply(risk0, function(z) 1 - z)
+    w <- as.numeric(df$weight)
+    w0 <- list(w * risk0[[1L]], w * risk0[[2L]])
+    w1 <- list(w * risk1[[1L]], w * risk1[[2L]])
+    denom0 <- sum(w0[[1L]]) + sum(w0[[2L]])
+    denom1 <- sum(w1[[1L]]) + sum(w1[[2L]])
+    entry_num <- sum(w0[[1L]] * theta0[[1L]]) + sum(w0[[2L]] * theta0[[2L]])
+    exit_num <- sum(w1[[1L]] * exit[[1L]]) + sum(w1[[2L]] * exit[[2L]])
+    mean_entry_rate <- entry_num / denom0
+    mean_exit_rate <- exit_num / denom1
+    mean_employment_rate <- denom1 / (2 * sum(w))
+    entry_flow <- entry_num / (2 * sum(w))
+    exit_flow <- exit_num / (2 * sum(w))
+    entry_quantiles <- .weighted_quantile(unlist(theta0), unlist(w0))
+    exit_quantiles <- .weighted_quantile(unlist(exit), unlist(w1))
+    phi0_mean <- (sum(w0[[1L]] * dnorm(xb0[[1L]])) +
+                    sum(w0[[2L]] * dnorm(xb0[[2L]]))) / denom0
+    phi1_mean <- (sum(w1[[1L]] * dnorm(xb1[[1L]])) +
+                    sum(w1[[2L]] * dnorm(xb1[[2L]]))) / denom1
+
+    .exit_discrete_effect <- function(column) {
+      j <- match(column, colnames(X12))
+      if (is.na(j)) return(NA_real_)
+      num <- 0
+      for (tt in seq_len(2L)) {
+        Xt <- X_transition[[tt]]
+        eta_base <- xb1[[tt]] - Xt[, j] * params$beta1[j]
+        exit_off <- 1 - pnorm(eta_base)
+        exit_on <- 1 - pnorm(eta_base + params$beta1[j])
+        num <- num + sum(w1[[tt]] * (exit_on - exit_off))
+      }
+      num / denom1
+    }
+    contract_exit_effect <- .exit_discrete_effect("contracttype_1")
+    informal_exit_effect <- .exit_discrete_effect("informal_sector")
+  } else {
+    mean_entry_rate <- mean(unlist(theta0))
+    mean_exit_rate <- mean(unlist(exit))
+    mean_employment_rate <- if (!is.null(params$alpha)) params$alpha else
+      mean(.stationary_alpha(theta0[[1L]], 1 - exit[[1L]]))
+    entry_flow <- exit_flow <- NA_real_
+    entry_quantiles <- quantile(unlist(theta0), c(.1, .5, .9), names = FALSE)
+    exit_quantiles <- quantile(unlist(exit), c(.1, .5, .9), names = FALSE)
+    phi0_mean <- mean(unlist(lapply(xb0, dnorm)))
+    phi1_mean <- mean(unlist(lapply(xb1, dnorm)))
+    contract_exit_effect <- informal_exit_effect <- NA_real_
+  }
 
   # Average Marginal Effects (AME)
   # AME_k = (1/N) sum_i phi(x_i' beta) * beta_k = beta_k * mean(phi(x_i' beta))
   # For exit rate (1 - theta1): AME = -AME of theta1 (sign reversal from complement)
-  phi0 <- dnorm(xb0)  # reuse cached linear predictor — no extra matrix-vector product
-  phi1 <- dnorm(xb1)
+  ame_entry <- beta0 * phi0_mean
+  ame_exit  <- -params$beta1 * phi1_mean
 
-  mean_phi0 <- mean(phi0)
-  mean_phi1 <- mean(phi1)
-
-  ame_entry <- params$beta0 * mean_phi0  # vectorized: one multiplication per coef
-  ame_exit  <- -params$beta1 * mean_phi1 # negative: d(1-theta1)/dX = -d(theta1)/dX
-
-  col_nms <- colnames(X)
-  if (is.null(col_nms)) col_nms <- paste0("x", seq_len(ncol(X)))
+  col_nms <- colnames(X12)
+  if (is.null(col_nms)) col_nms <- paste0("x", seq_len(ncol(X12)))
   names(ame_entry) <- col_nms
   names(ame_exit)  <- col_nms
 
@@ -128,6 +190,18 @@ implied_covariates <- function(params, X, model_type = "symmetric") {
     mean_entry_rate      = mean_entry_rate,
     mean_exit_rate       = mean_exit_rate,
     mean_employment_rate = mean_employment_rate,
+    entry_flow            = entry_flow,
+    exit_flow             = exit_flow,
+    total_churn_flow      = entry_flow + exit_flow,
+    entry_p10             = entry_quantiles[1L],
+    entry_median          = entry_quantiles[2L],
+    entry_p90             = entry_quantiles[3L],
+    exit_p10              = exit_quantiles[1L],
+    exit_median           = exit_quantiles[2L],
+    exit_p90              = exit_quantiles[3L],
+    contract_exit_effect  = contract_exit_effect,
+    informal_exit_effect  = informal_exit_effect,
+    alpha                 = params$alpha %||% NA_real_,
     pi                   = pi,
     ame_entry            = ame_entry,
     ame_exit             = ame_exit
@@ -235,6 +309,8 @@ implied_fmm <- function(params, model_type = "symmetric") {
 #' @param incons_mat  N × 6 integer matrix of inconsistency indicators.  Columns
 #'   must be ordered: \code{Y_age_1, Y_age_2, Y_age_3, Y_edu_1, Y_edu_2,
 #'   Y_edu_3}.
+#' @param weights Optional positive survey-weight vector. Equal weights are used
+#'   when omitted.
 #'
 #' @return A named list:
 #'   \describe{
@@ -254,7 +330,7 @@ implied_fmm <- function(params, model_type = "symmetric") {
 #'               delta = c(-2.2, 0.5, 0.3))
 #' imat  <- matrix(rbinom(300, 1, 0.1), ncol = 6)
 #' implied_inconsistency(p, imat)
-implied_inconsistency <- function(params, incons_mat) {
+implied_inconsistency <- function(params, incons_mat, weights = NULL) {
   stopifnot(
     is.list(params),
     is.numeric(params$theta0), length(params$theta0) == 1L, !is.na(params$theta0),
@@ -268,6 +344,10 @@ implied_inconsistency <- function(params, incons_mat) {
     stop("implied_inconsistency: incons_mat contains NA values.")
   if (!all(incons_mat %in% c(0L, 1L)))
     stop("implied_inconsistency: incons_mat values must be 0 or 1.")
+  if (is.null(weights)) weights <- rep(1, nrow(incons_mat))
+  if (!is.numeric(weights) || length(weights) != nrow(incons_mat) ||
+      anyNA(weights) || any(!is.finite(weights)) || any(weights <= 0))
+    stop("implied_inconsistency: weights must be finite, positive, and have one value per row.")
 
   theta0 <- params$theta0
   theta1 <- params$theta1
@@ -282,7 +362,8 @@ implied_inconsistency <- function(params, incons_mat) {
   linpred_mat <- delta[1L] +
                  delta[2L] * incons_mat[, 1:3, drop = FALSE] +
                  delta[3L] * incons_mat[, 4:6, drop = FALSE]
-  mean_pi <- mean(0.5 * plogis(linpred_mat))
+  pi_mat <- 0.5 * plogis(linpred_mat)
+  mean_pi <- sum(weights * rowSums(pi_mat)) / (3 * sum(weights))
 
   pi_base <- 0.5 * plogis(delta[1L])   # misclassification at zero flags
 

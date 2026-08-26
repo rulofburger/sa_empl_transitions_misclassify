@@ -39,7 +39,8 @@ EM-AR2/
 │   ├── estep.R             # E-step: responsibilities + sufficient stats
 │   ├── mstep.R             # M-step: closed-form parameter updates
 │   ├── em_driver.R         # init_params_ar2(), em_fit_ar2() driver
-│   └── inference.R         # Cell probs, implied transitions, GoF
+│   ├── inference.R         # Cell probs, implied transitions, GoF
+│   └── analytical_se_AR2.R # Sandwich covariance and delta-method SEs
 ├── tests/
 │   ├── testthat.R
 │   └── testthat/
@@ -58,6 +59,13 @@ EM-AR2/
 └── README.md
 ```
 
+The optional `estimate_duration_covariates_4w.R` runner estimates a one-type
+AR(2) specification in which origin-wave log time since work and never-worked
+status predict entry, while origin-wave log tenure predicts employment
+persistence. Missing-duration indicators retain the baseline four-wave sample.
+The second lag remains in both probit equations, and symmetric
+misclassification is estimated jointly by exact observed-likelihood MLE.
+
 ## Usage
 
 From the project root:
@@ -67,13 +75,17 @@ From the project root:
 source("EM-AR2/estimate_pipeline.R")
 ```
 
-## Dependencies
+## Sample and inference
 
-- `here` — path management
-- `tidyverse` — pipeline filtering and output formatting
-- `stargazer` — LaTeX tables (pipeline only)
+The default pipeline uses every age-eligible observation with employment status
+observed in all four waves. It collapses the data to the 16 observed employment
+histories for EM estimation while retaining individual squared weights for the
+analytical sandwich covariance. Reported standard errors use the observed-data
+Hessian and the delta method; bootstrap code remains available as an optional
+robustness check.
 
-No external optimisation packages required — M-step is closed-form.
+The core estimator and table pipeline use base R only. No external optimisation
+package is required because the constrained M-step is closed-form.
 
 ## Methodology
 
@@ -81,4 +93,5 @@ See `documents/EM AR2.tex` for full derivation. Key references:
 - Latent histories: 2⁴ = 16 binary sequences over 4 waves
 - Prior: AR(2) stationary distribution α(h₁,h₂) with Φ normalisation
 - E-step: standard log-sum-exp responsibilities; sufficient stats D_{jk}, T_{jk→l}, M
-- M-step: closed-form p̂_{jk→l} = T_{jk→l}/D_{jk}, θ recovery via linear transform
+- M-step: order-restricted binomial MLE via pooled adjacent violators, followed
+  by θ recovery via linear transform

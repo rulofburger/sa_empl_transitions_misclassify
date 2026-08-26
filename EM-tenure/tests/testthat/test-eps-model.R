@@ -465,7 +465,8 @@ test_that("em_fit_tenure_eps returns expected output fields", {
   df  <- .make_eps_data(n = 100L)
   fit <- em_fit_tenure_eps(df, max_iter = 5L, verbose = 0L)
 
-  expect_named(fit, c("params", "loglik", "history", "converged", "iterations", "gamma"))
+  expect_named(fit, c("params", "loglik", "history", "converged", "status",
+                      "iterations", "gamma", "diagnostics"))
   expect_equal(dim(fit$gamma), c(100L, 8L))
   expect_true(is.finite(fit$loglik))
   expect_true(is.logical(fit$converged))
@@ -473,6 +474,40 @@ test_that("em_fit_tenure_eps returns expected output fields", {
   expect_true(is.data.frame(fit$history))
   expect_true("eps" %in% names(fit$params))
   expect_null(fit$params$sigma2_g)
+})
+
+test_that("stationary epsilon M-step increases the constrained Q block", {
+  df <- .make_eps_data(n=400L, seed=912L)
+  old <- .make_eps_params()
+  old$alpha <- old$theta0/(old$theta0+1-old$theta1)
+  estep <- e_step_eps(df,old)
+  for (linked in c(FALSE,TRUE)) {
+    new <- m_step_eps(estep$suff,sum(df$weight),stationary=TRUE,linked=linked)
+    q_old <- .q_theta_stationary_eps(old$theta0,old$theta1,estep$suff,linked)
+    q_new <- .q_theta_stationary_eps(new$theta0,new$theta1,estep$suff,linked)
+    expect_gte(q_new+1e-7,q_old)
+    expect_equal(new$alpha,new$theta0/(new$theta0+1-new$theta1),tolerance=1e-12)
+  }
+})
+
+test_that("epsilon driver reports a small residual after genuine convergence", {
+  df <- .make_eps_data(n=500L,seed=441L)
+  fit <- em_fit_tenure_eps(df,stationary=TRUE,linked=TRUE,
+    max_iter=500L,tol=1e-9,param_tol=1e-6,verbose=0L)
+  if (fit$converged) {
+    expect_identical(fit$status,"converged")
+    expect_lt(fit$diagnostics$fixedpoint_residual,2e-6)
+  } else {
+    expect_false(fit$status == "converged")
+  }
+})
+
+test_that("collapsing epsilon cells preserves normalized total weight", {
+  df <- .make_eps_data(n=300L,seed=337L)
+  collapsed <- collapse_eps_cells(df)
+  expect_equal(sum(collapsed$weight),nrow(df),tolerance=1e-10)
+  expect_equal(attr(collapsed,"n_original"),nrow(df))
+  expect_lte(nrow(collapsed),nrow(df))
 })
 
 # ---------------------------------------------------------------------------
@@ -905,4 +940,45 @@ test_that("log_emission_spell_g: K=2 offset (0,1) and (1,2) give finite loglik",
     expect_equal(out$K, 2L,
                  info = sprintf("offset (%d,%d): wrong K", d1, d2))
   }
+})
+
+# ---------------------------------------------------------------------------
+# 40. Wrong-state durations are missing and integrated out
+# ---------------------------------------------------------------------------
+
+test_that("prepare_eps_estimation_data preserves wrong-state durations as missing", {
+  df <- .make_eps_data(n = 40L, seed = 401L)
+  prepared <- prepare_eps_estimation_data(df)
+  for (t in 1:3) {
+    expect_true(all(is.na(prepared[[paste0("tenure", t)]][prepared[[paste0("y", t)]] == 0L])))
+    expect_true(all(is.na(prepared[[paste0("timegap_cat", t)]][prepared[[paste0("y", t)]] == 1L])))
+  }
+  expect_silent(validate_df_eps(prepared))
+})
+
+test_that("wrong-state duration values cannot affect epsilon likelihood", {
+  legacy <- .make_eps_data(n = 80L, seed = 402L)
+  missing <- legacy
+  for (t in 1:3) {
+    y <- missing[[paste0("y", t)]]
+    missing[[paste0("tenure", t)]][y == 0L] <- NA_real_
+    missing[[paste0("timegap_cat", t)]][y == 1L] <- NA_integer_
+  }
+  params <- .make_eps_params()
+  params$beta_g <- -0.35
+  params$beta_d <- -0.60
+  a <- e_step_eps(legacy, params, suff_stats = FALSE)
+  b <- e_step_eps(missing, params, suff_stats = FALSE)
+  expect_equal(a$loglik, b$loglik, tolerance = 1e-10)
+  expect_equal(a$gamma, b$gamma, tolerance = 1e-10)
+})
+
+test_that("observed-state missing durations remain invalid", {
+  df <- .make_eps_data(n = 20L, seed = 403L)
+  df$tenure1[df$y1 == 1L][1] <- NA_real_
+  expect_error(validate_df_eps(df), "NA tenure at an employed wave")
+
+  df <- .make_eps_data(n = 20L, seed = 404L)
+  df$timegap_cat1[df$y1 == 0L][1] <- NA_integer_
+  expect_error(validate_df_eps(df), "NA timegap at a nonemployed wave")
 })
