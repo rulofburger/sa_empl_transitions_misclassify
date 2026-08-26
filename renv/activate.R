@@ -500,12 +500,12 @@ local({
         )
 
         if (inherits(db, "error"))
-          nex
+          next
 
         # check for compatible entry
         entry <- db[db$Package %in% "renv" & db$Version %in% version, ]
         if (nrow(entry) == 0)
-          nex
+          next
 
         # found it; return spec to caller
         spec <- list(entry = entry, type = type, repos = repos)
@@ -942,7 +942,7 @@ local({
 
       nv <- tryCatch(numeric_version(part), error = identity)
       if (inherits(nv, "error"))
-        nex
+        next
 
       version <- nv[1, 1]
       break
@@ -1156,7 +1156,7 @@ local({
 
   renv_bootstrap_paths_renv <- function(..., profile = TRUE, project = NULL) {
     renv <- Sys.getenv("RENV_PATHS_RENV", unset = "renv")
-    root <- if (renv_bootstrap_path_absolute(renv)) NULL else projec
+    root <- if (renv_bootstrap_path_absolute(renv)) NULL else project
     prefix <- if (profile) renv_bootstrap_profile_prefix()
     components <- c(root, renv, prefix, ...)
     paste(components, collapse = "/")
