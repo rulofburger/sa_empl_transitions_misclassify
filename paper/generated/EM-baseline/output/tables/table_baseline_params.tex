@@ -1,6 +1,6 @@
 \begin{table}[htbp]
 \centering
-\caption{Baseline latent-state model: parameter estimates}
+\caption{Baseline latent-state model: all specifications}
 \label{tab:baseline_params}
 \begin{tabular}{lcccccc}
 \toprule
@@ -23,7 +23,7 @@ $\alpha$ (initial empl.) & 0.4863 & 0.4852 & 0.4850 & 0.4837 & 0.4846 & 0.4832
 
  & (0.0009) & (0.0009) & (0.0009) & (0.0010) & (0.0009) & (0.0010)
 
-\multicolumn{7}{l}{\textit{Misclassification}}
+\multicolumn{7}{l}{\textit{Misclassification parameters}}
 $\pi$ (symmetric) & --- & --- & 0.0299 & 0.0299 & --- & ---
 
  &  &  & (0.0003) & (0.0003) &  &
@@ -36,6 +36,32 @@ $\pi_1$ (false negative) & --- & --- & --- & --- & 0.0293 & 0.0292
 
  &  &  &  &  & (0.0004) & (0.0004)
 
+\multicolumn{7}{l}{\textit{Implied probabilities}}
+Entry rate (\%) & 8.18 & 8.28 & 2.86 & 2.98 & 2.86 & 2.98
+
+ & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+
+Exit rate (\%) & 8.64 & 8.54 & 3.04 & 2.91 & 3.04 & 2.91
+
+ & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+
+False-positive rate (\%) & 0.00 & 0.00 & 2.99 & 2.99 & 3.05 & 3.05
+
+ &  &  & (0.03) & (0.03) & (0.04) & (0.04)
+
+False-negative rate (\%) & 0.00 & 0.00 & 2.99 & 2.99 & 2.93 & 2.92
+
+ &  &  & (0.03) & (0.03) & (0.04) & (0.04)
+
+Employment rate (\%) & 48.63 & 49.23 & 48.50 & 50.57 & 48.46 & 50.58
+
+ & (0.09) & (0.18) & (0.09) & (0.53) & (0.09) & (0.53)
+
+\multicolumn{7}{l}{\textit{Likelihood-ratio tests of stationarity}}
+$LR$: stationarity & --- & 12.51 & --- & 20.77 & --- & 21.93
+
+$p$-value & --- & $<0.001$ & --- & $<0.001$ & --- & $<0.001$
+
 Log-likelihood & -357.208M & -357.204M & -349.378M & -349.371M & -349.376M & -349.368M
 
 $N$ & 402,923 & 402,923 & 402,923 & 402,923 & 402,923 & 402,923
@@ -43,6 +69,6 @@ $N$ & 402,923 & 402,923 & 402,923 & 402,923 & 402,923 & 402,923
 \bottomrule
 \end{tabular}
 \begin{minipage}{0.98\linewidth}
-\footnotesize \textit{Note:} Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix. $\alpha$ is the initial employment probability; in stationary columns it is derived from the transition parameters. The calculation does not incorporate strata or PSU clustering.
+\footnotesize \textit{Note:} Rates are percentages. Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix and the delta method. $\alpha$ is initial employment; in stationary columns it is implied by the transition parameters. Symmetric error imposes equal false-positive and false-negative rates. Stationarity LR statistics appear in the corresponding free-initial-condition column, use weights normalized to sum to $N$, and have a $\chi^2_1$ reference. The calculation does not incorporate strata or PSU clustering.
 \end{minipage}
 \end{table}

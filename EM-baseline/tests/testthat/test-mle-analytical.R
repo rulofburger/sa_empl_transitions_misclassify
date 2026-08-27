@@ -55,6 +55,20 @@ test_that("analytical inference rejects a mismatched sample", {
   expect_error(analytical_se_baseline(df[-1L, ], fit), "signatures differ")
 })
 
+test_that("baseline LR tests normalize survey weights and handle a boundary", {
+  sample <- list(n = 100L, weight_sum = 500, signature = "same")
+  restricted <- list(loglik = -1000, sample = sample)
+  unrestricted <- list(loglik = -990, sample = sample)
+  regular <- baseline_lr_test(restricted, unrestricted)
+  boundary <- baseline_lr_test(restricted, unrestricted, boundary = TRUE)
+  expect_equal(regular$statistic, 4)
+  expect_equal(regular$weight_scale, 0.2)
+  expect_equal(boundary$p_value, regular$p_value / 2)
+  expect_error(baseline_lr_test(restricted,
+    list(loglik = -990, sample = modifyList(sample, list(signature = "other")))),
+    "different estimation samples")
+})
+
 test_that("exact MLE records explicit and attributed panel provenance", {
   df <- .make_mle_panel(n = 600, seed = 105)
   fit_explicit <- fit_baseline_mle(

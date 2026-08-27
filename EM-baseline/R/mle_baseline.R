@@ -214,3 +214,47 @@ check_baseline_nesting <- function(fits, tolerance = 1e-4) {
   }
   invisible(TRUE)
 }
+
+#' Likelihood-ratio test for nested survey-weighted baseline models
+#'
+#' The fitted likelihood uses population-scale survey weights. Multiplying all
+#' weights by a constant leaves the estimates unchanged but would arbitrarily
+#' rescale an LR statistic. This helper therefore normalizes weights to sum to
+#' the estimation sample size before forming the statistic.
+#'
+#' @param null_fit Fitted restricted baseline model.
+#' @param alternative_fit Fitted nested alternative baseline model.
+#' @param df Number of restrictions.
+#' @param boundary Logical; use the 50:50 chi-bar-square reference appropriate
+#'   to testing one non-negative error probability against zero.
+#' @return Named list containing statistic, df, p-value and weight scale.
+baseline_lr_test <- function(null_fit, alternative_fit, df = 1L,
+                             boundary = FALSE) {
+  if (!is.list(null_fit) || !is.list(alternative_fit) ||
+      is.null(null_fit$sample) || is.null(alternative_fit$sample))
+    stop("baseline_lr_test: both inputs must be fitted baseline models")
+  if (!identical(null_fit$sample$signature,
+                 alternative_fit$sample$signature))
+    stop("baseline_lr_test: models use different estimation samples")
+  if (!is.numeric(df) || length(df) != 1L || !is.finite(df) ||
+      df < 1 || df != as.integer(df))
+    stop("baseline_lr_test: df must be a positive integer")
+  df <- as.integer(df)
+  if (boundary && df != 1L)
+    stop("baseline_lr_test: boundary reference is implemented only for df=1")
+  if (!is.finite(null_fit$loglik) || !is.finite(alternative_fit$loglik) ||
+      alternative_fit$loglik < null_fit$loglik - 1e-6)
+    stop("baseline_lr_test: invalid or non-nested log likelihoods")
+  n <- null_fit$sample$n
+  weight_sum <- null_fit$sample$weight_sum
+  if (!is.finite(n) || !is.finite(weight_sum) || n <= 0 || weight_sum <= 0)
+    stop("baseline_lr_test: invalid sample size or weight sum")
+  weight_scale <- n / weight_sum
+  statistic <- max(0, 2 * (alternative_fit$loglik - null_fit$loglik) *
+                     weight_scale)
+  p_value <- pchisq(statistic, df = df, lower.tail = FALSE)
+  if (boundary) p_value <- 0.5 * p_value
+  list(statistic = statistic, df = df, p_value = p_value,
+       boundary = boundary, weight_scale = weight_scale,
+       weight_normalization = "sum(weights)=N")
+}

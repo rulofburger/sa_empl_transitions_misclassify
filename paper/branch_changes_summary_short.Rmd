@@ -66,6 +66,10 @@ include_tex_table <- function(relative_path, tabular_scale = NULL,
   standard errors.
 - Separated the free initial employment probability from the model-implied
   long-run employment share.
+- Restricted the main table to free-initial-condition specifications and moved
+  the stationary counterparts, implied rates, and stationarity tests to A1.
+- Added normalized-weight LR tests of non-zero misclassification, asymmetric
+  error, and non-stationarity, using the boundary reference where required.
 
 ```{r baseline-implied, results='asis'}
 include_tex_table("EM-baseline/output/tables/table_baseline_implied.tex",
@@ -82,18 +86,22 @@ include_tex_table("EM-baseline/output/tables/table_baseline_params.tex",
 - The no-error model implies quarterly entry and exit of about 8.2--8.6%.
 - Allowing symmetric error lowers both rates to about 3%, with a per-wave
   misclassification probability of 2.99%.
-- False-positive and false-negative probabilities are very similar, so
-  asymmetry adds little to the substantive result.
+- The no-error restriction is decisively rejected (LR 22,438.36, boundary
+  $p<0.001$). False-positive and false-negative probabilities remain very
+  similar at 3.05% and 2.92%; equality is statistically rejected (LR 7.49,
+  $p=0.006$) but the substantive difference is only 0.13 percentage points.
+- Appendix Table A1 rejects stationarity under no error, symmetric error, and
+  asymmetric error (LR 12.51, 20.77, and 21.93; all $p<0.001$). The restrictions
+  nevertheless have only modest effects on the estimated transition rates.
 - The repaired likelihood strengthens the paper's central conclusion:
   relatively infrequent classification error can create a large upward bias in
   measured labour-market turnover.
 
 ## To do
 
-- Report likelihood-ratio evidence for stationarity and asymmetric error, and
-  check whether transition probabilities vary across wave pairs.
-- Confirm the analytical inference with a person-level bootstrap or likelihood
-  profiles for the misclassification and transition rates.
+- Check whether transition probabilities vary across wave pairs.
+- Confirm the normalized-weight LR conclusions with a person-level bootstrap
+  or likelihood profiles for the misclassification and transition rates.
 
 # 2. Panel-matching robustness: Table 2
 

@@ -13,8 +13,8 @@
 #   - N (observations) row in all tables
 #
 # Tables produced:
-#   Paper Table 2: Baseline implied probabilities         (table_baseline_implied.tex)
-#   Paper Table 3: Baseline parameter estimates           (table_baseline_params.tex)
+#   Paper Table 1: Baseline free-initial specifications   (table_baseline_implied.tex)
+#   Appendix Table A1: All baseline specifications        (table_baseline_params.tex)
 #
 # Usage (from project root):
 #   Rscript build_tables_v2.R
@@ -302,7 +302,7 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 )
 
 # ------------------------------------------------------------------------------
-# 2. Table 1 & 2: Baseline models
+# 2. Table 1 and Appendix Table A1: baseline models
 # ------------------------------------------------------------------------------
 
 cat("\n--- Building baseline tables ---\n")
@@ -355,9 +355,9 @@ bl_implied <- lapply(baseline_labels, function(lbl) {
 })
 names(bl_implied) <- baseline_labels
 
-# Helper: parameter row with stars (raw scale, 4 d.p.)
-.bl_param_row <- function(param_name, row_label) {
-  cells <- lapply(baseline_labels, function(lbl) {
+# Helper: parameter row on the raw scale.
+.bl_param_row <- function(param_name, row_label, labels = baseline_labels) {
+  cells <- lapply(labels, function(lbl) {
     fit <- bl_fits[[lbl]]
     v   <- if (!is.null(fit)) fit$params[[param_name]] else NA_real_
     if (is.null(v)) v <- NA_real_
@@ -370,48 +370,7 @@ names(bl_implied) <- baseline_labels
   )
 }
 
-# Paper Table 3: baseline likelihood parameters.
-param_rows_bl <- list(
-  list(header = "Transition parameters", rows = list(
-    .bl_param_row("theta0", "$\\theta_0$ (entry)"),
-    .bl_param_row("theta1", "$\\theta_1$ (persistence)"),
-    .bl_param_row("alpha",  "$\\alpha$ (initial empl.)")
-  )),
-  list(header = "Misclassification", rows = list(
-    .bl_param_row("pi",  "$\\pi$ (symmetric)"),
-    .bl_param_row("pi0", "$\\pi_0$ (false positive)"),
-    .bl_param_row("pi1", "$\\pi_1$ (false negative)")
-  )),
-  list(header = NULL, rows = list(
-    list(
-      est = c("Log-likelihood", vapply(baseline_labels, function(lbl) {
-        fit <- bl_fits[[lbl]]
-        if (is.null(fit)) "---" else .fmt_ll(fit$loglik, digits = 3L)
-      }, character(1L))),
-      se = rep("", 7L)
-    ),
-    list(
-      est = c("$N$", rep(.fmt_n(N_baseline), 6L)),
-      se  = rep("", 7L)
-    )
-  ))
-)
-
-.write_latex_table(
-  col_headers = baseline_col_headers,
-  row_data    = param_rows_bl,
-  caption     = "Baseline latent-state model: parameter estimates",
-  label       = "tab:baseline_params",
-  path        = file.path(tables_baseline_dir, "table_baseline_params.tex"),
-  sub_headers = baseline_sub_headers,
-  note        = paste0("Analytical SE in parentheses use an individual-level ",
-                       "survey-weighted sandwich covariance matrix. $\\alpha$ is the ",
-                       "initial employment probability; in stationary columns it is ",
-                       "derived from the transition parameters. The calculation does ",
-                       "not incorporate strata or PSU clustering.")
-)
-
-# Paper Table 2: baseline implied probabilities (as %)
+# Implied probability row (as percent).
 .bl_implied_row <- function(qty_name, row_label, labels = baseline_labels) {
   cells <- lapply(labels, function(lbl) {
     imp <- bl_implied[[lbl]]
@@ -426,36 +385,141 @@ param_rows_bl <- list(
   )
 }
 
+# Direction-specific error rates without collapsing the asymmetric model.
+.bl_error_row <- function(direction = c("positive", "negative"), row_label,
+                          labels = baseline_labels) {
+  direction <- match.arg(direction)
+  cells <- lapply(labels, function(lbl) {
+    type <- model_types_bl[[lbl]]
+    if (type == "none") return(c("0.00", ""))
+    quantity <- if (type == "symmetric") "pi" else
+      if (direction == "positive") "pi0" else "pi1"
+    .fmt_pct_plain(bl_implied[[lbl]][[quantity]],
+                   .get_se(bl_se[[lbl]], quantity))
+  })
+  list(est = c(row_label, sapply(cells, `[[`, 1L)),
+       se = c("", sapply(cells, `[[`, 2L)))
+}
+
+.fmt_lr <- function(test) formatC(test$statistic, format = "f", digits = 2L,
+                                  big.mark = ",")
+.fmt_p_value <- function(test) {
+  if (test$p_value < 0.001) "$<0.001$" else
+    formatC(test$p_value, format = "f", digits = 3L)
+}
+
+lr_misclassification <- baseline_lr_test(
+  bl_fits$none_free, bl_fits$sym_free, boundary = TRUE)
+lr_asymmetry <- baseline_lr_test(bl_fits$sym_free, bl_fits$asym_free)
+lr_stationarity <- list(
+  none = baseline_lr_test(bl_fits$none_stat, bl_fits$none_free),
+  symmetric = baseline_lr_test(bl_fits$sym_stat, bl_fits$sym_free),
+  asymmetric = baseline_lr_test(bl_fits$asym_stat, bl_fits$asym_free))
+
+# Main Table 1: free-initial-condition specifications only.
+baseline_main_labels <- c("none_free", "sym_free", "asym_free")
+baseline_main_headers <- c("", "(1)", "(2)", "(3)")
+baseline_main_sub_headers <- c(
+  paste(c("", "No miscl.", "Symmetric", "Asymmetric"),
+        collapse = " & ") %+% " \\\\")
 implied_rows_bl <- list(
   list(header = NULL, rows = list(
-    .bl_implied_row("entry_rate", "Entry rate (\\%)"),
-    .bl_implied_row("exit_rate", "Exit rate (\\%)"),
-    .bl_implied_row("pi", "Misclassification rate (\\%)"),
-    .bl_implied_row("pi0", "False-positive rate (\\%)"),
-    .bl_implied_row("pi1", "False-negative rate (\\%)"),
-    .bl_implied_row("employment_rate", "Employment rate (\\%)")
+    .bl_implied_row("entry_rate", "Entry rate (\\%)", baseline_main_labels),
+    .bl_implied_row("exit_rate", "Exit rate (\\%)", baseline_main_labels),
+    .bl_error_row("positive", "False-positive rate (\\%)", baseline_main_labels),
+    .bl_error_row("negative", "False-negative rate (\\%)", baseline_main_labels),
+    .bl_implied_row("employment_rate", "Employment rate (\\%)",
+                    baseline_main_labels)
+  )),
+  list(header = "Likelihood-ratio tests", rows = list(
+    list(est = c("$LR$: no misclassification", "---",
+                 .fmt_lr(lr_misclassification), "---"), se = rep("", 4L)),
+    list(est = c("Boundary $p$-value", "---",
+                 .fmt_p_value(lr_misclassification), "---"), se = rep("", 4L)),
+    list(est = c("$LR$: symmetric errors", "---", "---",
+                 .fmt_lr(lr_asymmetry)), se = rep("", 4L)),
+    list(est = c("$p$-value", "---", "---", .fmt_p_value(lr_asymmetry)),
+         se = rep("", 4L))
   )),
   list(header = NULL, rows = list(
-    list(est = c("Log-likelihood", vapply(baseline_labels, function(lbl) {
+    list(est = c("Log-likelihood", vapply(baseline_main_labels, function(lbl) {
       fit <- bl_fits[[lbl]]
       if (is.null(fit)) "---" else .fmt_ll(fit$loglik, digits = 3L)
-    }, character(1L))), se = rep("", 7L)),
+    }, character(1L))), se = rep("", 4L)),
+    list(est = c("$N$", rep(.fmt_n(N_baseline), 3L)), se = rep("", 4L))
+  ))
+)
+
+.write_latex_table(
+  col_headers = baseline_main_headers,
+  row_data = implied_rows_bl,
+  caption = "Baseline latent-state model",
+  label = "tab:baseline_implied",
+  path = file.path(tables_baseline_dir, "table_baseline_implied.tex"),
+  sub_headers = baseline_main_sub_headers,
+  note = paste0("All specifications estimate the initial employment probability ",
+                "freely. Rates are percentages. Symmetric error imposes equal ",
+                "false-positive and false-negative probabilities; the asymmetric ",
+                "model reports them separately. Analytical SE in parentheses use an ",
+                "individual-level survey-weighted sandwich covariance matrix and ",
+                "the delta method. Employment is the model-implied steady-state ",
+                "share. LR statistics use weights normalized to sum to $N$. The ",
+                "test of no misclassification uses the 50:50 boundary mixture; ",
+                "the asymmetry test uses $\\chi^2_1$. The calculation does not ",
+                "incorporate strata or PSU clustering.")
+)
+
+# Appendix Table A1: all stationary and free specifications, raw parameters,
+# implied rates, and tests of the stationarity restriction.
+param_rows_bl <- list(
+  list(header = "Transition parameters", rows = list(
+    .bl_param_row("theta0", "$\\theta_0$ (entry)"),
+    .bl_param_row("theta1", "$\\theta_1$ (persistence)"),
+    .bl_param_row("alpha",  "$\\alpha$ (initial empl.)")
+  )),
+  list(header = "Misclassification parameters", rows = list(
+    .bl_param_row("pi",  "$\\pi$ (symmetric)"),
+    .bl_param_row("pi0", "$\\pi_0$ (false positive)"),
+    .bl_param_row("pi1", "$\\pi_1$ (false negative)")
+  )),
+  list(header = "Implied probabilities", rows = list(
+    .bl_implied_row("entry_rate", "Entry rate (\\%)"),
+    .bl_implied_row("exit_rate", "Exit rate (\\%)"),
+    .bl_error_row("positive", "False-positive rate (\\%)"),
+    .bl_error_row("negative", "False-negative rate (\\%)"),
+    .bl_implied_row("employment_rate", "Employment rate (\\%)")
+  )),
+  list(header = "Likelihood-ratio tests of stationarity", rows = list(
+    list(est = c("$LR$: stationarity", "---", .fmt_lr(lr_stationarity$none),
+      "---", .fmt_lr(lr_stationarity$symmetric), "---",
+      .fmt_lr(lr_stationarity$asymmetric)), se = rep("", 7L)),
+    list(est = c("$p$-value", "---", .fmt_p_value(lr_stationarity$none),
+      "---", .fmt_p_value(lr_stationarity$symmetric), "---",
+      .fmt_p_value(lr_stationarity$asymmetric)), se = rep("", 7L))
+  )),
+  list(header = NULL, rows = list(
+    list(est = c("Log-likelihood", vapply(baseline_labels, function(lbl)
+      .fmt_ll(bl_fits[[lbl]]$loglik, digits = 3L), character(1L))),
+      se = rep("", 7L)),
     list(est = c("$N$", rep(.fmt_n(N_baseline), 6L)), se = rep("", 7L))
   ))
 )
 
 .write_latex_table(
   col_headers = baseline_col_headers,
-  row_data = implied_rows_bl,
-  caption = "Baseline latent-state model: implied probabilities (\\%)",
-  label = "tab:baseline_implied",
-  path = file.path(tables_baseline_dir, "table_baseline_implied.tex"),
+  row_data = param_rows_bl,
+  caption = "Baseline latent-state model: all specifications",
+  label = "tab:baseline_params",
+  path = file.path(tables_baseline_dir, "table_baseline_params.tex"),
   sub_headers = baseline_sub_headers,
   note = paste0("Rates are percentages. Analytical SE in parentheses use an ",
-                "individual-level survey-weighted sandwich covariance matrix and ",
-                "the delta method. Employment is the model-implied steady-state ",
-                "share. The asymmetric specifications report false-positive and ",
-                "false-negative rates separately. The calculation does not ",
+                "individual-level survey-weighted sandwich covariance matrix ",
+                "and the delta method. $\\alpha$ is initial employment; in ",
+                "stationary columns it is implied by the transition parameters. ",
+                "Symmetric error imposes equal false-positive and false-negative ",
+                "rates. Stationarity LR statistics appear in the corresponding ",
+                "free-initial-condition column, use weights normalized to sum to ",
+                "$N$, and have a $\\chi^2_1$ reference. The calculation does not ",
                 "incorporate strata or PSU clustering.")
 )
 

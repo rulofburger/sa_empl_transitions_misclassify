@@ -1,46 +1,49 @@
 \begin{table}[htbp]
 \centering
-\caption{Baseline latent-state model: implied probabilities (\%)}
+\caption{Baseline latent-state model}
 \label{tab:baseline_implied}
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccc}
 \toprule
- & (1) & (2) & (3) & (4) & (5) & (6)
+ & (1) & (2) & (3)
 
- & \multicolumn{2}{c}{No miscl.} & \multicolumn{2}{c}{Symmetric} & \multicolumn{2}{c}{Asymmetric}
-\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
- & Stat. & Free & Stat. & Free & Stat. & Free
+ & No miscl. & Symmetric & Asymmetric
 \midrule
-Entry rate (\%) & 8.18 & 8.28 & 2.86 & 2.98 & 2.86 & 2.98
+Entry rate (\%) & 8.28 & 2.98 & 2.98
 
- & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+ & (0.05) & (0.06) & (0.06)
 
-Exit rate (\%) & 8.64 & 8.54 & 3.04 & 2.91 & 3.04 & 2.91
+Exit rate (\%) & 8.54 & 2.91 & 2.91
 
- & (0.04) & (0.05) & (0.05) & (0.06) & (0.05) & (0.06)
+ & (0.05) & (0.06) & (0.06)
 
-Misclassification rate (\%) & --- & --- & 2.99 & 2.99 & --- & ---
+False-positive rate (\%) & 0.00 & 2.99 & 3.05
 
- &  &  & (0.03) & (0.03) &  &
+ &  & (0.03) & (0.04)
 
-False-positive rate (\%) & --- & --- & --- & --- & 3.05 & 3.05
+False-negative rate (\%) & 0.00 & 2.99 & 2.92
 
- &  &  &  &  & (0.04) & (0.04)
+ &  & (0.03) & (0.04)
 
-False-negative rate (\%) & --- & --- & --- & --- & 2.93 & 2.92
+Employment rate (\%) & 49.23 & 50.57 & 50.58
 
- &  &  &  &  & (0.04) & (0.04)
+ & (0.18) & (0.53) & (0.53)
 
-Employment rate (\%) & 48.63 & 49.23 & 48.50 & 50.57 & 48.46 & 50.58
+\multicolumn{4}{l}{\textit{Likelihood-ratio tests}}
+$LR$: no misclassification & --- & 22,438.36 & ---
 
- & (0.09) & (0.18) & (0.09) & (0.53) & (0.09) & (0.53)
+Boundary $p$-value & --- & $<0.001$ & ---
 
-Log-likelihood & -357.208M & -357.204M & -349.378M & -349.371M & -349.376M & -349.368M
+$LR$: symmetric errors & --- & --- & 7.49
 
-$N$ & 402,923 & 402,923 & 402,923 & 402,923 & 402,923 & 402,923
+$p$-value & --- & --- & 0.006
+
+Log-likelihood & -357.204M & -349.371M & -349.368M
+
+$N$ & 402,923 & 402,923 & 402,923
 
 \bottomrule
 \end{tabular}
 \begin{minipage}{0.98\linewidth}
-\footnotesize \textit{Note:} Rates are percentages. Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix and the delta method. Employment is the model-implied steady-state share. The asymmetric specifications report false-positive and false-negative rates separately. The calculation does not incorporate strata or PSU clustering.
+\footnotesize \textit{Note:} All specifications estimate the initial employment probability freely. Rates are percentages. Symmetric error imposes equal false-positive and false-negative probabilities; the asymmetric model reports them separately. Analytical SE in parentheses use an individual-level survey-weighted sandwich covariance matrix and the delta method. Employment is the model-implied steady-state share. LR statistics use weights normalized to sum to $N$. The test of no misclassification uses the 50:50 boundary mixture; the asymmetry test uses $\chi^2_1$. The calculation does not incorporate strata or PSU clustering.
 \end{minipage}
 \end{table}

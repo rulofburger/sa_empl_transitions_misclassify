@@ -94,6 +94,14 @@ dominates its nested restriction. Saved fits carry the panel identity, sample
 signature, sample size, total weight, likelihood, and optimizer diagnostics so
 the table builder can reject stale results.
 
+The main table now reports only free-initial-condition models. Appendix Table
+A1 retains the stationary specifications, raw parameters, implied entry, exit,
+false-positive and false-negative rates, and tests the stationarity restriction.
+Because the fitted pseudo-likelihood uses population-scale survey weights, all
+LR statistics normalize weights to sum to the estimation sample size. The test
+of zero misclassification uses the 50:50 point-mass/$\chi^2_1$ boundary
+reference; asymmetry and stationarity use the regular $\chi^2_1$ reference.
+
 Table 2 reruns the nonstationary no-error and symmetric-error models on panels
 A, B, and C. These panels apply progressively stricter longitudinal matching
 rules. The sensitivity script changes the panel input explicitly rather than
