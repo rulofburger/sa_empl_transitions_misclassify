@@ -1,4 +1,4 @@
-# Estimate the Table 4 Set 4 model with reliability-dependent symmetric error.
+# Estimate the Table 4 Set 2 model with the Table 3 column (1) error equation.
 
 library(here)
 library(dplyr)
@@ -12,7 +12,8 @@ results_dir <- here::here("EM-baseline-ext", "output", "results")
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 set.seed(20260826L)
 
-# Reproduce the Table 4 analysis sample and time-varying Set 4 design.
+# Reproduce the Table 4 analysis sample and time-varying Set 2 design
+# (internally retained as legacy covariate_set = 4).
 sector_source <- readRDS(here::here("data", "raw", "QLFSmerged_mapped.rds"))
 df_qlfs <- attach_transition_informal_sector(df_qlfs, sector_source)
 rm(sector_source)
@@ -27,53 +28,49 @@ for (nm in c("contracttype1", "contracttype2"))
 X4 <- prepare_covariate_matrix(df, covariate_set = 4L)$X_transition
 rm(df_qlfs); gc(verbose = FALSE)
 
-# Reproduce the wave-specific reliability variables in Table 3, columns 5--6.
-inc <- compute_inconsistency_extent(df)
-table2_person_wave_keys <- function(panel) {
-  raw <- readRDS(here::here("data", "raw", paste0("df_qlfs_", panel, ".rds")))
-  num <- function(x) as.numeric(unclass(x))
-  weight <- (num(raw$weight1) * num(raw$weight2) * num(raw$weight3))^(1 / 3)
-  use <- num(raw$age1) > 17 & num(raw$age1) < 56 &
-    complete.cases(raw[paste0("employed", 1:3)]) &
-    is.finite(weight) & weight > 0
-  raw <- raw[use, c("hhnr", "pnr", paste0("period", 1:3)), drop = FALSE]
-  unique(unlist(lapply(1:3, function(tt)
-    paste(raw$hhnr, raw$pnr, raw[[paste0("period", tt)]], sep = "|")),
-    use.names = FALSE))
-}
-panel_B_keys <- table2_person_wave_keys("B")
-panel_C_keys <- table2_person_wave_keys("C")
-panel_A_keys <- sapply(1:3, function(tt)
-  paste(df$hhnr, df$pnr, df[[paste0("period", tt)]], sep = "|"))
-in_B <- matrix(panel_A_keys %in% panel_B_keys, nrow(df), 3L)
-in_C <- matrix(panel_A_keys %in% panel_C_keys, nrow(df), 3L)
-B_not_C <- 1L * (in_B & !in_C)
-A_not_B <- 1L * !in_B
-stopifnot(sum(B_not_C * A_not_B) == 0L)
+# Reproduce exactly the wave-specific error predictors in Table 3, column (1):
+# four reported-characteristic inconsistency indicators and mutually exclusive
+# indicators for exactly two, three, or four inconsistencies.
+inc <- add_inconsistency_count_dummies(
+  compute_demographic_inconsistencies(compute_inconsistency_extent(df)))
 Z <- lapply(1:3, function(tt) cbind(
   error_intercept = 1,
   age_inconsistency = inc[[paste0("Y_age_", tt)]],
   education_inconsistency = inc[[paste0("Y_edu_", tt)]],
-  large_age_inconsistency = as.integer(inc[[paste0("extent_age_", tt)]] >= 2),
-  large_education_inconsistency =
-    as.integer(inc[[paste0("extent_edu_", tt)]] >= 2),
-  panel_B_not_C = B_not_C[, tt], panel_A_not_B = A_not_B[, tt]))
-rm(inc, panel_B_keys, panel_C_keys, panel_A_keys, in_B, in_C,
-   B_not_C, A_not_B)
+  race_inconsistency = inc[[paste0("Y_race_", tt)]],
+  gender_inconsistency = inc[[paste0("Y_gender_", tt)]],
+  two_inconsistencies = inc[[paste0("Y_exactly_2_", tt)]],
+  three_inconsistencies = inc[[paste0("Y_exactly_3_", tt)]],
+  four_inconsistencies = inc[[paste0("Y_exactly_4_", tt)]]))
+rm(inc)
 gc(verbose = FALSE)
 
 cells <- collapse_covariate_reliability(df, X4, Z)
-cat(sprintf("Combined Table 4 sample: N=%s; %s exact likelihood cells; K=30\n",
+delta_names <- colnames(Z[[1L]])
+transition_k <- length(pack_covariate_reliability(
+  list(beta0 = rep(0, ncol(X4$X12)), beta1 = rep(0, ncol(X4$X12)),
+       alpha = 0.5, delta = setNames(rep(0, length(delta_names)), delta_names)),
+  X4)) - length(delta_names)
+cat(sprintf("Combined Table 4 sample: N=%s; %s exact likelihood cells; K=%d\n",
   format(cells$n_original, big.mark = ","),
-  format(nrow(cells$df), big.mark = ",")))
+  format(nrow(cells$df), big.mark = ","), transition_k + length(delta_names)))
 
 # Nested transition and error-equation estimates provide deterministic starts.
 set4 <- readRDS(file.path(results_dir, "fit_cov_s4_sym_free.rds"))
 table3 <- readRDS(file.path(results_dir, "fit_table6_inconsistency_audit.rds"))
-delta_names <- colnames(Z[[1L]])
+table3_delta_map <- c(
+  error_intercept = "delta0",
+  age_inconsistency = "delta_age",
+  education_inconsistency = "delta_education",
+  race_inconsistency = "delta_race",
+  gender_inconsistency = "delta_gender",
+  two_inconsistencies = "delta_two_inconsistencies",
+  three_inconsistencies = "delta_three_inconsistencies",
+  four_inconsistencies = "delta_four_inconsistencies")
 start_combined <- list(beta0 = set4$params$beta0, beta1 = set4$params$beta1,
   alpha = set4$params$alpha,
-  delta = setNames(table3$matching_free$params$delta, delta_names))
+  delta = setNames(unname(table3$free$params$delta[table3_delta_map]),
+                   names(table3_delta_map)))
 start_constant <- start_combined
 start_constant$delta[] <- 0
 start_constant$delta["error_intercept"] <- qlogis(2 * set4$params$pi)
@@ -82,7 +79,8 @@ eta_constant <- pack_covariate_reliability(start_constant, X4)
 starts <- c(list(nested_constant_error = eta_constant,
                  combined_warm_start = eta_combined),
   setNames(lapply(1:3, function(i) eta_combined +
-    rnorm(length(eta_combined), 0, c(rep(.08, 23L), rep(.15, 7L)))),
+    rnorm(length(eta_combined), 0,
+          c(rep(.08, transition_k), rep(.15, length(delta_names))))),
     paste0("perturbed_", 1:3)))
 requested_starts <- as.integer(Sys.getenv("TABLE4_RELIABILITY_STARTS", "5"))
 if (!is.finite(requested_starts) || requested_starts < 1L || requested_starts > 5L)
@@ -176,15 +174,16 @@ write.csv(inference$summary,
 
 reported <- inference$summary[inference$summary$quantity %in% c(
   "mean_entry_rate", "mean_exit_rate", "mean_misclassification_rate",
-  "mean_employment_rate", "initial_employment", "pi_base", "pi_age_mild",
-  "pi_age_severe", "pi_education_mild", "pi_education_severe",
-  "pi_B_not_C", "pi_A_not_B"), ]
+  "mean_employment_rate", "initial_employment",
+  "min_misclassification_probability", "median_misclassification_probability",
+  "max_misclassification_probability", paste0("pi_count_", 0:4)), ]
+reported <- reported[!duplicated(reported$quantity), , drop = FALSE]
 reported$estimate_percent <- 100 * reported$estimate
 reported$std_error_percent <- 100 * reported$std_error
-cat("\nCombined Set 4 / reliability-dependent-error results (percent):\n")
+cat("\nCombined Set 2 / Table 3 column (1) error-equation results (percent):\n")
 print(reported[, c("quantity", "estimate_percent", "std_error_percent")],
       row.names = FALSE, digits = 4)
-cat(sprintf("\nLog-likelihood: %.3f (nested Set 4: %.3f; gain: %.3f)\n",
+cat(sprintf("\nLog-likelihood: %.3f (nested Set 2: %.3f; gain: %.3f)\n",
   fit$loglik, set4$loglik, fit$loglik - set4$loglik))
 cat(sprintf("Information rank: %d/%d; condition number: %.3g; inference: %.1fs\n",
   diag$information_rank, diag$K, diag$information_condition,

@@ -311,13 +311,15 @@ table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
   and dominates its nested no-error model.
 - Added analytical standard errors and posterior risk-set and survey-weighted
   transition rates.
-- Added tenure and time since work in Set 3.
-- Added time-varying contract type and informal-sector status in Set 4 without
-  restricting the sample to respondents observed in employment at every wave.
-- Added a Set 4 specification in which the symmetric misclassification rate
-  depends on the reported-characteristic inconsistencies, age and education
-  severity, and the two nested panel-matching indicators used in Table 3,
-  column (3).
+- Retained the old Set 2 as new Set 1 and the old Set 4 as new Set 2; omitted
+  the old Sets 1 and 3 to focus the table on the two preferred nested sets.
+- New Set 2 adds tenure, time since work, time-varying contract type, and
+  informal-sector status without restricting the sample to respondents observed
+  in employment at every wave.
+- Added a new Set 2 specification in which the symmetric misclassification rate
+  uses exactly the Table 3 column (1) covariates: age, education, race, and
+  gender inconsistency indicators plus indicators for exactly two, three, or
+  four inconsistencies.
 - Moved raw coefficients, the initial-state parameter, total churn, and hazard
   distributions to an appendix table.
 
@@ -341,20 +343,21 @@ include_tex_table(
 ## Interpretation
 
 - No-error entry and exit remain close to 8.1% and 8.6% across covariate sets.
-- Symmetric-error estimates range from 3.62--4.87% for entry and 3.71--5.09%
-  for exit; estimated misclassification falls from 2.58% in Set 1 to 2.18% in
-  Set 4.
-- In symmetric Set 4, predicted risks are highly dispersed: the weighted
+- Symmetric-error estimates range from 3.77--4.87% for entry and 3.89--5.09%
+  for exit; estimated misclassification falls from 2.50% in Set 1 to 2.18% in
+  Set 2.
+- In symmetric Set 2, predicted risks are highly dispersed: the weighted
   10th--90th percentile range is 1.00--13.82% for entry and 0.19--14.29% for
   exit.
 - Allowing error rates to depend on linked-record reliability gives entry and
   exit rates of 4.67% and 4.62%, and raises the mean error rate from 2.18% in
-  constant-error Set 4 to 2.55%.
-- The implied error probability is only 1.16% for an internally consistent
-  panel-C record, but rises to 3.07% for records in panel A but not B, 15.65%
-  for a large age inconsistency, and 31.89% when both age and education have
-  large inconsistencies. Reliability heterogeneity is therefore substantial,
-  although corrected entry and exit remain close to the original Set 4 values.
+  constant-error Set 2 to 2.55%.
+- Predicted error has a weighted median of 1.28% and mean of 2.55%, but reaches
+  43.78% at the observed maximum. Within inconsistency-count groups, the
+  survey-weighted means rise from 1.28% with no inconsistency to 6.79%, 30.68%,
+  40.78%, and 43.78% with one through four inconsistencies. Reliability
+  heterogeneity is therefore substantial, although corrected entry and exit
+  remain close to the constant-error Set 2 values.
 - Observable heterogeneity therefore explains some differences in transition
   risk but does not explain away the classification-error signal.
 - Duration is economically important: entry falls with time since work and exit

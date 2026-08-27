@@ -157,15 +157,16 @@ reflect response problems, incorrect longitudinal matches, or both.
 
 ## Table 4: observable transition heterogeneity
 
-Sets 1--4 are nested. Set 1 contains age, age squared, and education; Set 2 adds
-race and sex; Set 3 adds origin-wave log tenure to persistence and origin-wave
-log time since work plus never-worked status to entry; Set 4 adds origin-wave
-contract type and informal-sector status to persistence. Contract type and
-sector may change between transitions. They do not enter entry because they are
-undefined for a genuinely nonemployed origin state, so respondents are retained
-without assigning artificial job characteristics.
+Table 4 now reports two nested sets. Set 1 contains age, age squared, education,
+race, and sex (the old Set 2). Set 2 adds origin-wave log tenure to persistence,
+origin-wave log time since work plus never-worked status to entry, and
+origin-wave contract type and informal-sector status to persistence (the old
+Set 4). The old Sets 1 and 3 are omitted. Contract type and sector may change
+between transitions. They do not enter entry because they are undefined for a
+genuinely nonemployed origin state, so respondents are retained without
+assigning artificial job characteristics.
 
-The eight constant-error/no-error specifications retain the repaired
+The four reported constant-error/no-error specifications retain the repaired
 generalized-EM implementation: normalized weights, joint transition-block
 updates, likelihood-preserving backtracking, nested starts, and explicit
 convergence and nesting checks. Posterior risk-set and survey-weighted hazards
@@ -173,18 +174,19 @@ replace unweighted averages. Individual-level survey-weighted sandwich
 covariances and delta-method transformations provide approximate analytical
 errors where bootstrap estimates are unavailable.
 
-Column (9) is estimated by the exact observed likelihood rather than by the old
-separable M-step. It combines the Set 4 transition equations with a symmetric
-error probability depending on the then-current Table 3 reliability
-specification: age and education inconsistencies, severity indicators, panel B
-but not C, and panel A but not B. Five starts were evaluated. The polished
-solution has 30 of 30 information-matrix directions identified, condition
-number about 18,126, and maximum normalized score $1.1\times10^{-8}$. The new
-mean entry, exit, and error rates are 4.67%, 4.62%, and 2.55%. This model has
-not yet been re-estimated with the newly added race and gender inconsistency
-indicators; its pipeline is now prepared for that future sensitivity run.
-Detailed error slopes and implied reliability-specific rates appear in
-Appendix Table A4B.
+Column (5) is estimated by the exact observed likelihood rather than by the old
+separable M-step. It combines the new Set 2 transition equations with a symmetric
+error equation containing exactly the same covariates as Table 3 column (1):
+age, education, race, and gender inconsistency indicators plus mutually
+exclusive indicators for exactly two, three, or four inconsistencies. Zero or
+one inconsistency is the omitted count category. Two substantively distinct
+starts converged to the same likelihood region, after which Hessian-guided
+polishing reduced the maximum normalized score to $8.7\times10^{-9}$. The
+polished solution has 31 of 31 information-matrix directions identified,
+condition number about 61,200, and maximum Newton correction 0.0021. The mean
+entry, exit, and error rates are 4.67%, 4.62%, and 2.55%. Predicted error is
+1.28% at the minimum and median and 43.78% at the observed maximum. Detailed
+error slopes and the predicted-error distribution appear in Appendix Table A4B.
 
 ## Table 5: four-wave AR(1) and AR(2)
 
