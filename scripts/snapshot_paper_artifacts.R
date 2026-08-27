@@ -25,7 +25,10 @@ table_files <- c(
   "EM-baseline/output/tables/table_matching_decomposition.tex",
   "EM-baseline/output/tables/table_matching_pooled_groups.tex",
   "EM-baseline-ext/output/tables/table_inconsistency.tex",
-  "EM-baseline-ext/output/tables/table_inconsistency_appendix.tex",
+  "EM-baseline-ext/output/tables/table_inconsistency_details.tex",
+  "EM-baseline-ext/output/tables/table_inconsistency_details_coefficients.tex",
+  "EM-baseline-ext/output/tables/table_inconsistency_details_diagnostics.tex",
+  "EM-baseline-ext/output/tables/table_inconsistency_transition_covariates.tex",
   "EM-baseline-ext/output/tables/table_inconsistency_reliability.tex",
   "EM-baseline-ext/output/tables/table_inconsistency_extent.tex"
 )
@@ -44,7 +47,13 @@ result_files <- c(
   "EM-baseline-ext/output/results/table6_inconsistency_severity_prevalence.csv",
   "EM-baseline-ext/output/results/table6_matching_membership_prevalence.csv",
   "EM-baseline-ext/output/results/table6_matching_quality_audit.csv",
-  "EM-baseline-ext/output/results/table6_reliability_group_robustness.csv"
+  "EM-baseline-ext/output/results/table6_reliability_group_robustness.csv",
+  "EM-baseline-ext/output/results/table3_col4_summary.csv",
+  "EM-baseline-ext/output/results/table3_col5_summary.csv",
+  "EM-baseline-ext/output/results/table3_col5_stationary_summary.csv",
+  "EM-baseline-ext/output/results/table3_col4_multistart.csv",
+  "EM-baseline-ext/output/results/table3_col5_multistart.csv",
+  "EM-baseline-ext/output/results/table3_col5_stationary_multistart.csv"
 )
 
 sources <- file.path(project_root, c(table_files, result_files))

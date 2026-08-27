@@ -1,44 +1,44 @@
 \begin{table}[htbp]
 \centering
-\caption{Age- and education-inconsistency models}
+\caption{Reported-characteristic inconsistencies}
 \label{tab:inconsistency}
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccc}
 \toprule
- & (1) & (2) & (3) & (4) & (5) & (6)
+ & (1) & (2) & (3)
 
- & \multicolumn{2}{c}{Indicators only} & \multicolumn{2}{c}{Indicators + large increments} & \multicolumn{2}{c}{Plus matching indicators}
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
- & Stationary & Free $\alpha$ & Stationary & Free $\alpha$ & Stationary & Free $\alpha$
+ & \shortstack{Inconsistency\\ indicators} & \shortstack{+ severity and\\ matching-rule indicators} & \shortstack{+ transition covariates\\ and inconsistency effects}
 \midrule
-Entry rate (\%) & 2.32$^{**}$ & 2.60$^{**}$ & 2.31$^{**}$ & 2.60$^{**}$ & 2.28$^{**}$ & 2.57$^{**}$
+Entry rate (\%) & 2.56$^{**}$ & 2.52$^{**}$ & 3.54$^{**}$
 
- & (0.05) & (0.05) & (0.05) & (0.05) & (0.04) & (0.05)
+ & (0.05) & (0.05) & (0.05)
 
-Exit rate (\%) & 2.52$^{**}$ & 2.20$^{**}$ & 2.52$^{**}$ & 2.19$^{**}$ & 2.47$^{**}$ & 2.14$^{**}$
+Exit rate (\%) & 2.14$^{**}$ & 2.09$^{**}$ & 3.51$^{**}$
 
- & (0.05) & (0.06) & (0.05) & (0.06) & (0.05) & (0.06)
+ & (0.06) & (0.06) & (0.05)
 
-Misclassification rate (\%) & 3.35$^{**}$ & 3.35$^{**}$ & 3.36$^{**}$ & 3.36$^{**}$ & 3.38$^{**}$ & 3.38$^{**}$
+Misclassification rate (\%) & 3.38$^{**}$ & 3.42$^{**}$ & 2.85$^{**}$
 
- & (0.03) & (0.03) & (0.03) & (0.03) & (0.03) & (0.03)
+ & (0.03) & (0.03) & (0.03)
 
-Initial employment rate (\%) & 47.92$^{**}$ & 47.60$^{**}$ & 47.92$^{**}$ & 47.60$^{**}$ & 47.92$^{**}$ & 47.59$^{**}$
+Initial employment rate (\%) & 47.60$^{**}$ & 47.60$^{**}$ & 47.88$^{**}$
 
- & (0.09) & (0.10) & (0.09) & (0.10) & (0.09) & (0.10)
+ & (0.10) & (0.10) & (0.10)
 
-Log-likelihood & -333.651M & -333.601M & -333.352M & -333.301M & -332.881M & -332.826M
+Log-likelihood & -332.842M & -332.440M & -329.147M
 
-$N$ & 394,823 & 394,823 & 394,823 & 394,823 & 394,823 & 394,823
+$N$ & 394,823 & 394,823 & 394,823
 
-Stationarity imposed & Yes & No & Yes & No & Yes & No
+Inconsistency-severity effects & No & Yes & No
 
-Large-increment effects & No & No & Yes & Yes & Yes & Yes
+Matching-rule indicators & No & Yes & No
 
-Matching-quality indicators & No & No & No & No & Yes & Yes
+Set 2 transition covariates & No & No & Yes
+
+Inconsistency effects in transitions & No & No & Yes
 
 \bottomrule
 \end{tabular}
 \begin{minipage}{0.98\linewidth}
-\footnotesize \textit{Note:} Entry, exit, and mean misclassification probabilities are reported on a common percentage scale. Mean misclassification averages individual-wave predictions using survey weights. Columns (5)--(6) add person-wave indicators for observations included in matching panel B but not C and in panel A but not B, using the Table 2 sample-construction rules. Analytical standard errors in parentheses use the survey-weighted sandwich covariance and delta method. Under stationarity, initial and steady-state employment coincide. An inconsistency may arise from response error, matching error, or both.
+\footnotesize \textit{Note:} All specifications estimate initial employment freely. Each misclassification equation includes age, education, race, and gender inconsistency indicators plus mutually exclusive indicators for exactly two, three, or four inconsistencies (zero or one is omitted); race and gender disagreements are attributed to waves using the same adjacent-wave logic as matching rule B in Table 2. Column (2) adds age and education severity effects and the matching-rule indicators. Column (3) instead combines this error equation with Set 2 transition covariates and the four origin-wave inconsistency effects in both entry and persistence. Its entry and exit rates are posterior risk-set, survey-weighted means. Mean misclassification averages individual-wave predictions using survey weights. Analytical standard errors use the survey-weighted sandwich covariance and delta method. An inconsistency may arise from response error, matching error, or both.
 \end{minipage}
 \end{table}

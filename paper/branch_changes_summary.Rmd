@@ -124,19 +124,36 @@ covariate population; they are not the posterior risk-set means in Table 2.
 ## Table 3: observed indicators of linked-record reliability
 
 The inconsistency likelihood permits the symmetric status-error probability to
-depend on age inconsistency, education inconsistency, both inconsistencies, and
-in the expanded models the magnitude of those discrepancies. The most recent
-specifications also include indicators for observations retained in panel B
-but not C and in panel A but not B. These indicators are constructed using the
-same nested matching algorithm as Table 2.
+depend on inconsistencies in reported age, education, race, and gender. Race
+and gender disagreements are attributed to waves using the same adjacent-wave
+logic as matching algorithm B in Table 2. Expanded models add the magnitude of
+age and education discrepancies and indicators for observations retained in
+panel B but not C and in panel A but not B.
 
-The EM update for the error equation now maximizes its correct conditional
-objective. Both stationary and free-initial-condition results are retained,
-and the robustness model allows true entry and exit rates to differ across
-reliability groups. Reported means use the same survey and posterior weighting
-conventions as the other tables. The mechanism language remains deliberately
-neutral: inconsistencies may reflect response problems, incorrect longitudinal
-matches, or both.
+Two further specifications combine the indicators-only error equation with Set
+2 transition covariates (age, age squared, education, race, and gender). The
+preferred specification also adds the four origin-wave inconsistency indicators
+to both entry and persistence. Table 3 now retains only the
+inconsistency-indicator, severity plus matching-rule, and transition-covariate
+specifications; the severity-only and Set 2-only results remain in the
+appendices.
+
+The preferred model is estimated both with a free common initial-employment
+probability and under conditional stationarity. Conditional stationarity sets
+each person's wave-1 initial probability to the stationary probability implied
+by their wave-1 covariate-specific entry and exit hazards. It does not require
+the later hazards to remain constant when origin-wave inconsistencies change.
+Because this restriction also introduces observed heterogeneity into the
+initial state, its likelihood is not nested in the free-common-alpha model.
+
+The direct likelihood maximization uses multiple starts and explicit score,
+curvature, rank, and nesting checks. Table 3 reports only the unrestricted
+initial-condition versions. Appendix Table A3 reports the stationary and free
+initial-condition results together, including all consistently calculated
+implied rates and the raw transition and error coefficients for the
+transition-covariate specification.
+The mechanism language remains deliberately neutral: inconsistencies may
+reflect response problems, incorrect longitudinal matches, or both.
 
 ## Table 4: observable transition heterogeneity
 
@@ -158,13 +175,16 @@ errors where bootstrap estimates are unavailable.
 
 Column (9) is estimated by the exact observed likelihood rather than by the old
 separable M-step. It combines the Set 4 transition equations with a symmetric
-error probability depending on the full Table 3 reliability specification:
-age and education inconsistencies, severity indicators, panel B but not C, and
-panel A but not B. Five starts were evaluated. The polished solution has 30 of
-30 information-matrix directions identified, condition number about 18,126,
-and maximum normalized score $1.1\times10^{-8}$. The new mean entry, exit, and
-error rates are 4.67%, 4.62%, and 2.55%. Detailed error slopes and implied
-reliability-specific rates appear in Appendix Table A3B.
+error probability depending on the then-current Table 3 reliability
+specification: age and education inconsistencies, severity indicators, panel B
+but not C, and panel A but not B. Five starts were evaluated. The polished
+solution has 30 of 30 information-matrix directions identified, condition
+number about 18,126, and maximum normalized score $1.1\times10^{-8}$. The new
+mean entry, exit, and error rates are 4.67%, 4.62%, and 2.55%. This model has
+not yet been re-estimated with the newly added race and gender inconsistency
+indicators; its pipeline is now prepared for that future sensitivity run.
+Detailed error slopes and implied reliability-specific rates appear in
+Appendix Table A4B.
 
 ## Table 5: four-wave AR(1) and AR(2)
 
@@ -192,7 +212,7 @@ a maximum normalized score below $2\times10^{-5}$ and full information rank.
 The final scores are $2.8\times10^{-6}$, $4.2\times10^{-6}$, and
 $2.8\times10^{-6}$. All three models are locally full rank, but condition
 numbers rise from about 746,558 to 2,800,426, motivating profile and
-long-start sensitivity checks. Appendix Table A4C is generated from a separate
+long-start sensitivity checks. Appendix Table A5C is generated from a separate
 prospective decomposition that conditions only on the two reports forming an
 apparent transition and integrates out the subsequent report.
 
@@ -225,10 +245,10 @@ These are likelihood changes, not presentation-only adjustments.
 The preferred timegap treatment is the joint per-wave marginal-contamination
 model. The table reports approximate analytical errors from the full numerical
 observed-information matrix and delta method, not bootstrap errors. Appendix
-Table A6 retains hazard profiles, auxiliary comparisons, wrong-state-clock
+Table A7 retains hazard profiles, auxiliary comparisons, wrong-state-clock
 integration checks, and the within-quarter reset decomposition.
 
-## Appendix Table A7: no-error duration counterfactual
+## Appendix Table A8: no-error duration counterfactual
 
 The counterfactual diagnostic estimates flexible no-status-error AR(1) and
 AR(2) transition models without using destination-wave durations in the

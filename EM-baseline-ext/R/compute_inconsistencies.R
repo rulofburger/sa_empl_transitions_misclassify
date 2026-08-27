@@ -140,3 +140,65 @@ compute_inconsistency_extent <- function(df) {
   df[paste0("extent_edu_", 1:3)] <- edu_extent
   df
 }
+
+#' Compute wave-attributed race and gender inconsistencies
+#'
+#' Panels constructed with matching rule B require race and gender reports to
+#' agree across linked waves. This helper converts any pairwise disagreement
+#' into a single wave-attributed indicator using the same attribution rule as
+#' the age and education diagnostics: a discrepancy in only the first pair is
+#' assigned to wave 1, discrepancies in both adjacent pairs to wave 2, and a
+#' discrepancy in only the second pair to wave 3. Missing reports are treated
+#' conservatively as unverified rather than inconsistent.
+#'
+#' @param df Data frame with race1--race3 and female1--female3.
+#' @return The input with Y_race_1--Y_race_3 and
+#'   Y_gender_1--Y_gender_3 appended.
+#' @export
+compute_demographic_inconsistencies <- function(df) {
+  required <- c(paste0("race", 1:3), paste0("female", 1:3))
+  missing_cols <- setdiff(required, names(df))
+  if (length(missing_cols))
+    stop("compute_demographic_inconsistencies: missing required columns: ",
+         paste(missing_cols, collapse = ", "))
+
+  attribute_disagreement <- function(x1, x2, x3) {
+    v12 <- as.integer(!is.na(x1) & !is.na(x2) & x1 != x2)
+    v23 <- as.integer(!is.na(x2) & !is.na(x3) & x2 != x3)
+    cbind(v12 * (1L - v23), v12 * v23, (1L - v12) * v23)
+  }
+  df[paste0("Y_race_", 1:3)] <- attribute_disagreement(
+    df$race1, df$race2, df$race3)
+  df[paste0("Y_gender_", 1:3)] <- attribute_disagreement(
+    df$female1, df$female2, df$female3)
+  df
+}
+
+#' Add wave-specific indicators for multiple reported-characteristic inconsistencies
+#'
+#' Counts the age, education, race, and gender inconsistency indicators at each
+#' wave and appends mutually exclusive dummies for exactly two, exactly three,
+#' and exactly four inconsistencies. Zero or one inconsistency is the omitted
+#' category when these dummies enter a model alongside the four component
+#' indicators.
+#'
+#' @param df Data frame containing Y_age_1--Y_age_3, Y_edu_1--Y_edu_3,
+#'   Y_race_1--Y_race_3, and Y_gender_1--Y_gender_3.
+#' @return The input with Y_exactly_2_1--Y_exactly_2_3,
+#'   Y_exactly_3_1--Y_exactly_3_3, and Y_exactly_4_1--Y_exactly_4_3 appended.
+#' @export
+add_inconsistency_count_dummies <- function(df) {
+  components <- c("age", "edu", "race", "gender")
+  required <- unlist(lapply(components, function(x) paste0("Y_", x, "_", 1:3)))
+  missing_cols <- setdiff(required, names(df))
+  if (length(missing_cols))
+    stop("add_inconsistency_count_dummies: missing required columns: ",
+         paste(missing_cols, collapse = ", "))
+
+  for (tt in 1:3) {
+    count <- rowSums(as.matrix(df[paste0("Y_", components, "_", tt)]))
+    for (kk in 2:4)
+      df[[paste0("Y_exactly_", kk, "_", tt)]] <- as.integer(count == kk)
+  }
+  df
+}

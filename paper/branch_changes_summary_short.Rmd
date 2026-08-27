@@ -172,11 +172,16 @@ include_tex_table("EM-baseline/output/tables/table_matching_pooled_groups.tex",
 - Check whether the Table 4 and age/education-consistency results are also
   stable under the stricter matching rules.
 
-# 3. Age and education consistency: Table 3 and Appendix Table A2
+# 3. Reported-characteristic inconsistencies: Table 3 and Appendix Table A3
 
-- Re-estimated both the indicator-only model and the model with additional
-  effects for large age and education increments, under stationarity and with
-  a free initial employment probability.
+- Re-estimated the inconsistency-indicator, severity, and matching-rule
+  models after adding race and gender disagreement indicators to every error
+  equation.
+- Added mutually exclusive indicators for exactly two, three, or four reported-
+  characteristic inconsistencies to each misclassification equation, with zero
+  or one inconsistency as the omitted category.
+- Retained unrestricted-initial-employment estimates in Table 3 and report the
+  stationary counterparts alongside them in A3.
 - Repaired the EM update, used multiple starts and likelihood checks, and added
   analytical standard errors.
 - Interpreted age and education inconsistencies neutrally: they may arise from
@@ -188,15 +193,47 @@ include_tex_table("EM-baseline/output/tables/table_matching_pooled_groups.tex",
   misclassification rate also depends on person-wave indicators for membership
   in matching panel B but not C and panel A but not B, defined using the Table 2
   sample-construction rules.
+- Reduced the main table to the inconsistency-indicator, severity plus
+  matching-rule, and transition-covariate specifications. A3 now contains only
+  the stationary/free pairs for these same three specifications; the
+  severity-only and Set 2-only results remain in separate appendix outputs.
+- Added a conditional-stationarity counterpart to the preferred model. It makes
+  wave-1 initial employment depend on the wave-1 covariate-specific entry and
+  exit hazards, while retaining the wave-varying transition equations.
+- Simplified A3 by replacing pattern-specific probabilities and probability
+  increments with the lowest, median, mean, and highest predicted
+  misclassification probabilities, with analytical standard errors. It also
+  reports the preferred-model transition and error coefficients under
+  conditional stationarity and free initial employment.
 
 ```{r inconsistency-main, results='asis'}
 include_tex_table("EM-baseline-ext/output/tables/table_inconsistency.tex",
-                  tabular_scale = 0.86, table_number = 3)
+                  tabular_scale = 0.78, table_number = 3)
 ```
 
-```{r inconsistency-appendix, results='asis'}
-include_tex_table("EM-baseline-ext/output/tables/table_inconsistency_appendix.tex",
-                  tabular_scale = 0.68, appendix_label = "Appendix Table A2")
+```{r inconsistency-details, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_inconsistency_details.tex",
+                  tabular_scale = 0.50,
+                  appendix_label = "Appendix Table A3, Panel A")
+```
+
+```{r inconsistency-details-coefficients, results='asis'}
+include_tex_table(
+  "EM-baseline-ext/output/tables/table_inconsistency_details_coefficients.tex",
+  tabular_scale = 0.78,
+  appendix_label = "Appendix Table A3, Panel B")
+```
+
+```{r inconsistency-details-diagnostics, results='asis'}
+include_tex_table(
+  "EM-baseline-ext/output/tables/table_inconsistency_details_diagnostics.tex",
+  tabular_scale = 0.90,
+  appendix_label = "Appendix Table A3, Panel B (continued)")
+```
+
+```{r inconsistency-transition-covariates, results='asis'}
+include_tex_table("EM-baseline-ext/output/tables/table_inconsistency_transition_covariates.tex",
+                  tabular_scale = 0.76, appendix_label = "Appendix Table A3A")
 ```
 
 The additional reliability-group robustness table is generated as
@@ -204,32 +241,57 @@ table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
 
 ## Interpretation
 
-- Baseline misclassification is 2.26%, rising to 17.99% with an age
-  inconsistency, 6.49% with an education inconsistency, and 31.99% with both.
+- In the unrestricted indicators-only model, mean misclassification is 3.39%;
+  the entry and exit rates are 2.57% and 2.15%, and initial employment is
+  47.60%.
+- Conditional on the other indicators, a race disagreement barely changes
+  predicted error in the first two models. A gender disagreement is much more
+  informative: predicted error rises from 2.21% to 8.85% in the indicators-only
+  model.
 - Stationarity materially changes the entry and exit decomposition but barely
   changes the inconsistency-related misclassification probabilities. In the
   free model, initial employment is 6.56 percentage points below its implied
   steady-state rate.
 - Allowing additional large-increment effects substantially sharpens the age
-  gradient: predicted misclassification rises from about 7.76% for a mild age
-  inconsistency to 21.50% for a large one. The corresponding education increase
-  is only about 0.60 percentage points.
+  gradient: predicted misclassification rises from 6.31% for a mild age
+  inconsistency to 16.66% for a large one. The corresponding education increase
+  is only 0.62 percentage points.
 - In the augmented free-initial-employment model, predicted misclassification
-  for a record with no age or education inconsistency is 1.98% when retained by
-  both stricter panels, 2.77% when retained by B but not C, and 4.34% when
-  retained by A but not B. Thus the matching-quality indicators capture a
-  strong reliability gradient.
-- Controlling for matching quality attenuates but does not eliminate the
-  age/education gradients: predicted error is 5.46% for a mild and 15.86% for a
-  large age inconsistency, and 4.47% and 4.83% for mild and large education
-  inconsistencies. The mean error rate changes little, from 3.36% to 3.38%, and
-  the free-model entry and exit rates move only from 2.60% and 2.19% to 2.57%
-  and 2.14%.
+  for a record with no reported-characteristic inconsistency is 2.01% when
+  retained by both stricter panels and 2.93% in either B-but-not-C or A-but-not-B
+  observations. Thus the matching-rule indicators retain a reliability
+  gradient after controlling for race and gender disagreements.
+- Adding the matching-rule indicators attenuates but does not eliminate the
+  age/education gradients: predicted error is 4.79% for a mild and 13.89% for a
+  large age inconsistency, and 4.34% and 4.77% for mild and large education
+  inconsistencies. Mean error changes little, from 3.40% to 3.41%; entry and
+  exit move from 2.57% and 2.14% to 2.54% and 2.10%.
+- In the matching-rule-indicator model, a race disagreement predicts 1.70% error and
+  a gender disagreement 6.67%, compared with 2.01% when none of the four
+  reported characteristics is inconsistent. The race contrast is small and
+  negative; the gender contrast remains large and positive.
+- The omitted Set 2-only main-table column remains in A3A: its posterior
+  risk-set mean entry and exit rates are 3.37% and 3.17%, while mean
+  misclassification is 2.93%.
+- In the preferred free-initial model, adding the inconsistency indicators to
+  both transition equations raises the
+  mean entry and exit rates to 3.55% and 3.51% and lowers mean error only
+  modestly, to 2.85%. The likelihood gain is large, so the indicators capture
+  real transition heterogeneity as well as measurement reliability.
+- Under conditional stationarity, the corresponding entry, exit, and mean
+  misclassification rates are 3.47% (SE 0.05), 3.78% (0.05), and 2.71% (0.03);
+  mean initial employment is 47.93% (0.08). This model is full rank (29/29).
+  Its much larger likelihood is not an LR test of stationarity: unlike the free
+  model's common initial probability, conditional stationarity lets initial
+  employment vary with observed covariates.
+- The error gradient remains economically large after this control: predicted
+  error is 1.76% with no inconsistency, 12.52% with an age inconsistency,
+  5.01% with an education inconsistency, and 7.53% with a gender inconsistency.
 - The relationship is not explained solely by different true transition rates
   among records with age or education inconsistencies.
 - Larger age inconsistencies are much more informative than mild ones;
   inconsistency severity matters less for education.
-- Age and education inconsistencies predict higher status misclassification,
+- Age, education, and gender inconsistencies predict higher status misclassification,
   without distinguishing response errors from incorrect panel matches.
 
 ## To do
@@ -238,6 +300,9 @@ table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
   flexible inconsistency-group transition rates.
 - Bootstrap the age/education-inconsistency effects and repeat the analysis
   under stricter panel matching.
+- Test alternative timing conventions for putting inconsistency indicators in
+  the transition equations and allow the initial employment probability to
+  depend on baseline covariates.
 
 # 4. Observable transition heterogeneity: Table 4
 
@@ -250,8 +315,9 @@ table_inconsistency_reliability.tex in EM-baseline-ext/output/tables.
 - Added time-varying contract type and informal-sector status in Set 4 without
   restricting the sample to respondents observed in employment at every wave.
 - Added a Set 4 specification in which the symmetric misclassification rate
-  depends on age and education inconsistencies, their severity, and the two
-  nested panel-matching indicators used in Table 3, columns (5)--(6).
+  depends on the reported-characteristic inconsistencies, age and education
+  severity, and the two nested panel-matching indicators used in Table 3,
+  column (3).
 - Moved raw coefficients, the initial-state parameter, total churn, and hazard
   distributions to an appendix table.
 
@@ -263,13 +329,13 @@ include_tex_table("EM-baseline-ext/output/tables/table_cov_risk_weighted.tex",
 ```{r covariate-appendix, results='asis'}
 include_tex_table(
   "EM-baseline-ext/output/tables/table_cov_coefficients_appendix.tex",
-  tabular_scale = 0.55, appendix_label = "Appendix Table A3")
+  tabular_scale = 0.55, appendix_label = "Appendix Table A4")
 ```
 
 ```{r covariate-reliability-appendix, results='asis'}
 include_tex_table(
   "EM-baseline-ext/output/tables/table_cov_reliability_appendix.tex",
-  tabular_scale = 0.82, appendix_label = "Appendix Table A3B")
+  tabular_scale = 0.82, appendix_label = "Appendix Table A4B")
 ```
 
 ## Interpretation
@@ -314,7 +380,7 @@ include_tex_table(
 - Added the same tenure and time-since-work controls used in Table 4.
 - Allowed duration covariates to change across origin waves.
 - Added a nested AR(2) extension with Set 4 transition controls, followed by
-  inconsistency/severity and matching-quality predictors of symmetric error.
+  inconsistency indicators, severity effects, and matching-rule predictors of symmetric error.
 - Used informed and perturbed starts, exact stage-specific likelihood collapse,
   likelihood-nesting checks, Newton polishing, and score/rank diagnostics.
 - Replaced approximate optimisation and inference with exact collapsed
@@ -368,7 +434,7 @@ cat("\\setcounter{table}{4}\n\\begin{table}[H]\n\\centering\n",
     "\\scriptsize\n\\setlength{\\tabcolsep}{3pt}\n",
     "\\resizebox{\\textwidth}{!}{%\n",
     "\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n",
-    " & AR(1) & AR(2) & AR(2), duration controls & AR(2), Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
+    " & AR(1) & AR(2) & AR(2), duration controls & AR(2), Set 4 & \\shortstack{+ inconsistency indicators\\\\ and severity} & \\shortstack{+ matching-rule\\\\ indicators} \\\\\n\\midrule\n",
     sep = "")
 for (label in names(ar2_rows)) {
   ar1 <- ar1_inf[match(ar1_rows[[label]], ar1_inf$quantity), ]
@@ -453,9 +519,9 @@ cat("\\addlinespace\nLog likelihood & ",
     " \\\\\nSecond employment lag & No & Yes & Yes & Yes & Yes & Yes",
     " \\\\\nDuration controls & No & No & Yes & Yes & Yes & Yes",
     " \\\\\nSet 4 transition controls & No & No & No & Yes & Yes & Yes",
-    " \\\\\nError predictors & Constant & Constant & Constant & Constant & Inconsistency/severity & + matching quality",
+    " \\\\\nError predictors & Constant & Constant & Constant & Constant & \\shortstack{Inconsistency indicators\\\\ and severity} & \\shortstack{+ matching-rule\\\\ indicators}",
     " \\\\\n\\bottomrule\n\\end{tabular}}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are model-implied quarterly probabilities in percent. Covariate specifications report posterior risk-set and survey-weighted averages; the misclassification row is the corresponding posterior mean probability. Initial employment is the latent employment probability in wave 2. Parentheses contain analytical sandwich/delta-method standard errors. The AR(1) rate is repeated across the two corresponding AR(2) rows because the first-order model imposes equality across the second-lag state. Every specification has one latent type, symmetric misclassification, and free initial conditions. Set 4 includes the Table 4 demographic, tenure, time-since-work, contract, and informal-sector transition controls. Inconsistency/severity adds age and education inconsistency indicators and large-inconsistency indicators to the error equation; matching quality additionally adds panel B-not-C and panel A-not-B indicators. The three extensions use the same 308,240 observations and exact nested likelihoods.}\n",
+    "{\\footnotesize\\textit{Notes.} Entries are model-implied quarterly probabilities in percent. Covariate specifications report posterior risk-set and survey-weighted averages; the misclassification row is the corresponding posterior mean probability. Initial employment is the latent employment probability in wave 2. Parentheses contain analytical sandwich/delta-method standard errors. The AR(1) rate is repeated across the two corresponding AR(2) rows because the first-order model imposes equality across the second-lag state. Every specification has one latent type, symmetric misclassification, and free initial conditions. Set 4 includes the Table 4 demographic, tenure, time-since-work, contract, and informal-sector transition controls. The inconsistency-indicator-and-severity specification adds age and education inconsistency indicators and large-inconsistency effects to the error equation; matching-rule indicators additionally add panel B-not-C and panel A-not-B indicators. The three extensions use the same 308,240 observations and exact nested likelihoods.}\n",
     "\\end{table}\n", sep = "")
 ```
 
@@ -548,7 +614,7 @@ coefficient_cell <- function(tbl, term, field) {
 }
 duration_coef <- ar2_coef
 cat("\\begin{table}[H]\n\\centering\n",
-    "\\caption*{Appendix Table A4: Four-wave AR(1) and AR(2) coefficients}\n",
+    "\\caption*{Appendix Table A5: Four-wave AR(1) and AR(2) coefficients}\n",
     "\\scriptsize\n\\setlength{\\tabcolsep}{5pt}\n",
     "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
     "Coefficient & AR(1) & AR(2) & AR(2), duration controls \\\\\n\\midrule\n",
@@ -613,9 +679,9 @@ extension_term_labels <- c(
   panel_A_not_B = "Error: panel A not B")
 cat("\\begingroup\n\\scriptsize\n\\setlength{\\tabcolsep}{5pt}\n",
     "\\begin{longtable}{@{}lrrr@{}}\n",
-    "\\caption*{Appendix Table A4B: Set 4 AR(2) extension coefficients}\\\\\n",
-    "\\toprule\nCoefficient & Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
-    "\\endfirsthead\n\\toprule\nCoefficient & Set 4 & + inconsistency & + matching quality \\\\\n\\midrule\n",
+    "\\caption*{Appendix Table A5B: Set 4 AR(2) extension coefficients}\\\\\n",
+    "\\toprule\nCoefficient & Set 4 & \\shortstack{+ inconsistency indicators\\\\ and severity} & \\shortstack{+ matching-rule\\\\ indicators} \\\\\n\\midrule\n",
+    "\\endfirsthead\n\\toprule\nCoefficient & Set 4 & \\shortstack{+ inconsistency indicators\\\\ and severity} & \\shortstack{+ matching-rule\\\\ indicators} \\\\\n\\midrule\n",
     "\\endhead\n", sep = "")
 for (term in extension_terms) {
   estimates <- vapply(extension_coef, function(tbl)
@@ -644,7 +710,7 @@ model_labels <- c(
   `Table 1: symmetric error` = "Table 1: symmetric-error adjustment",
   `Table 5: final AR(2)` = "Table 5: final AR(2)")
 cat("\\begin{table}[H]\n\\centering\n",
-    "\\caption*{Appendix Table A4C: Implications for apparent two-wave transitions}\n",
+    "\\caption*{Appendix Table A5C: Implications for apparent two-wave transitions}\n",
     "\\small\n\\setlength{\\tabcolsep}{7pt}\n",
     "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
     "Model & Classification only & Genuine reversal & Genuine persistence \\\\\n",
@@ -658,12 +724,13 @@ for (direction in direction_order) {
     cat(model_labels[[rows$model[i]]], " & ",
         sprintf("%.1f", 100 * rows$classification_only[i]), " & ",
         sprintf("%.1f", 100 * rows$true_reversal[i]), " & ",
-        sprintf("%.1f", 100 * rows$true_persistent[i]), " \\\\\n", sep = "")
+        sprintf("%.1f", 100 * rows$true_persistent[i]),
+        " \\\\\n\\addlinespace[1pt]\n", sep = "")
   }
   if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
 }
 cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages conditional only on the two reports forming an apparent transition; the subsequent report is integrated out. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The Table 1 columns use the nonstationary three-wave estimates; the final AR(2) column uses the four-wave Set 4 model with inconsistency, severity, and matching-quality predictors of symmetric classification error. Because the Table 1 and Table 5 estimation samples differ, comparisons combine model and sample differences.}\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages conditional only on the two reports forming an apparent transition; the subsequent report is integrated out. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The Table 1 columns use the nonstationary three-wave estimates; the final AR(2) column uses the four-wave Set 4 model with inconsistency indicators, severity effects, and matching-rule predictors of symmetric classification error. Because the Table 1 and Table 5 estimation samples differ, comparisons combine model and sample differences.}\n",
     "\\end{table}\n", sep = "")
 ```
 
@@ -693,10 +760,10 @@ full rank.
 - Allowing inconsistency and severity to predict error raises the posterior
   mean error rate from 0.93% to 2.02% and lowers the four transition rates to
   4.22%, 27.52%, 28.65%, and 3.95%.
-- Adding matching-quality indicators improves fit further and produces rates
+- Adding matching-rule indicators improves fit further and produces rates
   of 4.22%, 28.28%, 29.38%, and 3.94%, with 1.95% mean error. The substantive
   AR(2) pattern remains large after the complete observed-control sequence.
-- Appendix Table A4C shows that the final model attributes 41.1% of apparent
+- Appendix Table A5C shows that the final model attributes 41.1% of apparent
   transitions to classification error, 16.8% to genuine transitions that
   reverse next period, and 42.1% to genuine persistent transitions. Among the
   58.9% inferred to be genuine, 28.6% reverse in the following period. This is
@@ -719,7 +786,7 @@ full rank.
 - With additional waves, test latent heterogeneity, wave-varying transitions,
   and correlated classification errors as competing explanations.
 
-# 6. Unobserved heterogeneity: Table 6 and Appendix Table A5
+# 6. Unobserved heterogeneity: Table 6 and Appendix Table A6
 
 - Re-estimated the two-type finite-mixture model by direct likelihood
   maximisation with multiple starts and audited local identification.
@@ -785,11 +852,11 @@ class-specific; the age- and education-inconsistency slopes remain common. In
 the no-error model, all misclassification probabilities are fixed at zero. The
 no-error model has full probability-Jacobian rank, but weak curvature around
 its near-zero stable-class exit estimate warrants caution. Pattern-specific
-implied misclassification rates are reported separately in Appendix Table A5.
+implied misclassification rates are reported separately in Appendix Table A6.
 
 \Needspace{13\baselineskip}
 
-**Appendix Table A5. Misclassification rates by inconsistency pattern**
+**Appendix Table A6. Misclassification rates by inconsistency pattern**
 
 | Inconsistency pattern | Common error: Stable | Common error: Mobile | Type-specific error: Stable | Type-specific error: Mobile | Mobile minus stable |
 |:--|--:|--:|--:|--:|--:|
@@ -804,7 +871,7 @@ duration controls. The common-error model has a common misclassification
 intercept; the type-specific model has separate stable- and mobile-class
 intercepts. Age- and education-inconsistency slopes are common across classes.
 
-**Appendix Table A5, Panel B. Preferred FMM coefficients and diagnostics**
+**Appendix Table A6, Panel B. Preferred FMM coefficients and diagnostics**
 
 | Quantity | Estimate | Analytical SE |
 |:--|--:|--:|
@@ -941,7 +1008,7 @@ probability that at least one report in a two-report pair is contaminated.
 
 \Needspace{12\baselineskip}
 
-**Appendix Table A6, Panel A. Exact and alternative duration profiles**
+**Appendix Table A7, Panel A. Exact and alternative duration profiles**
 
 | Duration interval | Exact exit hazard | Exact exit (%) | Independent-error exit (%) | Joint-model exit (%) |
 |:--|--:|--:|--:|--:|
@@ -961,7 +1028,7 @@ probability that at least one report in a two-report pair is contaminated.
 
 \Needspace{24\baselineskip}
 
-**Appendix Table A6, Panel B. Auxiliary model comparisons**
+**Appendix Table A7, Panel B. Auxiliary model comparisons**
 
 | Quantity | Constant, exact | Power law, exact | Piecewise, exact |
 |:--|--:|--:|--:|
@@ -981,7 +1048,7 @@ probability that at least one report in a two-report pair is contaminated.
 | Comparable two-report timegap contamination (%) | 28.04 | 39.20 | 30.48 |
 | Analytical SE | 0.11 | 0.15 | 0.12 |
 
-**Appendix Table A6, Panel C. Effect of integrating unavailable wrong-state clocks**
+**Appendix Table A7, Panel C. Effect of integrating unavailable wrong-state clocks**
 
 | Quantity | Imputed clock | Integrated clock |
 |:--|--:|--:|
@@ -993,7 +1060,7 @@ probability that at least one report in a two-report pair is contaminated.
 | Entry duration slope | -0.9148 | -0.8782 |
 | Mean nonemployment duration (months) | 3,800 | 1,257 |
 
-**Appendix Table A6, Panel D. Timegap-contamination mechanism decomposition**
+**Appendix Table A7, Panel D. Timegap-contamination mechanism decomposition**
 
 | Interview interval | Clock-feasible (%) | Reset-compatible contradiction (%) | Other contradiction (%) | Posterior contamination (%) |
 |:--|--:|--:|--:|--:|
@@ -1045,7 +1112,7 @@ substitutes for the standard errors reported in Table 7.
 - Test alternative contamination densities, rounding and heaping rules, and
   tail cut-points while retaining transition-duration consistency.
 
-# 8. No-error duration counterfactual (Appendix Table A7)
+# 8. No-error duration counterfactual (Appendix Table A8)
 
 - Estimated flexible AR(1) and AR(2) transition models treating reported status
   changes as error-free.
@@ -1068,7 +1135,7 @@ clock_labels <- c(
   "Nonemployment continuation with inconsistent clock" =
     "Nonemployment continuation with unreachable timegap")
 cat("\\begin{table}[H]\n\\centering\n",
-    "\\caption*{Appendix Table A7: No-error duration-clock contradictions}\n",
+    "\\caption*{Appendix Table A8: No-error duration-clock contradictions}\n",
     "\\small\n\\begin{tabular}{@{}lrr@{}}\n\\toprule\n",
     " & AR(1) & AR(2) \\\\\n\\midrule\n", sep = "")
 for (key in names(clock_labels)) {
@@ -1095,7 +1162,7 @@ knitr::include_graphics(file.path(project_root,
   "diagnostics/output/no_error_duration_counterfactual/clock_inconsistency_shares.png"))
 ```
 
-**Appendix Table A7, Panel B. Observed transition benchmarks**
+**Appendix Table A8, Panel B. Observed transition benchmarks**
 
 | Rate | AR(1) (%) | AR(2) (%) |
 |:--|--:|--:|
@@ -1144,18 +1211,18 @@ knitr::include_graphics(file.path(project_root,
 - A result-by-result audit against `branch_changes_summary.Rmd` maps the
   baseline estimates to Table 1/A1, matching-rule results to Table 2,
   age/education-consistency results to Table 3/A2, covariate estimates and
-  hazard distributions to Table 4/A3, AR(2) results to Table 5/A4, four-wave
-  FMM results to Table 6/A5, tenure-contamination results to Table 7/A6, and
-  the no-error duration benchmarks to A7. No numerical estimate reported in
+  hazard distributions to Table 4/A4, AR(2) results to Table 5/A5, four-wave
+  FMM results to Table 6/A6, tenure-contamination results to Table 7/A7, and
+  the no-error duration benchmarks to A8. No numerical estimate reported in
   the long summary is intentionally omitted here; only detailed implementation
   narrative is abbreviated.
-- Tables 1, 3, and 4 and Appendix Tables A1--A3 are rebuilt by build_tables.R.
+- Tables 1, 3, and 4 and Appendix Tables A1--A4 are rebuilt by build_tables.R.
 - Table 2 is rebuilt by the matching-sensitivity script; the four-wave, tenure,
   and diagnostic scripts save the inputs for Tables 5--7 and Appendix Tables
-  A4--A7 outside version control.
+  A5--A8 outside version control.
 - Analytical standard errors are available for Tables 1--7 and their associated
   model estimates. Table 7 uses the full numerical observed-information matrix
-  and delta method; Appendix Table A7 uses person-clustered linearization for
+  and delta method; Appendix Table A8 uses person-clustered linearization for
   its weighted descriptive shares.
 - Table 7's numerical observed-information errors should still be checked with
   a person-level bootstrap or profile likelihood before final submission.

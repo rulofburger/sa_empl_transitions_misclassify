@@ -29,6 +29,7 @@
 library(here)
 library(dplyr)
 library(ggplot2)  # required by ingest_data_3waves_SA.R diagnostic plots
+table3_only <- identical(Sys.getenv("BUILD_TABLE3_ONLY"), "1")
 
 # Null-coalescing (also defined in EM-baseline/R/utils.R via source_all.R;
 # explicit here to avoid silent coupling to the source chain).
@@ -305,6 +306,7 @@ cat(sprintf("N_baseline = %s, N_ext = %s\n",
 # 2. Table 1 and Appendix Table A1: baseline models
 # ------------------------------------------------------------------------------
 
+if (!table3_only) {
 cat("\n--- Building baseline tables ---\n")
 
 # Column order: no-misclassification first, then symmetric, then asymmetric
@@ -1074,6 +1076,7 @@ names(fmm_implied) <- fmm_labels
   sub_headers = fmm_sub_headers,
   note        = sprintf("Estimates in \\%%. Type A has higher $\\theta_1$ (more stable). Bootstrap SE in parentheses ($B=%d$). Significance: $^{**}$ $p<0.01$, $^{*}$ $p<0.05$, $^{.}$ $p<0.10$.", B)
 )
+}
 
 # ------------------------------------------------------------------------------
 # 6. Table: Inconsistency models
@@ -1083,7 +1086,7 @@ cat("\n--- Building inconsistency table ---\n")
 audit_path <- here::here("EM-baseline-ext", "output", "results",
                          "fit_table6_inconsistency_audit.rds")
 if (!file.exists(audit_path))
-  stop("Missing Table 6 estimates. Run EM-baseline-ext/replicate_table6.R first.")
+  stop("Missing Table 3 estimates. Run EM-baseline-ext/replicate_table6.R first.")
 incons_audit <- readRDS(audit_path)
 
 .audit_lookup <- function(tbl, quantity, estimate_col = "estimate",
@@ -1102,6 +1105,16 @@ incons_audit <- readRDS(audit_path)
 main_tbl <- incons_audit$table
 increment_tbl <- incons_audit$extent_comparison_table
 matching_tbl <- incons_audit$matching_comparison_table
+transition_cov_path <- here::here("EM-baseline-ext", "output", "results",
+                                  "fit_table3_transition_covariates.rds")
+if (!file.exists(transition_cov_path))
+  stop("Missing Table 3 transition-covariate estimates. Run EM-baseline-ext/estimate_table3_transition_covariates.R first.")
+transition_cov <- readRDS(transition_cov_path)
+cov4_tbl <- transition_cov$column4_inference$summary
+cov5_tbl <- transition_cov$column5_inference$summary
+if (is.null(transition_cov$column5_stationary_inference))
+  stop("Missing the conditionally stationary Table 3 preferred model. Re-run EM-baseline-ext/estimate_table3_transition_covariates.R.")
+cov5_stat_tbl <- transition_cov$column5_stationary_inference$summary
 .model_cell <- function(tbl, quantity, specification, probability = TRUE) {
   x <- .audit_lookup(tbl, quantity,
     paste0("estimate_", specification), paste0("std_error_", specification))
@@ -1121,6 +1134,77 @@ matching_tbl <- incons_audit$matching_comparison_table
   list(est = c(label, vapply(cells, `[[`, character(1L), 1L)),
        se = c("", vapply(cells, `[[`, character(1L), 2L)))
 }
+.three_free_row <- function(basic_quantity, increment_quantity, label,
+                            probability = TRUE,
+                            matching_quantity = increment_quantity) {
+  cells <- list(
+    .model_cell(main_tbl, basic_quantity, "free", probability),
+    .model_cell(increment_tbl, increment_quantity, "free", probability),
+    .model_cell(matching_tbl, matching_quantity, "free", probability))
+  list(est = c(label, vapply(cells, `[[`, character(1L), 1L)),
+       se = c("", vapply(cells, `[[`, character(1L), 2L)))
+}
+.cov_cell <- function(tbl, quantity, probability = TRUE) {
+  x <- .audit_lookup(tbl, quantity)
+  if (probability) .fmt_pct(x[1L], x[2L]) else .fmt_param(x[1L], x[2L])
+}
+.two_cov_row <- function(quantity, label, probability = FALSE) {
+  c4 <- .cov_cell(cov4_tbl, quantity, probability)
+  c5 <- .cov_cell(cov5_tbl, quantity, probability)
+  list(est = c(label, c4[1L], c5[1L]), se = c("", c4[2L], c5[2L]))
+}
+.cov5_only_row <- function(quantity, label, probability = FALSE) {
+  c5 <- .cov_cell(cov5_tbl, quantity, probability)
+  list(est = c(label, "---", c5[1L]), se = c("", "", c5[2L]))
+}
+.five_main_row <- function(basic_quantity, increment_quantity, cov_quantity,
+                           label, matching_quantity = increment_quantity) {
+  base <- .three_free_row(basic_quantity, increment_quantity, label,
+                          matching_quantity = matching_quantity)
+  c4 <- .cov_cell(cov4_tbl, cov_quantity)
+  c5 <- .cov_cell(cov5_tbl, cov_quantity)
+  list(est = c(base$est, c4[1L], c5[1L]),
+       se = c(base$se, c4[2L], c5[2L]))
+}
+.three_selected_main_row <- function(basic_quantity, matching_quantity,
+                                     final_quantity, label) {
+  cells <- list(
+    .model_cell(main_tbl, basic_quantity, "free"),
+    .model_cell(matching_tbl, matching_quantity, "free"),
+    .cov_cell(cov5_tbl, final_quantity))
+  list(est = c(label, vapply(cells, `[[`, character(1L), 1L)),
+       se = c("", vapply(cells, `[[`, character(1L), 2L)))
+}
+.eight_model_row <- function(basic_quantity, increment_quantity, label,
+                             final_quantity, probability = TRUE,
+                             basic_stationary_quantity = basic_quantity,
+                             matching_quantity = increment_quantity) {
+  first <- .six_model_row(
+    basic_quantity, increment_quantity, label, probability,
+    basic_stationary_quantity = basic_stationary_quantity,
+    matching_quantity = matching_quantity)
+  final <- list(
+    .cov_cell(cov5_stat_tbl, final_quantity, probability),
+    .cov_cell(cov5_tbl, final_quantity, probability))
+  list(est = c(first$est, vapply(final, `[[`, character(1L), 1L)),
+       se = c(first$se, vapply(final, `[[`, character(1L), 2L)))
+}
+.final_pair_row <- function(quantity, label, probability = FALSE,
+                            prefix_est = rep("---", 6L),
+                            prefix_se = rep("", 6L)) {
+  final <- list(.cov_cell(cov5_stat_tbl, quantity, probability),
+                .cov_cell(cov5_tbl, quantity, probability))
+  list(est = c(label, prefix_est,
+               vapply(final, `[[`, character(1L), 1L)),
+       se = c("", prefix_se,
+              vapply(final, `[[`, character(1L), 2L)))
+}
+.final_two_row <- function(quantity, label, probability = FALSE) {
+  final <- list(.cov_cell(cov5_stat_tbl, quantity, probability),
+                .cov_cell(cov5_tbl, quantity, probability))
+  list(est = c(label, vapply(final, `[[`, character(1L), 1L)),
+       se = c("", vapply(final, `[[`, character(1L), 2L)))
+}
 .increment_effect_row <- function(quantity, label, probability = TRUE) {
   stat <- .model_cell(increment_tbl, quantity, "stationary", probability)
   free <- .model_cell(increment_tbl, quantity, "free", probability)
@@ -1139,6 +1223,31 @@ matching_tbl <- incons_audit$matching_comparison_table
   list(est = c(label, rep(omitted_value, 4L), stat[1L], free[1L]),
        se = c("", rep(omitted_se, 4L), stat[2L], free[2L]))
 }
+.pad_six_row <- function(row, values = c("---", "---"),
+                         ses = c("", "")) {
+  list(est = c(row$est, values), se = c(row$se, ses))
+}
+.eight_matching_only_row <- function(quantity, label, probability = TRUE,
+                                     omitted_value = "---",
+                                     omitted_se = "") {
+  .pad_six_row(.matching_only_row(
+    quantity, label, probability, omitted_value, omitted_se))
+}
+.eight_increment_effect_row <- function(quantity, label,
+                                        probability = TRUE) {
+  .pad_six_row(.increment_effect_row(quantity, label, probability),
+               values = c("0.00", "0.00"), ses = c("(fixed)", "(fixed)"))
+}
+.a3_select_row <- function(row) {
+  keep <- c(1L, 2L, 3L, 6L, 7L, 8L, 9L)
+  list(est = row$est[keep], se = row$se[keep])
+}
+.a3_model_row <- function(...) .a3_select_row(.eight_model_row(...))
+.a3_matching_only_row <- function(...)
+  .a3_select_row(.eight_matching_only_row(...))
+.a3_increment_effect_row <- function(...)
+  .a3_select_row(.eight_increment_effect_row(...))
+.a3_rows <- function(rows) lapply(rows, .a3_select_row)
 .stationarity_gap_row <- function() {
   basic_free <- .model_cell(main_tbl, "stationarity_gap", "free")
   increment_free <- .model_cell(increment_tbl, "stationarity_gap", "free")
@@ -1149,99 +1258,267 @@ matching_tbl <- incons_audit$matching_comparison_table
        se = c("", "(fixed)", basic_free[2L], "(fixed)", increment_free[2L],
               "(fixed)", matching_free[2L]))
 }
-table6_headers <- c("", paste0("(", 1:6, ")"))
-table6_sub_headers <- c(
-  " & \\multicolumn{2}{c}{Indicators only} & \\multicolumn{2}{c}{Indicators + large increments} & \\multicolumn{2}{c}{Plus matching indicators} \\\\ ",
+table8_headers <- c("", paste0("(", 1:6, ")"))
+table8_sub_headers <- c(
+  paste(c("", "\\multicolumn{2}{c}{\\shortstack{Inconsistency\\\\ indicators}}",
+          "\\multicolumn{2}{c}{\\shortstack{+ severity and\\\\ matching-rule indicators}}",
+          "\\multicolumn{2}{c}{\\shortstack{+ transition covariates\\\\ and inconsistency effects}}"),
+        collapse = " & ") %+% " \\\\ ",
   "\\cmidrule(lr){2-3}\\cmidrule(lr){4-5}\\cmidrule(lr){6-7}",
-  paste(c("", rep(c("Stationary", "Free $\\alpha$"), 3L)),
+  paste(c("", rep(c("Stationary", "Free $\\alpha$"), 2L),
+          "Conditional stat.", "Free $\\alpha$"),
         collapse = " & ") %+% " \\\\ "
 )
-table6_fit_rows <- list(
+table8_fit_rows <- lapply(list(
   list(est = c("Log-likelihood",
                .fmt_ll(incons_audit$stationary$loglik, 3L),
                .fmt_ll(incons_audit$free$loglik, 3L),
                .fmt_ll(incons_audit$extent_stationary$loglik, 3L),
                .fmt_ll(incons_audit$extent_free$loglik, 3L),
                .fmt_ll(incons_audit$matching_stationary$loglik, 3L),
-               .fmt_ll(incons_audit$matching_free$loglik, 3L)),
-       se = rep("", 7L)),
-  list(est = c("$N$", rep(.fmt_n(N_ext), 6L)), se = rep("", 7L)),
-  list(est = c("Stationarity imposed", rep(c("Yes", "No"), 3L)),
-       se = rep("", 7L)),
-  list(est = c("Large-increment effects", "No", "No", rep("Yes", 4L)),
-       se = rep("", 7L)),
-  list(est = c("Matching-quality indicators", rep("No", 4L), "Yes", "Yes"),
-       se = rep("", 7L))
+               .fmt_ll(incons_audit$matching_free$loglik, 3L),
+               .fmt_ll(transition_cov$column5_stationary$loglik, 3L),
+               .fmt_ll(transition_cov$column5$loglik, 3L)),
+       se = rep("", 9L)),
+  list(est = c("$N$", rep(.fmt_n(N_ext), 8L)), se = rep("", 9L)),
+  list(est = c("Stationarity imposed", rep(c("Yes", "No"), 3L),
+               "Conditional", "No"), se = rep("", 9L)),
+  list(est = c("Inconsistency-severity effects", "No", "No", rep("Yes", 4L),
+               "No", "No"), se = rep("", 9L)),
+  list(est = c("Matching-rule indicators", rep("No", 4L), "Yes", "Yes",
+               "No", "No"), se = rep("", 9L)),
+  list(est = c("Set 2 transition covariates", rep("No", 6L), "Yes", "Yes"),
+       se = rep("", 9L)),
+  list(est = c("Inconsistency effects in transitions", rep("No", 6L), "Yes", "Yes"),
+       se = rep("", 9L))
+), .a3_select_row)
+table3_headers <- c("", paste0("(", 1:3, ")"))
+table3_sub_headers <- paste(
+  c("", "\\shortstack{Inconsistency\\\\ indicators}",
+    "\\shortstack{+ severity and\\\\ matching-rule indicators}",
+    "\\shortstack{+ transition covariates\\\\ and inconsistency effects}"),
+  collapse = " & ") %+% " \\\\ "
+table3_fit_rows <- list(
+  list(est = c("Log-likelihood",
+               .fmt_ll(incons_audit$free$loglik, 3L),
+               .fmt_ll(incons_audit$matching_free$loglik, 3L),
+               .fmt_ll(transition_cov$column5$loglik, 3L)),
+       se = rep("", 4L)),
+  list(est = c("$N$", rep(.fmt_n(N_ext), 3L)), se = rep("", 4L)),
+  list(est = c("Inconsistency-severity effects", "No", "Yes", "No"),
+       se = rep("", 4L)),
+  list(est = c("Matching-rule indicators", "No", "Yes", "No"),
+       se = rep("", 4L)),
+  list(est = c("Set 2 transition covariates", "No", "No", "Yes"),
+       se = rep("", 4L)),
+  list(est = c("Inconsistency effects in transitions", "No", "No", "Yes"),
+       se = rep("", 4L))
 )
 
 .write_latex_table(
-  col_headers = table6_headers,
-  sub_headers = table6_sub_headers,
+  col_headers = table3_headers,
+  sub_headers = table3_sub_headers,
   row_data = list(
     list(header = NULL, rows = list(
-      .six_model_row("entry_rate", "entry_rate", "Entry rate (\\%)"),
-      .six_model_row("exit_rate", "exit_rate", "Exit rate (\\%)"),
-      .six_model_row("mean_pi_survey_weighted", "mean_pi_survey_weighted",
-                      "Misclassification rate (\\%)"),
-      .six_model_row("initial_employment", "initial_employment",
-        "Initial employment rate (\\%)", basic_stationary_quantity = "steady_employment")
+      .three_selected_main_row("entry_rate", "entry_rate", "mean_entry_rate",
+                               "Entry rate (\\%)"),
+      .three_selected_main_row("exit_rate", "exit_rate", "mean_exit_rate",
+                               "Exit rate (\\%)"),
+      .three_selected_main_row("mean_pi_survey_weighted",
+        "mean_pi_survey_weighted", "mean_misclassification_rate",
+        "Misclassification rate (\\%)"),
+      .three_selected_main_row("initial_employment", "initial_employment",
+                               "initial_employment",
+                               "Initial employment rate (\\%)")
     )),
-    list(header = NULL, rows = table6_fit_rows)
+    list(header = NULL, rows = table3_fit_rows)
   ),
-  caption = "Age- and education-inconsistency models",
+  caption = "Reported-characteristic inconsistencies",
   label = "tab:inconsistency",
   path = file.path(tables_ext_dir, "table_inconsistency.tex"),
-  note = "Entry, exit, and mean misclassification probabilities are reported on a common percentage scale. Mean misclassification averages individual-wave predictions using survey weights. Columns (5)--(6) add person-wave indicators for observations included in matching panel B but not C and in panel A but not B, using the Table 2 sample-construction rules. Analytical standard errors in parentheses use the survey-weighted sandwich covariance and delta method. Under stationarity, initial and steady-state employment coincide. An inconsistency may arise from response error, matching error, or both."
+  note = "All specifications estimate initial employment freely. Each misclassification equation includes age, education, race, and gender inconsistency indicators plus mutually exclusive indicators for exactly two, three, or four inconsistencies (zero or one is omitted); race and gender disagreements are attributed to waves using the same adjacent-wave logic as matching rule B in Table 2. Column (2) adds age and education severity effects and the matching-rule indicators. Column (3) instead combines this error equation with Set 2 transition covariates and the four origin-wave inconsistency effects in both entry and persistence. Its entry and exit rates are posterior risk-set, survey-weighted means. Mean misclassification averages individual-wave predictions using survey weights. Analytical standard errors use the survey-weighted sandwich covariance and delta method. An inconsistency may arise from response error, matching error, or both."
 )
 
 .write_latex_table(
-  col_headers = table6_headers,
-  sub_headers = table6_sub_headers,
+  col_headers = table8_headers,
+  sub_headers = table8_sub_headers,
   row_data = list(
-    list(header = "Employment-state transformations", rows = list(
-      .six_model_row("steady_employment", "steady_employment",
-                      "Steady-state employment (\\%)"),
-      .stationarity_gap_row()
-    )),
-    list(header = "Misclassification by inconsistency pattern", rows = list(
-      .six_model_row("pi_base", "pi_base", "No inconsistency (\\%)"),
-      .six_model_row("pi_age", "pi_age_mild", "Age inconsistency (\\%)"),
-      .six_model_row("pi_age", "pi_age_severe", "Age inconsistency, large (\\%)"),
-      .six_model_row("pi_education", "pi_education_mild", "Education inconsistency (\\%)"),
-      .six_model_row("pi_education", "pi_education_severe",
-                      "Education inconsistency, large (\\%)"),
-      .six_model_row("pi_both", "pi_both_mild", "Both inconsistencies (\\%)"),
-      .six_model_row("pi_both", "pi_both_both_severe",
-                      "Both inconsistencies, both large (\\%)"),
-      .matching_only_row("pi_B_not_C", "Panel B but not C, no inconsistency (\\%)"),
-      .matching_only_row("pi_A_not_B", "Panel A but not B, no inconsistency (\\%)")
-    )),
-    list(header = "Probability increments", rows = list(
-      .increment_effect_row("age_severity_effect", "Additional large age increment (p.p.)"),
-      .increment_effect_row("education_severity_effect",
-                            "Additional large education increment (p.p.)"),
-      .matching_only_row("B_not_C_effect", "Panel B-not-C increment (p.p.)"),
-      .matching_only_row("A_not_B_effect", "Panel A-not-B increment (p.p.)")
-    )),
-    list(header = "Logistic-link coefficients", rows = list(
-      .six_model_row("delta0", "delta0", "$\\delta_0$ (intercept)", FALSE),
-      .six_model_row("delta_age", "delta_age", "$\\delta_1$ (age inconsistency)", FALSE),
-      .six_model_row("delta_education", "delta_education",
-                      "$\\delta_2$ (education inconsistency)", FALSE),
-      .increment_effect_row("delta_age_severe", "$\\delta_3$ (large age increment)", FALSE),
-      .increment_effect_row("delta_education_severe",
-                            "$\\delta_4$ (large education increment)", FALSE),
-      .matching_only_row("delta_B_not_C", "$\\delta_5$ (panel B but not C)",
-                         FALSE, "0.000", "(fixed)"),
-      .matching_only_row("delta_A_not_B", "$\\delta_6$ (panel A but not B)",
-                         FALSE, "0.000", "(fixed)")
-    )),
-    list(header = NULL, rows = table6_fit_rows)
+    list(header = "Implied rates", rows = .a3_rows(list(
+      .eight_model_row("entry_rate", "entry_rate", "Entry rate (\\%)",
+                       "mean_entry_rate"),
+      .eight_model_row("exit_rate", "exit_rate", "Exit rate (\\%)",
+                       "mean_exit_rate"),
+      .eight_model_row("initial_employment", "initial_employment",
+                       "Initial employment rate (\\%)", "initial_employment",
+                       basic_stationary_quantity = "steady_employment")
+    ))),
+    list(header = "Employment-state transformations", rows = .a3_rows(list(
+      .pad_six_row(.six_model_row("steady_employment", "steady_employment",
+                                  "Steady-state employment (\\%)")),
+      .pad_six_row(.stationarity_gap_row())
+    ))),
+    list(header = "Distribution of predicted misclassification probabilities",
+         rows = .a3_rows(list(
+      .eight_model_row("min_pi_survey_weighted", "min_pi_survey_weighted",
+                       "Lowest (\\%)", "min_misclassification_probability"),
+      .eight_model_row("median_pi_survey_weighted", "median_pi_survey_weighted",
+                       "Median (\\%)", "median_misclassification_probability"),
+      .eight_model_row("mean_pi_survey_weighted", "mean_pi_survey_weighted",
+                       "Mean (\\%)", "mean_misclassification_rate"),
+      .eight_model_row("max_pi_survey_weighted", "max_pi_survey_weighted",
+                       "Highest (\\%)", "max_misclassification_probability")
+    ))),
+    list(header = "Logistic-link coefficients", rows = .a3_rows(list(
+      .eight_model_row("delta0", "delta0", "$\\delta_0$ (intercept)",
+                       "error_intercept", FALSE),
+      .eight_model_row("delta_age", "delta_age",
+                       "$\\delta_1$ (age inconsistency)",
+                       "age_inconsistency", FALSE),
+      .eight_model_row("delta_education", "delta_education",
+                       "$\\delta_2$ (education inconsistency)",
+                       "education_inconsistency", FALSE),
+      .eight_model_row("delta_race", "delta_race",
+                       "$\\delta_3$ (race inconsistency)",
+                       "race_inconsistency", FALSE),
+      .eight_model_row("delta_gender", "delta_gender",
+                       "$\\delta_4$ (gender inconsistency)",
+                       "gender_inconsistency", FALSE),
+      .eight_model_row("delta_two_inconsistencies", "delta_two_inconsistencies",
+                       "Exactly two inconsistencies", "two_inconsistencies", FALSE),
+      .eight_model_row("delta_three_inconsistencies", "delta_three_inconsistencies",
+                       "Exactly three inconsistencies", "three_inconsistencies", FALSE),
+      .eight_model_row("delta_four_inconsistencies", "delta_four_inconsistencies",
+                       "Exactly four inconsistencies", "four_inconsistencies", FALSE),
+      .eight_increment_effect_row("delta_age_severe",
+                                  "$\\delta_5$ (large age increment)", FALSE),
+      .eight_increment_effect_row("delta_education_severe",
+                                  "$\\delta_6$ (large education increment)", FALSE),
+      .eight_matching_only_row("delta_B_not_C",
+                               "$\\delta_7$ (panel B but not C)",
+                               FALSE, "0.000", "(fixed)"),
+      .eight_matching_only_row("delta_A_not_B",
+                               "$\\delta_8$ (panel A but not B)",
+                               FALSE, "0.000", "(fixed)")
+    ))),
+    list(header = NULL, rows = table8_fit_rows)
   ),
-  caption = "Age- and education-inconsistency models: supplementary estimates",
-  label = "tab:inconsistency_appendix",
-  path = file.path(tables_ext_dir, "table_inconsistency_appendix.tex"),
-  note = "Probabilities and increments are percentages or percentage points; logit coefficients are untransformed. A large inconsistency lies at least two units beyond the admissible progression. Panel-membership probabilities set age and education inconsistencies to zero and vary one matching indicator at a time. Analytical standard errors use the survey-weighted sandwich covariance and delta method."
+  caption = "Reported-characteristic inconsistencies: implied rates and error equation",
+  label = "tab:inconsistency_details",
+  path = file.path(tables_ext_dir, "table_inconsistency_details.tex"),
+  note = "The table retains stationary and free-initial-employment versions of the same three specifications shown in Table 3. Misclassification summaries describe the survey-weighted distribution of predicted person-wave probabilities over the estimation sample; lowest and highest are the observed-support extrema. Error-equation coefficients are on the half-logit index. Exact-count indicators are mutually exclusive and omit zero or one inconsistency. In the conditionally stationary preferred model, each person's wave-1 initial employment probability is implied by their wave-1 covariate-specific entry and exit hazards; later hazards may change with origin-wave inconsistencies. Parentheses contain analytical sandwich/delta standard errors."
+)
+
+.write_latex_table(
+  col_headers = c("", "Conditional stat.", "Free $\\alpha$"),
+  row_data = list(
+    list(header = "Entry coefficients (probit index)", rows =
+      lapply(transition_cov$design$column5, function(term)
+        .final_two_row(paste0("entry_", term),
+                       gsub("_", " ", term, fixed = TRUE)))),
+    list(header = "Persistence coefficients (probit index)", rows =
+      lapply(transition_cov$design$column5, function(term)
+        .final_two_row(paste0("persistence_", term),
+                       gsub("_", " ", term, fixed = TRUE))))
+  ),
+  caption = "Transition-covariate specification: transition coefficients",
+  label = "tab:inconsistency_details_coefficients",
+  path = file.path(tables_ext_dir,
+                   "table_inconsistency_details_coefficients.tex"),
+  note = "The conditional-stationarity column derives each person's wave-1 initial employment probability from their wave-1 covariate-specific entry and exit hazards; the free column estimates one common initial probability. Parentheses contain analytical sandwich standard errors."
+)
+
+.write_latex_table(
+  col_headers = c("", "Conditional stat.", "Free $\\alpha$"),
+  row_data = list(
+    list(header = "Misclassification coefficients (half-logit index)", rows = list(
+      .final_two_row("error_intercept", "Intercept"),
+      .final_two_row("age_inconsistency", "Age inconsistency"),
+      .final_two_row("education_inconsistency", "Education inconsistency"),
+      .final_two_row("race_inconsistency", "Race inconsistency"),
+      .final_two_row("gender_inconsistency", "Gender inconsistency"),
+      .final_two_row("two_inconsistencies", "Exactly two inconsistencies"),
+      .final_two_row("three_inconsistencies", "Exactly three inconsistencies"),
+      .final_two_row("four_inconsistencies", "Exactly four inconsistencies")
+    )),
+    list(header = "Initial state and diagnostics", rows = list(
+      .final_two_row("initial_employment", "Mean initial employment probability"),
+      list(est = c("Log-likelihood",
+        .fmt_ll(transition_cov$column5_stationary$loglik, 3L),
+        .fmt_ll(transition_cov$column5$loglik, 3L)), se = rep("", 3L)),
+      list(est = c("Information rank",
+        paste0(transition_cov$column5_stationary_inference$diagnostics$information_rank,
+               "/", transition_cov$column5_stationary_inference$diagnostics$K),
+        paste0(transition_cov$column5_inference$diagnostics$information_rank,
+               "/", transition_cov$column5_inference$diagnostics$K)),
+        se = rep("", 3L)),
+      list(est = c("Information condition number",
+        formatC(transition_cov$column5_stationary_inference$diagnostics$information_condition,
+                format = "fg", digits = 4),
+        formatC(transition_cov$column5_inference$diagnostics$information_condition,
+                format = "fg", digits = 4)), se = rep("", 3L)),
+      list(est = c("$N$", rep(.fmt_n(N_ext), 2L)), se = rep("", 3L))
+    ))
+  ),
+  caption = "Transition-covariate specification: misclassification coefficients and diagnostics",
+  label = "tab:inconsistency_details_diagnostics",
+  path = file.path(tables_ext_dir,
+                   "table_inconsistency_details_diagnostics.tex"),
+  note = "The conditional-stationarity column derives each person's wave-1 initial employment probability from their wave-1 covariate-specific entry and exit hazards; the free column estimates one common initial probability. The likelihoods are not nested because only the former allows observed initial-state heterogeneity. Parentheses contain analytical sandwich/delta standard errors."
+)
+
+.write_latex_table(
+  col_headers = c("", "(A)", "(B)"),
+  sub_headers = paste(c("", "Set 2 transition covariates",
+                        "+ inconsistency effects, free $\\alpha$"),
+                      collapse = " & ") %+% " \\\\ ",
+  row_data = list(
+    list(header = "Origin-wave inconsistency coefficients: entry", rows = list(
+      .cov5_only_row("entry_origin_age_inconsistency", "Age inconsistency"),
+      .cov5_only_row("entry_origin_education_inconsistency", "Education inconsistency"),
+      .cov5_only_row("entry_origin_race_inconsistency", "Race inconsistency"),
+      .cov5_only_row("entry_origin_gender_inconsistency", "Gender inconsistency")
+    )),
+    list(header = "Origin-wave inconsistency coefficients: persistence", rows = list(
+      .cov5_only_row("persistence_origin_age_inconsistency", "Age inconsistency"),
+      .cov5_only_row("persistence_origin_education_inconsistency", "Education inconsistency"),
+      .cov5_only_row("persistence_origin_race_inconsistency", "Race inconsistency"),
+      .cov5_only_row("persistence_origin_gender_inconsistency", "Gender inconsistency")
+    )),
+    list(header = "Misclassification-equation coefficients", rows = list(
+      .two_cov_row("error_intercept", "Intercept"),
+      .two_cov_row("age_inconsistency", "Age inconsistency"),
+      .two_cov_row("education_inconsistency", "Education inconsistency"),
+      .two_cov_row("race_inconsistency", "Race inconsistency"),
+      .two_cov_row("gender_inconsistency", "Gender inconsistency")
+    )),
+    list(header = "Implied misclassification probabilities", rows = list(
+      .two_cov_row("pi_base", "No inconsistency (\\%)", TRUE),
+      .two_cov_row("pi_age_mild", "Age inconsistency (\\%)", TRUE),
+      .two_cov_row("pi_education_mild", "Education inconsistency (\\%)", TRUE),
+      .two_cov_row("pi_race", "Race inconsistency (\\%)", TRUE),
+      .two_cov_row("pi_gender", "Gender inconsistency (\\%)", TRUE)
+    )),
+    list(header = NULL, rows = list(
+      list(est = c("Log-likelihood",
+        .fmt_ll(transition_cov$column4$loglik, 3L),
+        .fmt_ll(transition_cov$column5$loglik, 3L)), se = rep("", 3L)),
+      list(est = c("Information rank",
+        paste0(transition_cov$column4_inference$diagnostics$information_rank, "/",
+               transition_cov$column4_inference$diagnostics$K),
+        paste0(transition_cov$column5_inference$diagnostics$information_rank, "/",
+               transition_cov$column5_inference$diagnostics$K)), se = rep("", 3L)),
+      list(est = c("Information condition number",
+        formatC(transition_cov$column4_inference$diagnostics$information_condition,
+                format = "fg", digits = 4),
+        formatC(transition_cov$column5_inference$diagnostics$information_condition,
+                format = "fg", digits = 4)), se = rep("", 3L)),
+      list(est = c("$N$", rep(.fmt_n(N_ext), 2L)), se = rep("", 3L))
+    ))
+  ),
+  caption = "Transition-covariate specifications",
+  label = "tab:inconsistency_transition_covariates",
+  path = file.path(tables_ext_dir, "table_inconsistency_transition_covariates.tex"),
+  note = "Transition equations use probit links; the misclassification equation uses the half-logit link. Column (B) adds origin-wave inconsistency effects to both entry and persistence. The complete coefficients for this specification under free initial employment and conditional stationarity appear in Appendix Table A3, Panel B. Analytical standard errors use the survey-weighted sandwich covariance and delta method."
 )
 
 group_tbl <- incons_audit$reliability_group_table

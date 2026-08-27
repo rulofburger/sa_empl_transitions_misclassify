@@ -1,5 +1,5 @@
 # ==============================================================================
-# Replicate and audit Table 6: inconsistency-dependent misclassification
+# Replicate and audit current Table 3 (legacy script/output names retain table6)
 #
 # This script estimates the observed-data likelihood directly after collapsing
 # identical outcome/inconsistency histories.  It avoids the non-monotone
@@ -9,16 +9,22 @@
 
 library(here)
 library(dplyr)
-library(tidyverse)
+library(ggplot2)
 
 source(here::here("EM-baseline", "R", "source_all.R"))
 source(here::here("EM-baseline-ext", "R", "source_all.R"))
 source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
+.base_delta_names <- c("delta0", "delta_age", "delta_education",
+                       "delta_race", "delta_gender",
+                       "delta_two_inconsistencies",
+                       "delta_three_inconsistencies",
+                       "delta_four_inconsistencies")
+
 .inc_names <- function(stationary) {
   out <- c("theta0", "theta1")
   if (!stationary) out <- c(out, "alpha")
-  c(out, "delta0", "delta_age", "delta_education")
+  c(out, .base_delta_names)
 }
 
 .unpack_inc <- function(eta, stationary) {
@@ -28,7 +34,7 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   alpha <- if (stationary) stationary_alpha(theta0, theta1) else plogis(eta["alpha"])
   list(
     theta0 = unname(theta0), theta1 = unname(theta1), alpha = unname(alpha),
-    delta = unname(eta[c("delta0", "delta_age", "delta_education")])
+    delta = eta[.base_delta_names]
   )
 }
 
@@ -37,8 +43,117 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   out <- c(theta0 = qlogis(clamp(params$theta0)),
            theta1 = qlogis(clamp(params$theta1)))
   if (!stationary) out <- c(out, alpha = qlogis(clamp(params$alpha)))
-  c(out, delta0 = params$delta[1L], delta_age = params$delta[2L],
-    delta_education = params$delta[3L])
+  c(out, setNames(unname(params$delta[.base_delta_names]), .base_delta_names))
+}
+
+.base_error_index <- function(delta, pattern) {
+  delta <- setNames(as.numeric(delta), .base_delta_names)
+  delta["delta0"] +
+    delta["delta_age"] * as.matrix(pattern[, paste0("Y_age_", 1:3)]) +
+    delta["delta_education"] * as.matrix(pattern[, paste0("Y_edu_", 1:3)]) +
+    delta["delta_race"] * as.matrix(pattern[, paste0("Y_race_", 1:3)]) +
+    delta["delta_gender"] * as.matrix(pattern[, paste0("Y_gender_", 1:3)]) +
+    delta["delta_two_inconsistencies"] *
+      as.matrix(pattern[, paste0("Y_exactly_2_", 1:3)]) +
+    delta["delta_three_inconsistencies"] *
+      as.matrix(pattern[, paste0("Y_exactly_3_", 1:3)]) +
+    delta["delta_four_inconsistencies"] *
+      as.matrix(pattern[, paste0("Y_exactly_4_", 1:3)])
+}
+
+.base_error_design <- function(pattern) {
+  lapply(1:3, function(tt) {
+    out <- cbind(
+      delta0 = 1,
+      delta_age = pattern[[paste0("Y_age_", tt)]],
+      delta_education = pattern[[paste0("Y_edu_", tt)]],
+      delta_race = pattern[[paste0("Y_race_", tt)]],
+      delta_gender = pattern[[paste0("Y_gender_", tt)]],
+      delta_two_inconsistencies = pattern[[paste0("Y_exactly_2_", tt)]],
+      delta_three_inconsistencies = pattern[[paste0("Y_exactly_3_", tt)]],
+      delta_four_inconsistencies = pattern[[paste0("Y_exactly_4_", tt)]])
+    storage.mode(out) <- "double"
+    out
+  })
+}
+
+.inc_cell_detail <- function(params, pattern, stationary, design = NULL) {
+  latent <- latent_histories(); H <- nrow(latent); n <- nrow(pattern)
+  prior <- prior_over_histories(latent, params$theta1, params$theta0,
+                                params$alpha)
+  joint <- matrix(prior, n, H, byrow = TRUE)
+  y <- as.matrix(pattern[, c("y1", "y2", "y3")])
+  if (is.null(design)) design <- .base_error_design(pattern)
+  mismatch_masks <- vector("list", 3L)
+  pi_wave <- vector("list", 3L)
+  for (tt in 1:3) {
+    pi <- pmin(pmax(0.5 * plogis(as.vector(
+      design[[tt]] %*% params$delta)), 1e-9), 0.5 - 1e-9)
+    mismatch <- outer(y[, tt], latent[, tt], "!=")
+    emission <- matrix(1 - pi, n, H)
+    emission[mismatch] <- matrix(pi, n, H)[mismatch]
+    joint <- joint * emission
+    mismatch_masks[[tt]] <- mismatch
+    pi_wave[[tt]] <- pi
+  }
+  probability <- rowSums(joint)
+  posterior <- joint / probability
+
+  score0 <- score1 <- numeric(n)
+  for (tt in 1:2) {
+    hf <- latent[, tt]; ht <- latent[, tt + 1L]
+    risk0 <- as.vector(posterior %*% as.integer(hf == 0L))
+    risk1 <- as.vector(posterior %*% as.integer(hf == 1L))
+    succ0 <- as.vector(posterior %*% as.integer(hf == 0L & ht == 1L))
+    succ1 <- as.vector(posterior %*% as.integer(hf == 1L & ht == 1L))
+    score0 <- score0 + succ0 - params$theta0 * risk0
+    score1 <- score1 + succ1 - params$theta1 * risk1
+  }
+  initial_residual <- as.vector(posterior %*% latent[, 1L]) - params$alpha
+  if (stationary) {
+    score0 <- score0 + initial_residual * (1 - params$theta0)
+    score1 <- score1 + initial_residual * params$theta1
+    score <- cbind(theta0 = score0, theta1 = score1)
+  } else {
+    score <- cbind(theta0 = score0, theta1 = score1,
+                   alpha = initial_residual)
+  }
+  delta_score <- matrix(0, n, length(params$delta),
+                        dimnames = list(NULL, names(params$delta)))
+  for (tt in 1:3) {
+    expected_mismatch <- rowSums(posterior * mismatch_masks[[tt]])
+    pi <- pi_wave[[tt]]
+    scalar <- (expected_mismatch - pi) * (1 - 2 * pi) / (1 - pi)
+    delta_score <- delta_score + design[[tt]] * scalar
+  }
+  list(probability = probability, scores = cbind(score, delta_score))
+}
+
+.conditional_pi_by_count <- function(pi_mat, cells) {
+  components <- c("age", "edu", "race", "gender")
+  count_mat <- Reduce(`+`, lapply(components, function(x)
+    as.matrix(cells$pattern[, paste0("Y_", x, "_", 1:3)])))
+  out <- vapply(0:4, function(kk) {
+    selected <- count_mat == kk
+    denominator <- sum(cells$weight * rowSums(selected))
+    if (denominator <= 0) return(NA_real_)
+    sum(cells$weight * rowSums(pi_mat * selected)) / denominator
+  }, numeric(1L))
+  names(out) <- paste0("pi_count_", 0:4)
+  out
+}
+
+.pi_distribution_summary <- function(pi_mat, cells) {
+  values <- as.vector(pi_mat)
+  weights <- rep(cells$weight, times = ncol(pi_mat))
+  keep <- is.finite(values) & is.finite(weights) & weights > 0
+  values <- values[keep]; weights <- weights[keep]
+  ord <- order(values)
+  values <- values[ord]; weights <- weights[ord]
+  median_index <- which(cumsum(weights) >= sum(weights) / 2)[1L]
+  c(min_pi_survey_weighted = values[1L],
+    median_pi_survey_weighted = values[median_index],
+    max_pi_survey_weighted = values[length(values)])
 }
 
 .collapse_inc_cells <- function(df, inc_mat) {
@@ -54,23 +169,8 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
        count = n, n = nrow(df), weight_sum = sum(df$weight))
 }
 
-.inc_cell_probabilities <- function(params, pattern) {
-  latent <- latent_histories()
-  prior <- prior_over_histories(latent, params$theta1, params$theta0, params$alpha)
-  y <- as.matrix(pattern[, c("y1", "y2", "y3")])
-  age <- as.matrix(pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(pattern[, paste0("Y_edu_", 1:3)])
-  pi_mat <- 0.5 * plogis(params$delta[1L] + params$delta[2L] * age +
-                           params$delta[3L] * edu)
-  out <- numeric(nrow(pattern))
-  for (h in seq_len(nrow(latent))) {
-    emission <- matrix(1, nrow(pattern), 3L)
-    for (tt in 1:3)
-      emission[, tt] <- ifelse(y[, tt] == latent[h, tt],
-                               1 - pi_mat[, tt], pi_mat[, tt])
-    out <- out + prior[h] * apply(emission, 1L, prod)
-  }
-  out
+.inc_cell_probabilities <- function(params, pattern, stationary) {
+  .inc_cell_detail(params, pattern, stationary)$probability
 }
 
 .numeric_jacobian_inc <- function(fn, x, rel_step = 1e-5) {
@@ -93,13 +193,21 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
 .fit_inc_mle <- function(cells, stationary, starts, verbose = TRUE) {
   fn <- function(eta) {
-    p <- pmax(.inc_cell_probabilities(.unpack_inc(eta, stationary), cells$pattern),
-              1e-300)
+    p <- pmax(.inc_cell_detail(.unpack_inc(eta, stationary), cells$pattern,
+                              stationary)$probability, 1e-300)
     -sum(cells$weight * log(p)) / cells$weight_sum
   }
-  candidates <- lapply(starts, function(start) {
+  gr <- function(eta) {
+    detail <- .inc_cell_detail(.unpack_inc(eta, stationary), cells$pattern,
+                               stationary)
+    -colSums(detail$scores * cells$weight) / cells$weight_sum
+  }
+  candidates <- lapply(seq_along(starts), function(i) {
+    if (verbose) cat(sprintf("  start %d/%d [stationary=%s]\n",
+                             i, length(starts), stationary))
+    start <- starts[[i]]
     eta0 <- .pack_inc(start, stationary)
-    opt <- tryCatch(optim(eta0, fn, method = "BFGS",
+    opt <- tryCatch(optim(eta0, fn, gr, method = "BFGS",
                           control = list(maxit = 4000L, reltol = 1e-12)),
                     error = function(e) NULL)
     if (is.null(opt) || !is.finite(opt$value)) return(NULL)
@@ -111,22 +219,22 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   best <- candidates[[which.max(vapply(candidates, `[[`, numeric(1L), "loglik"))]]
   eta <- best$eta
   params <- .unpack_inc(eta, stationary)
-  grad <- .numeric_gradient(fn, eta)
-  hessian <- optimHess(eta, fn)
+  grad <- gr(eta)
+  hessian <- optimHess(eta, fn, gr)
   hessian <- (hessian + t(hessian)) / 2
   eig <- eigen(hessian, symmetric = TRUE, only.values = TRUE)$values
 
   # Conditional probabilities provide seven independent outcome probabilities
   # for every distinct six-indicator history.  Stack their Jacobians to test
   # whether all local parameter directions change the observable distribution.
-  x_names <- c(paste0("Y_age_", 1:3), paste0("Y_edu_", 1:3))
+  x_names <- setdiff(names(cells$pattern), c("y1", "y2", "y3"))
   x_unique <- unique(cells$pattern[, x_names, drop = FALSE])
   outcomes <- as.matrix(expand.grid(y1 = 0:1, y2 = 0:1, y3 = 0:1))
   probability_map <- function(z) {
     blocks <- lapply(seq_len(nrow(x_unique)), function(i) {
       pp <- cbind(as.data.frame(outcomes),
                   x_unique[rep(i, 8L), , drop = FALSE])
-      .inc_cell_probabilities(.unpack_inc(z, stationary), pp)[1:7]
+      .inc_cell_probabilities(.unpack_inc(z, stationary), pp, stationary)[1:7]
     })
     unlist(blocks, use.names = FALSE)
   }
@@ -135,10 +243,7 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
   # Individual-level survey-weighted sandwich covariance, calculated exactly
   # from the collapsed pattern cells using sums of w_i and w_i^2.
-  score <- .numeric_jacobian_inc(function(z) {
-    log(pmax(.inc_cell_probabilities(.unpack_inc(z, stationary), cells$pattern),
-             1e-300))
-  }, eta)
+  score <- .inc_cell_detail(params, cells$pattern, stationary)$scores
   meat <- matrix(0, length(eta), length(eta))
   for (i in seq_len(nrow(score)))
     meat <- meat + cells$weight_sq[i] * tcrossprod(score[i, ])
@@ -148,7 +253,7 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   dimnames(vcov) <- list(names(eta), names(eta))
 
   if (verbose) cat(sprintf(
-    "Table 6 direct MLE [stationary=%s]: ll=%.3f code=%d max|score|=%.2e minEig=%.2e rank=%d/%d\n",
+    "Table 3 direct MLE [stationary=%s]: ll=%.3f code=%d max|score|=%.2e minEig=%.2e rank=%d/%d\n",
     stationary, best$loglik, best$opt$convergence, max(abs(grad)), min(eig),
     rank, length(eta)))
   list(params = params, eta = eta, loglik = best$loglik, vcov = vcov,
@@ -162,24 +267,42 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
 .inc_quantities <- function(eta, stationary, cells) {
   p <- .unpack_inc(eta, stationary)
-  pi0 <- 0.5 * plogis(p$delta[1L])
-  pi_age <- 0.5 * plogis(p$delta[1L] + p$delta[2L])
-  pi_edu <- 0.5 * plogis(p$delta[1L] + p$delta[3L])
-  pi_both <- 0.5 * plogis(sum(p$delta))
-  age <- as.matrix(cells$pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(cells$pattern[, paste0("Y_edu_", 1:3)])
-  pi_mat <- 0.5 * plogis(p$delta[1L] + p$delta[2L] * age + p$delta[3L] * edu)
+  scenario <- function(...) {
+    values <- c(...); z <- setNames(rep(0, length(.base_delta_names) - 1L),
+      setdiff(.base_delta_names, "delta0"))
+    z[names(values)] <- values
+    unname(0.5 * plogis(p$delta["delta0"] + sum(p$delta[names(z)] * z)))
+  }
+  pi0 <- scenario()
+  pi_age <- scenario(delta_age = 1)
+  pi_edu <- scenario(delta_education = 1)
+  pi_race <- scenario(delta_race = 1)
+  pi_gender <- scenario(delta_gender = 1)
+  pi_both <- scenario(delta_age = 1, delta_education = 1,
+                      delta_two_inconsistencies = 1)
+  pi_mat <- 0.5 * plogis(.base_error_index(p$delta, cells$pattern))
   mean_pi_weighted <- sum(cells$weight * rowSums(pi_mat)) / (3 * cells$weight_sum)
   mean_pi_unweighted <- sum(cells$count * rowSums(pi_mat)) / (3 * cells$n)
   steady <- p$theta0 / (p$theta0 + 1 - p$theta1)
   c(entry_rate = p$theta0, exit_rate = 1 - p$theta1,
     initial_employment = p$alpha, steady_employment = steady,
     stationarity_gap = p$alpha - steady,
-    delta0 = p$delta[1L], delta_age = p$delta[2L],
-    delta_education = p$delta[3L], pi_base = pi0,
+    delta0 = unname(p$delta["delta0"]),
+    delta_age = unname(p$delta["delta_age"]),
+    delta_education = unname(p$delta["delta_education"]),
+    delta_race = unname(p$delta["delta_race"]),
+    delta_gender = unname(p$delta["delta_gender"]),
+    delta_two_inconsistencies = unname(p$delta["delta_two_inconsistencies"]),
+    delta_three_inconsistencies = unname(p$delta["delta_three_inconsistencies"]),
+    delta_four_inconsistencies = unname(p$delta["delta_four_inconsistencies"]),
+    pi_base = pi0,
     pi_age = pi_age, age_effect = pi_age - pi0,
     pi_education = pi_edu, education_effect = pi_edu - pi0,
-    pi_both = pi_both, mean_pi_unweighted = mean_pi_unweighted,
+    pi_race = pi_race, race_effect = pi_race - pi0,
+    pi_gender = pi_gender, gender_effect = pi_gender - pi0,
+    pi_both = pi_both, .conditional_pi_by_count(pi_mat, cells),
+    .pi_distribution_summary(pi_mat, cells),
+    mean_pi_unweighted = mean_pi_unweighted,
     mean_pi_survey_weighted = mean_pi_weighted)
 }
 
@@ -193,14 +316,22 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 }
 
 .fit_custom_inc <- function(cells, eta_names, unpack, probabilities, starts,
-                            label) {
+                            label, design_function, stationary) {
+  design <- design_function(cells$pattern)
   fn <- function(eta) {
-    p <- pmax(probabilities(unpack(eta), cells$pattern), 1e-300)
+    p <- pmax(.inc_cell_detail(unpack(eta), cells$pattern, stationary,
+                              design)$probability, 1e-300)
     -sum(cells$weight * log(p)) / cells$weight_sum
   }
-  candidates <- lapply(starts, function(eta0) {
+  gr <- function(eta) {
+    detail <- .inc_cell_detail(unpack(eta), cells$pattern, stationary, design)
+    -colSums(detail$scores * cells$weight) / cells$weight_sum
+  }
+  candidates <- lapply(seq_along(starts), function(i) {
+    cat(sprintf("  %s: start %d/%d\n", label, i, length(starts)))
+    eta0 <- starts[[i]]
     eta0 <- setNames(as.numeric(eta0), eta_names)
-    opt <- tryCatch(optim(eta0, fn, method = "BFGS",
+    opt <- tryCatch(optim(eta0, fn, gr, method = "BFGS",
                           control = list(maxit = 5000L, reltol = 1e-12)),
                     error = function(e) NULL)
     if (is.null(opt) || !is.finite(opt$value)) return(NULL)
@@ -211,8 +342,8 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   if (!length(candidates)) stop(label, ": all optimization starts failed")
   best <- candidates[[which.max(vapply(candidates, `[[`, numeric(1L), "loglik"))]]
   eta <- best$eta
-  grad <- .numeric_gradient(fn, eta)
-  hessian <- optimHess(eta, fn); hessian <- (hessian + t(hessian)) / 2
+  grad <- gr(eta)
+  hessian <- optimHess(eta, fn, gr); hessian <- (hessian + t(hessian)) / 2
   eig <- eigen(hessian, symmetric = TRUE, only.values = TRUE)$values
 
   design_names <- setdiff(names(cells$pattern), c("y1", "y2", "y3"))
@@ -224,8 +355,7 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   }), use.names = FALSE)
   rank <- .matrix_rank_inc(.numeric_jacobian_inc(probability_map, eta))
 
-  score <- .numeric_jacobian_inc(function(z)
-    log(pmax(probabilities(unpack(z), cells$pattern), 1e-300)), eta)
+  score <- .inc_cell_detail(unpack(eta), cells$pattern, stationary, design)$scores
   meat <- matrix(0, length(eta), length(eta))
   for (i in seq_len(nrow(score)))
     meat <- meat + cells$weight_sq[i] * tcrossprod(score[i, ])
@@ -246,24 +376,23 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
 .group_eta_names <- c("theta0_reliable", "theta1_reliable", "alpha_reliable",
                       "theta0_unreliable", "theta1_unreliable", "alpha_unreliable",
-                      "delta0", "delta_age", "delta_education")
+                      .base_delta_names)
 
 .unpack_group <- function(eta) {
   eta <- setNames(as.numeric(eta), .group_eta_names)
   list(theta0 = plogis(eta[c("theta0_reliable", "theta0_unreliable")]),
        theta1 = plogis(eta[c("theta1_reliable", "theta1_unreliable")]),
        alpha = plogis(eta[c("alpha_reliable", "alpha_unreliable")]),
-       delta = unname(eta[c("delta0", "delta_age", "delta_education")]))
+       delta = eta[.base_delta_names])
 }
 
 .group_probabilities <- function(params, pattern) {
   latent <- latent_histories()
   y <- as.matrix(pattern[, c("y1", "y2", "y3")])
-  age <- as.matrix(pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(pattern[, paste0("Y_edu_", 1:3)])
-  unreliable <- as.integer(rowSums(cbind(age, edu)) > 0) + 1L
-  pi_mat <- 0.5 * plogis(params$delta[1L] + params$delta[2L] * age +
-                           params$delta[3L] * edu)
+  design_names <- unlist(lapply(c("age", "edu", "race", "gender"), function(x)
+    paste0("Y_", x, "_", 1:3)))
+  unreliable <- as.integer(rowSums(as.matrix(pattern[, design_names])) > 0) + 1L
+  pi_mat <- 0.5 * plogis(.base_error_index(params$delta, pattern))
   out <- numeric(nrow(pattern))
   for (g in 1:2) {
     idx <- which(unreliable == g)
@@ -271,11 +400,13 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
     prior <- prior_over_histories(latent, params$theta1[g], params$theta0[g],
                                   params$alpha[g])
     for (h in seq_len(nrow(latent))) {
-      emission <- matrix(1, length(idx), 3L)
-      for (tt in 1:3)
-        emission[, tt] <- ifelse(y[idx, tt] == latent[h, tt],
-                                 1 - pi_mat[idx, tt], pi_mat[idx, tt])
-      out[idx] <- out[idx] + prior[h] * apply(emission, 1L, prod)
+      e1 <- ifelse(y[idx, 1L] == latent[h, 1L],
+                   1 - pi_mat[idx, 1L], pi_mat[idx, 1L])
+      e2 <- ifelse(y[idx, 2L] == latent[h, 2L],
+                   1 - pi_mat[idx, 2L], pi_mat[idx, 2L])
+      e3 <- ifelse(y[idx, 3L] == latent[h, 3L],
+                   1 - pi_mat[idx, 3L], pi_mat[idx, 3L])
+      out[idx] <- out[idx] + prior[h] * e1 * e2 * e3
     }
   }
   out
@@ -283,88 +414,120 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 
 .group_quantities <- function(eta, cells) {
   p <- .unpack_group(eta)
-  pi0 <- 0.5 * plogis(p$delta[1L])
-  pi_age <- 0.5 * plogis(p$delta[1L] + p$delta[2L])
-  pi_edu <- 0.5 * plogis(p$delta[1L] + p$delta[3L])
-  age <- as.matrix(cells$pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(cells$pattern[, paste0("Y_edu_", 1:3)])
-  pi_mat <- 0.5 * plogis(p$delta[1L] + p$delta[2L] * age + p$delta[3L] * edu)
+  pi0 <- unname(0.5 * plogis(p$delta["delta0"]))
+  pi_age <- unname(0.5 * plogis(p$delta["delta0"] + p$delta["delta_age"]))
+  pi_edu <- unname(0.5 * plogis(p$delta["delta0"] + p$delta["delta_education"]))
+  pi_race <- unname(0.5 * plogis(p$delta["delta0"] + p$delta["delta_race"]))
+  pi_gender <- unname(0.5 * plogis(p$delta["delta0"] + p$delta["delta_gender"]))
+  pi_mat <- 0.5 * plogis(.base_error_index(p$delta, cells$pattern))
   c(entry_reliable = unname(p$theta0[1L]),
     exit_reliable = unname(1 - p$theta1[1L]),
     initial_reliable = unname(p$alpha[1L]),
     entry_unreliable = unname(p$theta0[2L]),
     exit_unreliable = unname(1 - p$theta1[2L]),
     initial_unreliable = unname(p$alpha[2L]),
-    delta0 = p$delta[1L], delta_age = p$delta[2L], delta_education = p$delta[3L],
+    delta0 = unname(p$delta["delta0"]),
+    delta_age = unname(p$delta["delta_age"]),
+    delta_education = unname(p$delta["delta_education"]),
+    delta_race = unname(p$delta["delta_race"]),
+    delta_gender = unname(p$delta["delta_gender"]),
     pi_base = pi0, pi_age = pi_age, age_effect = pi_age - pi0,
     pi_education = pi_edu, education_effect = pi_edu - pi0,
+    pi_race = pi_race, race_effect = pi_race - pi0,
+    pi_gender = pi_gender, gender_effect = pi_gender - pi0,
     mean_pi_survey_weighted = sum(cells$weight * rowSums(pi_mat)) /
       (3 * cells$weight_sum))
 }
 
 .extent_eta_names <- function(stationary) c("theta0", "theta1",
-  if (!stationary) "alpha", "delta0", "delta_age", "delta_education",
+  if (!stationary) "alpha", .base_delta_names,
   "delta_age_severe", "delta_education_severe")
+
+.extent_error_design <- function(pattern) {
+  base <- .base_error_design(pattern)
+  lapply(1:3, function(tt) cbind(base[[tt]],
+    delta_age_severe = pattern[[paste0("severe_age_", tt)]],
+    delta_education_severe = pattern[[paste0("severe_edu_", tt)]]))
+}
 
 .unpack_extent <- function(eta, stationary) {
   eta <- setNames(as.numeric(eta), .extent_eta_names(stationary))
   theta0 <- plogis(eta["theta0"]); theta1 <- plogis(eta["theta1"])
   alpha <- if (stationary) stationary_alpha(theta0, theta1) else plogis(eta["alpha"])
   list(theta0 = theta0, theta1 = theta1, alpha = alpha,
-       delta = unname(eta[c("delta0", "delta_age", "delta_education",
-                            "delta_age_severe", "delta_education_severe")]))
+       delta = eta[c(.base_delta_names,
+                     "delta_age_severe", "delta_education_severe")])
 }
 
 .extent_probabilities <- function(params, pattern) {
   latent <- latent_histories()
   prior <- prior_over_histories(latent, params$theta1, params$theta0, params$alpha)
   y <- as.matrix(pattern[, c("y1", "y2", "y3")])
-  age <- as.matrix(pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(pattern[, paste0("Y_edu_", 1:3)])
   age_extent <- as.matrix(pattern[, paste0("severe_age_", 1:3)])
   edu_extent <- as.matrix(pattern[, paste0("severe_edu_", 1:3)])
-  pi_mat <- 0.5 * plogis(params$delta[1L] + params$delta[2L] * age +
-    params$delta[3L] * edu + params$delta[4L] * age_extent +
-    params$delta[5L] * edu_extent)
+  pi_mat <- 0.5 * plogis(.base_error_index(params$delta, pattern) +
+    params$delta["delta_age_severe"] * age_extent +
+    params$delta["delta_education_severe"] * edu_extent)
   out <- numeric(nrow(pattern))
   for (h in seq_len(nrow(latent))) {
-    emission <- matrix(1, nrow(pattern), 3L)
-    for (tt in 1:3)
-      emission[, tt] <- ifelse(y[, tt] == latent[h, tt],
-                               1 - pi_mat[, tt], pi_mat[, tt])
-    out <- out + prior[h] * apply(emission, 1L, prod)
+    e1 <- ifelse(y[, 1L] == latent[h, 1L], 1 - pi_mat[, 1L], pi_mat[, 1L])
+    e2 <- ifelse(y[, 2L] == latent[h, 2L], 1 - pi_mat[, 2L], pi_mat[, 2L])
+    e3 <- ifelse(y[, 3L] == latent[h, 3L], 1 - pi_mat[, 3L], pi_mat[, 3L])
+    out <- out + prior[h] * e1 * e2 * e3
   }
   out
 }
 
 .extent_quantities <- function(eta, cells, stationary) {
   p <- .unpack_extent(eta, stationary); d <- p$delta
-  scenario_pi <- function(age, edu, age_extent, edu_extent)
-    0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
-                   d[4L] * age_extent + d[5L] * edu_extent)
-  age <- as.matrix(cells$pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(cells$pattern[, paste0("Y_edu_", 1:3)])
+  scenario_pi <- function(age = 0, edu = 0, race = 0, gender = 0,
+                          age_extent = 0, edu_extent = 0,
+                          two = 0, three = 0, four = 0)
+    unname(0.5 * plogis(d["delta0"] + d["delta_age"] * age +
+      d["delta_education"] * edu + d["delta_race"] * race +
+      d["delta_gender"] * gender +
+      d["delta_two_inconsistencies"] * two +
+      d["delta_three_inconsistencies"] * three +
+      d["delta_four_inconsistencies"] * four +
+      d["delta_age_severe"] * age_extent +
+      d["delta_education_severe"] * edu_extent))
   age_extent <- as.matrix(cells$pattern[, paste0("severe_age_", 1:3)])
   edu_extent <- as.matrix(cells$pattern[, paste0("severe_edu_", 1:3)])
-  pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
-                          d[4L] * age_extent + d[5L] * edu_extent)
+  pi_mat <- 0.5 * plogis(.base_error_index(d, cells$pattern) +
+    d["delta_age_severe"] * age_extent +
+    d["delta_education_severe"] * edu_extent)
   steady <- stationary_alpha(p$theta0, p$theta1)
   c(entry_rate = unname(p$theta0), exit_rate = unname(1 - p$theta1),
     initial_employment = unname(p$alpha), steady_employment = unname(steady),
     stationarity_gap = unname(p$alpha - steady),
-    delta0 = d[1L], delta_age = d[2L], delta_education = d[3L],
-    delta_age_severe = d[4L], delta_education_severe = d[5L],
-    pi_base = scenario_pi(0, 0, 0, 0),
-    pi_age_mild = scenario_pi(1, 0, 0, 0),
-    pi_age_severe = scenario_pi(1, 0, 1, 0),
-    age_severity_effect = scenario_pi(1, 0, 1, 0) - scenario_pi(1, 0, 0, 0),
-    pi_education_mild = scenario_pi(0, 1, 0, 0),
-    pi_education_severe = scenario_pi(0, 1, 0, 1),
-    education_severity_effect = scenario_pi(0, 1, 0, 1) - scenario_pi(0, 1, 0, 0),
-    pi_both_mild = scenario_pi(1, 1, 0, 0),
-    pi_both_age_severe = scenario_pi(1, 1, 1, 0),
-    pi_both_education_severe = scenario_pi(1, 1, 0, 1),
-    pi_both_both_severe = scenario_pi(1, 1, 1, 1),
+    delta0 = unname(d["delta0"]), delta_age = unname(d["delta_age"]),
+    delta_education = unname(d["delta_education"]),
+    delta_race = unname(d["delta_race"]),
+    delta_gender = unname(d["delta_gender"]),
+    delta_two_inconsistencies = unname(d["delta_two_inconsistencies"]),
+    delta_three_inconsistencies = unname(d["delta_three_inconsistencies"]),
+    delta_four_inconsistencies = unname(d["delta_four_inconsistencies"]),
+    delta_age_severe = unname(d["delta_age_severe"]),
+    delta_education_severe = unname(d["delta_education_severe"]),
+    pi_base = scenario_pi(),
+    pi_age_mild = scenario_pi(age = 1),
+    pi_age_severe = scenario_pi(age = 1, age_extent = 1),
+    age_severity_effect = scenario_pi(age = 1, age_extent = 1) - scenario_pi(age = 1),
+    pi_education_mild = scenario_pi(edu = 1),
+    pi_education_severe = scenario_pi(edu = 1, edu_extent = 1),
+    education_severity_effect = scenario_pi(edu = 1, edu_extent = 1) - scenario_pi(edu = 1),
+    pi_race = scenario_pi(race = 1),
+    race_effect = scenario_pi(race = 1) - scenario_pi(),
+    pi_gender = scenario_pi(gender = 1),
+    gender_effect = scenario_pi(gender = 1) - scenario_pi(),
+    pi_both_mild = scenario_pi(age = 1, edu = 1, two = 1),
+    pi_both_age_severe = scenario_pi(age = 1, edu = 1, age_extent = 1, two = 1),
+    pi_both_education_severe = scenario_pi(age = 1, edu = 1, edu_extent = 1,
+                                           two = 1),
+    pi_both_both_severe = scenario_pi(age = 1, edu = 1,
+                                      age_extent = 1, edu_extent = 1, two = 1),
+    .conditional_pi_by_count(pi_mat, cells),
+    .pi_distribution_summary(pi_mat, cells),
     mean_pi_survey_weighted = sum(cells$weight * rowSums(pi_mat)) /
       (3 * cells$weight_sum))
 }
@@ -372,74 +535,96 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
 .matching_eta_names <- function(stationary) c(
   .extent_eta_names(stationary), "delta_B_not_C", "delta_A_not_B")
 
+.matching_error_design <- function(pattern) {
+  extent <- .extent_error_design(pattern)
+  lapply(1:3, function(tt) cbind(extent[[tt]],
+    delta_B_not_C = pattern[[paste0("panel_B_not_C_", tt)]],
+    delta_A_not_B = pattern[[paste0("panel_A_not_B_", tt)]]))
+}
+
 .unpack_matching <- function(eta, stationary) {
   eta <- setNames(as.numeric(eta), .matching_eta_names(stationary))
   theta0 <- plogis(eta["theta0"]); theta1 <- plogis(eta["theta1"])
   alpha <- if (stationary) stationary_alpha(theta0, theta1) else plogis(eta["alpha"])
   list(theta0 = theta0, theta1 = theta1, alpha = alpha,
-       delta = unname(eta[c("delta0", "delta_age", "delta_education",
-                            "delta_age_severe", "delta_education_severe",
-                            "delta_B_not_C", "delta_A_not_B")]))
+       delta = eta[c(.base_delta_names, "delta_age_severe",
+                     "delta_education_severe", "delta_B_not_C",
+                     "delta_A_not_B")])
 }
 
 .matching_probabilities <- function(params, pattern) {
   latent <- latent_histories()
   prior <- prior_over_histories(latent, params$theta1, params$theta0, params$alpha)
   y <- as.matrix(pattern[, c("y1", "y2", "y3")])
-  age <- as.matrix(pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(pattern[, paste0("Y_edu_", 1:3)])
   age_extent <- as.matrix(pattern[, paste0("severe_age_", 1:3)])
   edu_extent <- as.matrix(pattern[, paste0("severe_edu_", 1:3)])
   b_not_c <- as.matrix(pattern[, paste0("panel_B_not_C_", 1:3)])
   a_not_b <- as.matrix(pattern[, paste0("panel_A_not_B_", 1:3)])
   d <- params$delta
-  pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
-    d[4L] * age_extent + d[5L] * edu_extent +
-    d[6L] * b_not_c + d[7L] * a_not_b)
+  pi_mat <- 0.5 * plogis(.base_error_index(d, pattern) +
+    d["delta_age_severe"] * age_extent +
+    d["delta_education_severe"] * edu_extent +
+    d["delta_B_not_C"] * b_not_c + d["delta_A_not_B"] * a_not_b)
   out <- numeric(nrow(pattern))
   for (h in seq_len(nrow(latent))) {
-    emission <- matrix(1, nrow(pattern), 3L)
-    for (tt in 1:3)
-      emission[, tt] <- ifelse(y[, tt] == latent[h, tt],
-                               1 - pi_mat[, tt], pi_mat[, tt])
-    out <- out + prior[h] * apply(emission, 1L, prod)
+    e1 <- ifelse(y[, 1L] == latent[h, 1L], 1 - pi_mat[, 1L], pi_mat[, 1L])
+    e2 <- ifelse(y[, 2L] == latent[h, 2L], 1 - pi_mat[, 2L], pi_mat[, 2L])
+    e3 <- ifelse(y[, 3L] == latent[h, 3L], 1 - pi_mat[, 3L], pi_mat[, 3L])
+    out <- out + prior[h] * e1 * e2 * e3
   }
   out
 }
 
 .matching_quantities <- function(eta, cells, stationary) {
   p <- .unpack_matching(eta, stationary); d <- p$delta
-  scenario_pi <- function(age = 0, edu = 0, age_extent = 0,
-                          edu_extent = 0, b_not_c = 0, a_not_b = 0)
-    0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
-      d[4L] * age_extent + d[5L] * edu_extent +
-      d[6L] * b_not_c + d[7L] * a_not_b)
-  age <- as.matrix(cells$pattern[, paste0("Y_age_", 1:3)])
-  edu <- as.matrix(cells$pattern[, paste0("Y_edu_", 1:3)])
+  scenario_pi <- function(age = 0, edu = 0, race = 0, gender = 0,
+                          age_extent = 0, edu_extent = 0,
+                          b_not_c = 0, a_not_b = 0,
+                          two = 0, three = 0, four = 0)
+    unname(0.5 * plogis(d["delta0"] + d["delta_age"] * age +
+      d["delta_education"] * edu + d["delta_race"] * race +
+      d["delta_gender"] * gender +
+      d["delta_two_inconsistencies"] * two +
+      d["delta_three_inconsistencies"] * three +
+      d["delta_four_inconsistencies"] * four +
+      d["delta_age_severe"] * age_extent +
+      d["delta_education_severe"] * edu_extent +
+      d["delta_B_not_C"] * b_not_c + d["delta_A_not_B"] * a_not_b))
   age_extent <- as.matrix(cells$pattern[, paste0("severe_age_", 1:3)])
   edu_extent <- as.matrix(cells$pattern[, paste0("severe_edu_", 1:3)])
   b_not_c <- as.matrix(cells$pattern[, paste0("panel_B_not_C_", 1:3)])
   a_not_b <- as.matrix(cells$pattern[, paste0("panel_A_not_B_", 1:3)])
-  pi_mat <- 0.5 * plogis(d[1L] + d[2L] * age + d[3L] * edu +
-    d[4L] * age_extent + d[5L] * edu_extent +
-    d[6L] * b_not_c + d[7L] * a_not_b)
+  pi_mat <- 0.5 * plogis(.base_error_index(d, cells$pattern) +
+    d["delta_age_severe"] * age_extent +
+    d["delta_education_severe"] * edu_extent +
+    d["delta_B_not_C"] * b_not_c + d["delta_A_not_B"] * a_not_b)
   steady <- stationary_alpha(p$theta0, p$theta1)
   pi_base <- scenario_pi()
   pi_age_mild <- scenario_pi(age = 1)
   pi_age_severe <- scenario_pi(age = 1, age_extent = 1)
   pi_education_mild <- scenario_pi(edu = 1)
   pi_education_severe <- scenario_pi(edu = 1, edu_extent = 1)
-  pi_both_mild <- scenario_pi(age = 1, edu = 1)
+  pi_race <- scenario_pi(race = 1)
+  pi_gender <- scenario_pi(gender = 1)
+  pi_both_mild <- scenario_pi(age = 1, edu = 1, two = 1)
   pi_both_both_severe <- scenario_pi(age = 1, edu = 1,
-                                      age_extent = 1, edu_extent = 1)
+                                      age_extent = 1, edu_extent = 1, two = 1)
   pi_b_not_c <- scenario_pi(b_not_c = 1)
   pi_a_not_b <- scenario_pi(a_not_b = 1)
   c(entry_rate = unname(p$theta0), exit_rate = unname(1 - p$theta1),
     initial_employment = unname(p$alpha), steady_employment = unname(steady),
     stationarity_gap = unname(p$alpha - steady),
-    delta0 = d[1L], delta_age = d[2L], delta_education = d[3L],
-    delta_age_severe = d[4L], delta_education_severe = d[5L],
-    delta_B_not_C = d[6L], delta_A_not_B = d[7L],
+    delta0 = unname(d["delta0"]), delta_age = unname(d["delta_age"]),
+    delta_education = unname(d["delta_education"]),
+    delta_race = unname(d["delta_race"]),
+    delta_gender = unname(d["delta_gender"]),
+    delta_two_inconsistencies = unname(d["delta_two_inconsistencies"]),
+    delta_three_inconsistencies = unname(d["delta_three_inconsistencies"]),
+    delta_four_inconsistencies = unname(d["delta_four_inconsistencies"]),
+    delta_age_severe = unname(d["delta_age_severe"]),
+    delta_education_severe = unname(d["delta_education_severe"]),
+    delta_B_not_C = unname(d["delta_B_not_C"]),
+    delta_A_not_B = unname(d["delta_A_not_B"]),
     pi_base = pi_base,
     pi_age_mild = pi_age_mild,
     pi_age_severe = pi_age_severe,
@@ -447,12 +632,16 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
     pi_education_mild = pi_education_mild,
     pi_education_severe = pi_education_severe,
     education_severity_effect = pi_education_severe - pi_education_mild,
+    pi_race = pi_race, race_effect = pi_race - pi_base,
+    pi_gender = pi_gender, gender_effect = pi_gender - pi_base,
     pi_both_mild = pi_both_mild,
     pi_both_both_severe = pi_both_both_severe,
     pi_B_not_C = pi_b_not_c,
     B_not_C_effect = pi_b_not_c - pi_base,
     pi_A_not_B = pi_a_not_b,
     A_not_B_effect = pi_a_not_b - pi_base,
+    .conditional_pi_by_count(pi_mat, cells),
+    .pi_distribution_summary(pi_mat, cells),
     mean_pi_survey_weighted = sum(cells$weight * rowSums(pi_mat)) /
       (3 * cells$weight_sum))
 }
@@ -480,7 +669,7 @@ source(here::here("scripts", "ingest_data_3waves_SA.R"))
   keys
 }
 
-# Match the legacy Table 6 analysis sample.
+# Match the inconsistency-model analysis sample.
 keep <- complete.cases(df_qlfs[, c("y1", "y2", "y3", "weight",
                                    "age1", "age2", "age3",
                                    "educ1", "educ2", "educ3")]) &
@@ -488,9 +677,14 @@ keep <- complete.cases(df_qlfs[, c("y1", "y2", "y3", "weight",
 df <- as.data.frame(df_qlfs[keep, , drop = FALSE])
 df$y1 <- as.integer(df$y1); df$y2 <- as.integer(df$y2); df$y3 <- as.integer(df$y3)
 df$weight <- as.numeric(df$weight)
-inc_df <- compute_inconsistency_extent(df)
-inc_names <- c(paste0("Y_age_", 1:3), paste0("Y_edu_", 1:3))
+inc_df <- add_inconsistency_count_dummies(
+  compute_demographic_inconsistencies(compute_inconsistency_extent(df)))
+component_inc_names <- unlist(lapply(c("age", "edu", "race", "gender"), function(x)
+  paste0("Y_", x, "_", 1:3)))
+count_inc_names <- unlist(lapply(2:4, function(k) paste0("Y_exactly_", k, "_", 1:3)))
+inc_names <- c(component_inc_names, count_inc_names)
 inc_mat <- as.matrix(inc_df[, inc_names])
+component_inc_mat <- as.matrix(inc_df[, component_inc_names])
 cells <- .collapse_inc_cells(df, inc_mat)
 extent_names <- c(paste0("extent_age_", 1:3), paste0("extent_edu_", 1:3))
 severe_names <- c(paste0("severe_age_", 1:3), paste0("severe_edu_", 1:3))
@@ -529,23 +723,28 @@ membership_summary <- data.frame(
 rm(panel_B_keys, panel_C_keys, panel_A_key_mat, in_B, in_C)
 gc(verbose = FALSE)
 
-cat(sprintf("Table 6 sample: N=%s; %d collapsed likelihood cells\n",
+cat(sprintf("Table 3 sample: N=%s; %d collapsed likelihood cells\n",
             format(nrow(df), big.mark = ","), nrow(cells$pattern)))
 cat(sprintf("Severity robustness: %d collapsed likelihood cells\n",
             nrow(cells_extent$pattern)))
 cat(sprintf("Matching-quality extension: %d collapsed likelihood cells\n",
             nrow(cells_matching$pattern)))
 flag_summary <- data.frame(
-  indicator = c(inc_names, "any_age", "any_education", "any_inconsistency"),
+  indicator = c(inc_names, "any_age", "any_education", "any_race",
+                "any_gender", "any_inconsistency"),
   unweighted_percent = 100 * c(colMeans(inc_mat),
-    mean(rowSums(inc_mat[, 1:3, drop = FALSE]) > 0),
-    mean(rowSums(inc_mat[, 4:6, drop = FALSE]) > 0),
-    mean(rowSums(inc_mat) > 0)),
+    mean(rowSums(component_inc_mat[, 1:3, drop = FALSE]) > 0),
+    mean(rowSums(component_inc_mat[, 4:6, drop = FALSE]) > 0),
+    mean(rowSums(component_inc_mat[, 7:9, drop = FALSE]) > 0),
+    mean(rowSums(component_inc_mat[, 10:12, drop = FALSE]) > 0),
+    mean(rowSums(component_inc_mat) > 0)),
   survey_weighted_percent = 100 * c(
     colSums(inc_mat * df$weight) / sum(df$weight),
-    weighted.mean(rowSums(inc_mat[, 1:3, drop = FALSE]) > 0, df$weight),
-    weighted.mean(rowSums(inc_mat[, 4:6, drop = FALSE]) > 0, df$weight),
-    weighted.mean(rowSums(inc_mat) > 0, df$weight))
+    weighted.mean(rowSums(component_inc_mat[, 1:3, drop = FALSE]) > 0, df$weight),
+    weighted.mean(rowSums(component_inc_mat[, 4:6, drop = FALSE]) > 0, df$weight),
+    weighted.mean(rowSums(component_inc_mat[, 7:9, drop = FALSE]) > 0, df$weight),
+    weighted.mean(rowSums(component_inc_mat[, 10:12, drop = FALSE]) > 0, df$weight),
+    weighted.mean(rowSums(component_inc_mat) > 0, df$weight))
 )
 cat("\nInconsistency prevalence (%):\n")
 print(flag_summary, row.names = FALSE, digits = 4)
@@ -553,9 +752,9 @@ severity_summary <- data.frame(
   variable = c("age", "education"),
   severe_share_of_flagged_percent = 100 * c(
     sum(df$weight * rowSums(as.matrix(inc_df[, paste0("severe_age_", 1:3)]))) /
-      sum(df$weight * rowSums(inc_mat[, 1:3, drop = FALSE])),
+      sum(df$weight * rowSums(component_inc_mat[, 1:3, drop = FALSE])),
     sum(df$weight * rowSums(as.matrix(inc_df[, paste0("severe_edu_", 1:3)]))) /
-      sum(df$weight * rowSums(inc_mat[, 4:6, drop = FALSE]))
+      sum(df$weight * rowSums(component_inc_mat[, 4:6, drop = FALSE]))
   )
 )
 cat("\nShare of attributed flags at least two units beyond the admissible range (%):\n")
@@ -566,52 +765,45 @@ print(membership_summary, row.names = FALSE, digits = 4)
 # Obtain nested homogeneous estimates for stable starts, then add dispersed
 # slope starts to guard against local optima.
 set.seed(62026L)
+save_retry <- identical(Sys.getenv("TABLE3_SAVE_RETRY"), "1")
+prior_audit_path <- here::here("EM-baseline-ext", "output", "results",
+                              "fit_table6_inconsistency_audit.rds")
+if (!file.exists(prior_audit_path))
+  stop("Existing Table 3 audit required for nested warm starts: ",
+       prior_audit_path)
+prior_audit <- readRDS(prior_audit_path)
+reuse_audited_fits <- identical(Sys.getenv("TABLE3_REUSE_AUDITED_FITS"), "1")
 make_starts <- function(stationary) {
-  base <- fit_baseline_mle(df, "symmetric", stationary,
-                           starts = list(init_params("symmetric", stationary)),
-                           verbose = 0L)$params
-  center <- list(theta0 = base$theta0, theta1 = base$theta1, alpha = base$alpha,
-                 delta = c(qlogis(2 * base$pi), 0, 0))
+  old <- if (stationary) prior_audit$stationary else prior_audit$free
+  delta <- setNames(rep(0, length(.base_delta_names)), .base_delta_names)
+  delta[names(old$params$delta)] <- old$params$delta
+  center <- list(theta0 = old$params$theta0, theta1 = old$params$theta1,
+                 alpha = old$params$alpha, delta = delta)
   fixed <- list(center,
-    within(center, delta <- c(delta[1L], 2.5, 1.0)),
-    within(center, delta <- c(delta[1L], 1.0, 2.5)),
-    within(center, delta <- c(delta[1L], -1.0, 1.0)))
-  random <- lapply(1:8, function(i) {
-    z <- center
-    z$theta0 <- plogis(qlogis(z$theta0) + rnorm(1, 0, .35))
-    z$theta1 <- plogis(qlogis(z$theta1) + rnorm(1, 0, .35))
-    if (!stationary) z$alpha <- plogis(qlogis(z$alpha) + rnorm(1, 0, .25))
-    z$delta <- z$delta + c(rnorm(1, 0, .35), rnorm(2, 0, 1.25))
-    z
-  })
-  c(fixed, random)
+    within(center, delta[c("delta_two_inconsistencies",
+                           "delta_three_inconsistencies")] <- c(0.5, -0.5)),
+    within(center, delta[c("delta_two_inconsistencies",
+                           "delta_four_inconsistencies")] <- c(-0.5, 1.0)),
+    within(center, delta[c("delta_three_inconsistencies",
+                           "delta_four_inconsistencies")] <- c(0.5, -1.0)))
+  if (save_retry) fixed[1L] else fixed
 }
 
-fit_stat <- .fit_inc_mle(cells, TRUE, make_starts(TRUE))
-fit_free <- .fit_inc_mle(cells, FALSE, make_starts(FALSE))
+if (reuse_audited_fits) {
+  fit_stat <- prior_audit$stationary
+  fit_free <- prior_audit$free
+} else {
+  fit_stat <- .fit_inc_mle(cells, TRUE, make_starts(TRUE))
+  fit_free <- .fit_inc_mle(cells, FALSE, make_starts(FALSE))
+}
 inf_stat <- .inc_inference(fit_stat, cells)
 inf_free <- .inc_inference(fit_free, cells)
 
-# Robustness 1: allow the true transition process and initial employment
-# probability to differ between records with and without any inconsistency.
-group_center <- c(
-  theta0_reliable = unname(fit_free$eta["theta0"]),
-  theta1_reliable = unname(fit_free$eta["theta1"]),
-  alpha_reliable = unname(fit_free$eta["alpha"]),
-  theta0_unreliable = unname(fit_free$eta["theta0"]),
-  theta1_unreliable = unname(fit_free$eta["theta1"]),
-  alpha_unreliable = unname(fit_free$eta["alpha"]),
-  delta0 = unname(fit_free$eta["delta0"]),
-  delta_age = unname(fit_free$eta["delta_age"]),
-  delta_education = unname(fit_free$eta["delta_education"])
-)
-group_starts <- c(list(group_center), lapply(1:11, function(i)
-  group_center + rnorm(length(group_center), 0,
-                       c(rep(.35, 6), .25, .75, .75))))
-fit_group <- .fit_custom_inc(cells, .group_eta_names, .unpack_group,
-                             .group_probabilities, group_starts,
-                             "Reliability-group transition robustness")
-inf_group <- .custom_inference(fit_group, .group_quantities, cells)
+# The reliability-group transition robustness is not one of the three Table 3
+# specifications. Retain its last audited result instead of needlessly
+# re-estimating it whenever the Table 3 error equation is extended.
+fit_group <- prior_audit$reliability_group
+inf_group <- prior_audit$reliability_group_table
 
 # Robustness 2: add the distance from the admissible [0,1] age/education
 # change to test whether more severe inconsistencies imply larger error rates.
@@ -620,17 +812,42 @@ fit_extent_model <- function(stationary, base_fit, label) {
               delta_education_severe = 0)
   names_eta <- .extent_eta_names(stationary)
   center <- center[names_eta]
-  perturb_sd <- c(rep(.30, if (stationary) 2 else 3), .25, .75, .75, .25, .25)
-  starts <- c(list(center), lapply(1:11, function(i)
+  if (save_retry) {
+    prob <- if (stationary)
+      c(theta0 = 0.0227593, theta1 = 1 - 0.0247272) else
+      c(theta0 = 0.025703608, theta1 = 1 - 0.021409684,
+        alpha = 0.476008308)
+    center <- c(qlogis(prob),
+      delta0 = if (stationary) -3.06737 else -3.066903156,
+      delta_age = if (stationary) 1.13303 else 1.132267586,
+      delta_education = if (stationary) 1.01634 else 1.016228431,
+      delta_race = if (stationary) 0.00223739 else 0.013256203,
+      delta_gender = if (stationary) 1.50392 else 1.506068283,
+      delta_two_inconsistencies = 0,
+      delta_three_inconsistencies = 0,
+      delta_four_inconsistencies = 0,
+      delta_age_severe = if (stationary) 1.23743 else 1.240929301,
+      delta_education_severe = if (stationary) 0.114517 else 0.116561070)
+    center <- center[names_eta]
+  }
+  perturb_sd <- ifelse(grepl("^theta|^alpha", names_eta), .30,
+    ifelse(names_eta == "delta0" | grepl("severe", names_eta), .25, .75))
+  starts <- c(list(center), lapply(1:3, function(i)
     center + rnorm(length(center), 0, perturb_sd)))
+  if (save_retry) starts <- starts[1L]
   .fit_custom_inc(cells_extent, names_eta,
     function(z) .unpack_extent(z, stationary), .extent_probabilities,
-    starts, label)
+    starts, label, .extent_error_design, stationary)
 }
-fit_extent_stat <- fit_extent_model(TRUE, fit_stat,
-  "Stationary inconsistency-increment model")
-fit_extent_free <- fit_extent_model(FALSE, fit_free,
-  "Free-alpha inconsistency-increment model")
+if (reuse_audited_fits) {
+  fit_extent_stat <- prior_audit$extent_stationary
+  fit_extent_free <- prior_audit$extent_free
+} else {
+  fit_extent_stat <- fit_extent_model(TRUE, fit_stat,
+    "Stationary inconsistency-increment model")
+  fit_extent_free <- fit_extent_model(FALSE, fit_free,
+    "Free-alpha inconsistency-increment model")
+}
 inf_extent_stat <- .custom_inference(fit_extent_stat,
   function(z, cc) .extent_quantities(z, cc, TRUE), cells_extent)
 inf_extent_free <- .custom_inference(fit_extent_free,
@@ -647,18 +864,44 @@ fit_matching_model <- function(stationary, base_fit, label) {
   center <- c(base_fit$eta, delta_B_not_C = 0, delta_A_not_B = 0)
   names_eta <- .matching_eta_names(stationary)
   center <- center[names_eta]
-  perturb_sd <- c(rep(.30, if (stationary) 2 else 3),
-                  .25, .75, .75, .25, .25, .75, .75)
-  starts <- c(list(center), lapply(1:11, function(i)
+  if (save_retry) {
+    prob <- if (stationary)
+      c(theta0 = 0.02239912, theta1 = 1 - 0.02433976) else
+      c(theta0 = 0.02535111, theta1 = 1 - 0.02100869,
+        alpha = 0.47595867)
+    center <- c(qlogis(prob),
+      delta0 = if (stationary) -3.17466244 else -3.17425895,
+      delta_age = if (stationary) 0.93009547 else 0.92920944,
+      delta_education = if (stationary) 0.82233147 else 0.82188567,
+      delta_race = if (stationary) -0.17621279 else -0.16970159,
+      delta_gender = if (stationary) 1.30379635 else 1.30369674,
+      delta_two_inconsistencies = 0,
+      delta_three_inconsistencies = 0,
+      delta_four_inconsistencies = 0,
+      delta_age_severe = if (stationary) 1.28652910 else 1.28990145,
+      delta_education_severe = if (stationary) 0.09994649 else 0.10206079,
+      delta_B_not_C = if (stationary) 0.39652703 else 0.39663685,
+      delta_A_not_B = if (stationary) 0.39649365 else 0.39843502)
+    center <- center[names_eta]
+  }
+  perturb_sd <- ifelse(grepl("^theta|^alpha", names_eta), .30,
+    ifelse(names_eta == "delta0" | grepl("severe", names_eta), .25, .75))
+  starts <- c(list(center), lapply(1:3, function(i)
     center + rnorm(length(center), 0, perturb_sd)))
+  if (save_retry) starts <- starts[1L]
   .fit_custom_inc(cells_matching, names_eta,
     function(z) .unpack_matching(z, stationary), .matching_probabilities,
-    starts, label)
+    starts, label, .matching_error_design, stationary)
 }
-fit_matching_stat <- fit_matching_model(TRUE, fit_extent_stat,
-  "Stationary matching-quality inconsistency model")
-fit_matching_free <- fit_matching_model(FALSE, fit_extent_free,
-  "Free-alpha matching-quality inconsistency model")
+if (reuse_audited_fits) {
+  fit_matching_stat <- prior_audit$matching_stationary
+  fit_matching_free <- prior_audit$matching_free
+} else {
+  fit_matching_stat <- fit_matching_model(TRUE, fit_extent_stat,
+    "Stationary matching-quality inconsistency model")
+  fit_matching_free <- fit_matching_model(FALSE, fit_extent_free,
+    "Free-alpha matching-quality inconsistency model")
+}
 if (!fit_matching_stat$converged || !fit_matching_stat$identified ||
     !fit_matching_free$converged || !fit_matching_free$identified)
   stop("Matching-quality Table 3 specifications failed convergence or identification checks")
@@ -682,7 +925,7 @@ table6 <- table6[match(names(order_q), table6$quantity), ]
 table6$estimate_stationary[table6$quantity == "initial_employment"] <- NA_real_
 table6$std_error_stationary[table6$quantity == "initial_employment"] <- NA_real_
 
-cat("\nReplicated Table 6 (probabilities are proportions; analytical SE):\n")
+cat("\nReplicated Table 3 (probabilities are proportions; analytical SE):\n")
 print(table6, row.names = FALSE, digits = 6)
 cat(sprintf("\nLog likelihood: stationary %.3f; free alpha %.3f\n",
             fit_stat$loglik, fit_free$loglik))

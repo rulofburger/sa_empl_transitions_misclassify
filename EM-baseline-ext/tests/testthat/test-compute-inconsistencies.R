@@ -177,6 +177,49 @@ test_that("compute_inconsistency_extent attributes and sums middle-wave severity
   expect_equal(out$extent_edu_2, 7)  # distances 3 and 4 from [0,1]
 })
 
+test_that("race and gender disagreements use the common wave attribution rule", {
+  df <- data.frame(
+    race1 = c(1, 1, 2, 1, NA), race2 = c(2, 1, 1, 2, 2),
+    race3 = c(2, 2, 1, 1, 3),
+    female1 = c(0, 0, 1, 0, NA), female2 = c(1, 0, 0, 1, 1),
+    female3 = c(1, 1, 0, 0, 0)
+  )
+  out <- compute_demographic_inconsistencies(df)
+  expect_equal(unname(as.matrix(out[paste0("Y_race_", 1:3)])), rbind(
+    c(1, 0, 0), c(0, 0, 1), c(1, 0, 0), c(0, 1, 0), c(0, 0, 1)))
+  expect_equal(unname(as.matrix(out[paste0("Y_gender_", 1:3)])), rbind(
+    c(1, 0, 0), c(0, 0, 1), c(1, 0, 0), c(0, 1, 0), c(0, 0, 1)))
+})
+
+test_that("demographic inconsistency helper validates required columns", {
+  expect_error(compute_demographic_inconsistencies(data.frame(race1 = 1)),
+               "missing required columns")
+})
+
+test_that("multiple-inconsistency dummies identify exactly two, three, or four", {
+  df <- data.frame(
+    Y_age_1 = c(1, 1, 1, 1, 0), Y_edu_1 = c(1, 1, 1, 0, 1),
+    Y_race_1 = c(0, 1, 1, 0, 0), Y_gender_1 = c(0, 0, 1, 0, 0),
+    Y_age_2 = c(0, 0, 0, 0, 0), Y_edu_2 = c(0, 0, 0, 0, 0),
+    Y_race_2 = c(0, 0, 0, 0, 0), Y_gender_2 = c(0, 0, 0, 0, 0),
+    Y_age_3 = c(1, 1, 1, 1, 0), Y_edu_3 = c(1, 1, 1, 0, 1),
+    Y_race_3 = c(0, 1, 1, 0, 0), Y_gender_3 = c(0, 0, 1, 0, 0)
+  )
+  out <- add_inconsistency_count_dummies(df)
+  expect_equal(out$Y_exactly_2_1, c(1L, 0L, 0L, 0L, 0L))
+  expect_equal(out$Y_exactly_3_1, c(0L, 1L, 0L, 0L, 0L))
+  expect_equal(out$Y_exactly_4_1, c(0L, 0L, 1L, 0L, 0L))
+  expect_equal(out[paste0("Y_exactly_", 2:4, "_2")],
+               data.frame(Y_exactly_2_2 = rep(0L, 5),
+                          Y_exactly_3_2 = rep(0L, 5),
+                          Y_exactly_4_2 = rep(0L, 5)))
+})
+
+test_that("multiple-inconsistency dummies validate component indicators", {
+  expect_error(add_inconsistency_count_dummies(data.frame(Y_age_1 = 1L)),
+               "missing required columns")
+})
+
 test_that("compute_inconsistency_extent assigns zero to missing gaps", {
   df <- .make_incons_df(30, NA, 31, 3L, NA, 3L)
   out <- compute_inconsistency_extent(df)
