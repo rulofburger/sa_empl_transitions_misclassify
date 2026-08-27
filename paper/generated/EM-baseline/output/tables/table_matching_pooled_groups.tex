@@ -1,0 +1,59 @@
+\begin{table}[htbp]
+\centering
+\caption{Pooled matching-group models}
+\label{tab:matching_pooled_groups}
+\begin{tabular}{lcccc}
+\toprule
+ & (1) Baseline & (2) Transitions & (3) Error & (4) Both
+
+\midrule
+Retained in C: entry (\%) & 4.62 & 3.60 & 4.27 & 3.98
+
+ & (0.07) & (0.07) & (0.07) & (0.07)
+
+Retained in C: exit (\%) & 5.91 & 3.69 & 5.40 & 4.27
+
+ & (0.09) & (0.08) & (0.09) & (0.09)
+
+Retained in C: misclassification (\%) & 2.50 & 2.00 & 1.58 & 1.70
+
+ & (0.03) & (0.03) & (0.03) & (0.03)
+
+B but not C: entry (\%) & 4.62 & 7.50 & 4.27 & 5.64
+
+ & (0.07) & (0.14) & (0.07) & (0.16)
+
+B but not C: exit (\%) & 5.91 & 10.03 & 5.40 & 7.93
+
+ & (0.09) & (0.17) & (0.09) & (0.19)
+
+B but not C: misclassification (\%) & 2.50 & 2.00 & 4.18 & 3.39
+
+ & (0.03) & (0.03) & (0.06) & (0.08)
+
+A but not B: entry (\%) & 4.62 & 14.29 & 4.27 & 8.41
+
+ & (0.07) & (0.27) & (0.07) & (0.44)
+
+A but not B: exit (\%) & 5.91 & 21.31 & 5.40 & 15.12
+
+ & (0.09) & (0.34) & (0.09) & (0.51)
+
+A but not B: misclassification (\%) & 2.50 & 2.00 & 8.63 & 5.82
+
+ & (0.03) & (0.03) & (0.13) & (0.23)
+
+Log-likelihood (millions) & -337.457 & -334.398 & -334.397 & -334.007
+
+$N$ & 394,823 & 394,823 & 394,823 & 394,823
+
+Group indicators in transitions & No & Yes & No & Yes
+
+Group indicators in error rate & No & No & Yes & Yes
+
+\bottomrule
+\end{tabular}
+\begin{minipage}{0.98\linewidth}
+\footnotesize \textit{Note:} All columns use Panel A, Set 2 controls, a symmetric error model, a free initial employment rate, and no stationarity restriction. Rates are predictive margins standardized to Panel A's covariate distribution while changing only the matching-group indicators. The error probability uses the bounded link $0.5\,\mathrm{logit}^{-1}(z'\delta)$. Parentheses contain analytical sandwich/delta standard errors.
+\end{minipage}
+\end{table}

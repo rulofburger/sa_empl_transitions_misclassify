@@ -108,6 +108,19 @@ rules. The sensitivity script changes the panel input explicitly rather than
 silently modifying the default ingestion path, which remains
 `df_qlfs_A.rds`.
 
+Appendix Tables A2a--A2d diagnose the declining transition estimates without
+altering Table 2 or its existing appendix. A2a reports weighted observable
+composition. A2b fits Set 2 transition controls separately in panels A--C and
+evaluates each model on both its own and panel C's covariate distribution. A2c
+decomposes each A--C and B--C predictive-margin gap into the component due to
+age, education, race, and sex composition and a residual component. A2d pools
+panel A and adds the matching-group indicators sequentially to the transition
+equations, the symmetric-error equation, and both. All fits use the exact
+Table 2 ingestion samples, free initial employment, multiple starts, full-rank
+information checks, and analytical sandwich/delta inference. Predictive margins
+in these diagnostic appendices average conditional hazards over a common
+covariate population; they are not the posterior risk-set means in Table 2.
+
 ## Table 3: observed indicators of linked-record reliability
 
 The inconsistency likelihood permits the symmetric status-error probability to
@@ -228,7 +241,9 @@ response inconsistency from longitudinal matching error.
 ## Reproducibility and generated files
 
 `build_tables.R` generates Tables 1, 3, and 4 and their coefficient appendices;
-the matching-sensitivity runner generates Table 2. The four-wave and duration
+the matching-sensitivity runner generates Table 2, and
+`EM-baseline/estimate_matching_composition.R` generates supplementary Tables
+A2a--A2d without overwriting Table 2 or Appendix Table A2. The four-wave and duration
 modules retain their own reproducible runners, tests, result summaries, and
 diagnostic outputs. Confidential data and intermediate fitted objects remain
 ignored by Git. Curated paper-facing snapshots and both summary sources are

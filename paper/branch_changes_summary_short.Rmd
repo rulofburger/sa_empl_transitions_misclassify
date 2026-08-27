@@ -115,6 +115,26 @@ include_tex_table("EM-baseline/output/tables/table_matching_implied.tex",
                   tabular_scale = 0.82, table_number = 2)
 ```
 
+```{r matching-composition, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_matching_composition.tex",
+                  appendix_label = "Appendix Table A2a")
+```
+
+```{r matching-standardized, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_matching_standardized.tex",
+                  tabular_scale = 0.72, appendix_label = "Appendix Table A2b")
+```
+
+```{r matching-decomposition, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_matching_decomposition.tex",
+                  tabular_scale = 0.88, appendix_label = "Appendix Table A2c")
+```
+
+```{r matching-pooled-groups, results='asis'}
+include_tex_table("EM-baseline/output/tables/table_matching_pooled_groups.tex",
+                  tabular_scale = 0.80, appendix_label = "Appendix Table A2d")
+```
+
 ## Interpretation
 
 - Stricter matching lowers both observed and corrected transition rates.
@@ -124,11 +144,31 @@ include_tex_table("EM-baseline/output/tables/table_matching_implied.tex",
   matching rule.
 - Matching quality is therefore part of the inconsistency mechanism, but the
   main correction is not driven solely by the baseline matching rule.
+- Observable composition changes very little: from panel A to C, mean age rises
+  by 0.38 years, mean education falls by 0.08 years, and the female share rises
+  by 0.88 percentage points.
+- Standardizing all models to panel C's age, education, race, and sex
+  distribution does not remove the transition gradient. In the symmetric-error
+  model it changes panel A entry from 4.63% to 4.66% and exit from 5.92% to
+  5.83%. Observable composition explains about $-4.7$% of the A--C entry gap
+  and 6.3% of the exit gap; the corresponding B--C shares are $-5.7$% and 9.3%.
+- In the pooled joint model, holding Set 2 covariates fixed, entry, exit, and
+  misclassification are 3.98%, 4.27%, and 1.70% for records retained in C;
+  5.64%, 7.93%, and 3.39% for B-but-not-C records; and 8.41%, 15.12%, and 5.82%
+  for A-but-not-B records. The stricter-match gradient therefore reflects both
+  higher underlying mobility and higher classification error among excluded
+  records, not ordinary demographic composition alone.
+- The pooled estimates are descriptive: matching-group membership is selected
+  by the linkage rules, so the coefficients should not be read as causal effects
+  of applying a stricter algorithm.
 
 ## To do
 
-- Compare observable composition and attrition across panels A--C, not only
-  their parameter estimates.
+- Repeat the standardization with richer duration and employment covariates and
+  test sensitivity to alternative predictive-margin target populations.
+- Profile the pooled transition/error allocation and use longer-start checks;
+  the data clearly reject equal groups, but either channel alone explains much
+  of the raw gradient.
 - Check whether the Table 4 and age/education-consistency results are also
   stable under the stricter matching rules.
 
