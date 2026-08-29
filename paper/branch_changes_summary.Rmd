@@ -222,7 +222,7 @@ nearby likelihoods before a Newton correction; the accepted fit has score
 $2.6\times10^{-6}$, full information rank (37/37), and condition number about
 1,387,680. Because the piecewise and log-linear specifications are non-nested,
 their likelihood difference is descriptive rather than an LR statistic.
-Appendix Table A5D is generated from a common decomposition routine spanning
+Table 8 is generated from a common decomposition routine spanning
 the requested Tables 1, 4, 5, and 6 models. These comparisons condition only on
 the two reports forming an apparent transition and integrate out the subsequent
 report. The Table 7 row is explicitly distinguished: because duration reports
@@ -266,6 +266,13 @@ model. The table reports approximate analytical errors from the full numerical
 observed-information matrix and delta method, not bootstrap errors. Appendix
 Table A7 retains hazard profiles, auxiliary comparisons, wrong-state-clock
 integration checks, and the within-quarter reset decomposition.
+
+## Table 8: apparent-transition implications
+
+Table 8 uses a common decomposition routine to compare how the principal
+models classify apparent transitions as classification only, genuine reversal,
+or genuine persistence. It is presented after Table 7 because it synthesizes
+results across Tables 1 and 4--7 rather than documenting only the AR(2) model.
 
 ## Appendix Table A8: no-error duration counterfactual
 

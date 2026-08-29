@@ -765,57 +765,6 @@ cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
     "\\end{table}\n", sep = "")
 ```
 
-```{r ar2-apparent-transition-appendix, results='asis'}
-transition_implications <- read.csv(file.path(project_root,
-  "EM-AR2/output/results/set4_reliability/apparent_transition_decomposition.csv"),
-  check.names = FALSE)
-direction_order <- c("All apparent transitions", "Apparent entries",
-                     "Apparent exits")
-model_order <- c(
-  "Table 1 col 1: raw/no error",
-  "Table 1 col 2: symmetric error",
-  "Table 4 col 4: Set 2, constant error",
-  "Table 4 col 5: Set 2, reliability error",
-  "Table 5 col 2: AR(2)",
-  "Table 5 col 6: AR(2), reliability error",
-  "Table 6 cols 3/4: FMM, common error",
-  "Table 6 cols 7/8: FMM, type error",
-  "Table 7 col 4: independent duration error")
-model_labels <- c(
-  `Table 1 col 1: raw/no error` = "Table 1 (1): raw/no error",
-  `Table 1 col 2: symmetric error` = "Table 1 (2): symmetric error",
-  `Table 4 col 4: Set 2, constant error` = "Table 4 (4): Set 2, constant error",
-  `Table 4 col 5: Set 2, reliability error` = "Table 4 (5): Set 2, reliability predictors",
-  `Table 5 col 2: AR(2)` = "Table 5 (2): AR(2)",
-  `Table 5 col 6: AR(2), reliability error` = "Table 5 (6): AR(2), reliability predictors",
-  `Table 6 cols 3/4: FMM, common error` = "Table 6 (3/4): FMM, common error",
-  `Table 6 cols 7/8: FMM, type error` = "Table 6 (7/8): FMM, type intercepts",
-  `Table 7 col 4: independent duration error` = "Table 7 (4): independent duration error*")
-cat("\\begin{table}[H]\n\\centering\n",
-    "\\caption*{Appendix Table A5D: Implications for apparent two-wave transitions}\n",
-    "\\scriptsize\n\\setlength{\\tabcolsep}{7pt}\n",
-    "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
-    "Model & Classification only & Genuine reversal & Genuine persistence \\\\\n",
-    "\\midrule\n", sep = "")
-for (direction in direction_order) {
-  cat("\\multicolumn{4}{l}{\\textit{", direction, "}} \\\\\n", sep = "")
-  rows <- transition_implications[
-    transition_implications$direction == direction, ]
-  rows <- rows[match(model_order, rows$model), ]
-  for (i in seq_len(nrow(rows))) {
-    cat(model_labels[[rows$model[i]]], " & ",
-        sprintf("%.1f", 100 * rows$classification_only[i]), " & ",
-        sprintf("%.1f", 100 * rows$true_reversal[i]), " & ",
-        sprintf("%.1f", 100 * rows$true_persistent[i]),
-        " \\\\\n\\addlinespace[1pt]\n", sep = "")
-  }
-  if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
-}
-cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages. Except for the starred Table 7 row, calculations condition only on the two status reports forming an apparent transition and integrate out the subsequent report. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The paired Table 6 references denote the stable and mobile columns of one FMM specification, with class membership integrated out. *In Table 7, duration reports are identifying measurement equations and impose consistency restrictions on latent paths; its row therefore uses the fitted full-record posterior, including tenure and timegap evidence, and is not a strictly status-pair-only comparison. Models use their own estimation samples, so cross-table differences combine specification and sample differences.}\n",
-    "\\end{table}\n", sep = "")
-```
-
 Transition coefficients are on a common probit scale. The unrestricted AR(1)
 and no-duration AR(2) transition probabilities are re-expressed in their
 observationally equivalent probit parameterisations; the duration-controlled
@@ -853,7 +802,7 @@ pass the normalized-score criterion.
   its posterior mean from 0.93% to 1.79%. The corresponding transition rates
   are 4.32%, 28.98%, 30.18%, and 4.03%, so the pronounced second-lag pattern
   remains after applying the same observed reliability controls used in Table 3.
-- Appendix Table A5D shows that the decomposition is specification-sensitive.
+- Table 8 shows that the decomposition is specification-sensitive.
   The Table 4 constant- and reliability-error models attribute 43.0% and 49.4%
   of apparent transitions to classification, compared with 22.1% in the basic
   AR(2), 38.5% in the reliability-adjusted AR(2), 31.5% in the common-error FMM,
@@ -1202,7 +1151,63 @@ substitutes for the standard errors reported in Table 7.
 - Test alternative contamination densities, rounding and heaping rules, and
   tail cut-points while retaining transition-duration consistency.
 
-# 8. No-error duration counterfactual (Appendix Table A8)
+# 8. Apparent-transition implications: Table 8
+
+```{r apparent-transition-table, results='asis'}
+transition_implications <- read.csv(file.path(project_root,
+  "EM-AR2/output/results/set4_reliability/apparent_transition_decomposition.csv"),
+  check.names = FALSE)
+direction_order <- c("All apparent transitions", "Apparent entries",
+                     "Apparent exits")
+model_order <- c(
+  "Table 1 col 1: raw/no error",
+  "Table 1 col 2: symmetric error",
+  "Table 4 col 4: Set 2, constant error",
+  "Table 4 col 5: Set 2, reliability error",
+  "Table 5 col 2: AR(2)",
+  "Table 5 col 6: AR(2), reliability error",
+  "Table 6 cols 3/4: FMM, common error",
+  "Table 6 cols 7/8: FMM, type error",
+  "Table 7 col 4: independent duration error")
+model_labels <- c(
+  `Table 1 col 1: raw/no error` = "Table 1 (1): raw/no error",
+  `Table 1 col 2: symmetric error` = "Table 1 (2): symmetric error",
+  `Table 4 col 4: Set 2, constant error` = "Table 4 (4): Set 2, constant error",
+  `Table 4 col 5: Set 2, reliability error` = "Table 4 (5): Set 2, reliability predictors",
+  `Table 5 col 2: AR(2)` = "Table 5 (2): AR(2)",
+  `Table 5 col 6: AR(2), reliability error` = "Table 5 (6): AR(2), reliability predictors",
+  `Table 6 cols 3/4: FMM, common error` = "Table 6 (3/4): FMM, common error",
+  `Table 6 cols 7/8: FMM, type error` = "Table 6 (7/8): FMM, type intercepts",
+  `Table 7 col 4: independent duration error` = "Table 7 (4): independent duration error*")
+cat("\\setcounter{table}{7}\n\\begin{table}[H]\n\\centering\n",
+    "\\caption{Implications for apparent two-wave transitions}\n",
+    "\\scriptsize\n\\setlength{\\tabcolsep}{7pt}\n",
+    "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
+    "Model & Classification only & Genuine reversal & Genuine persistence \\\\\n",
+    "\\midrule\n", sep = "")
+for (direction in direction_order) {
+  cat("\\multicolumn{4}{l}{\\textit{", direction, "}} \\\\\n", sep = "")
+  rows <- transition_implications[
+    transition_implications$direction == direction, ]
+  rows <- rows[match(model_order, rows$model), ]
+  for (i in seq_len(nrow(rows))) {
+    cat(model_labels[[rows$model[i]]], " & ",
+        sprintf("%.1f", 100 * rows$classification_only[i]), " & ",
+        sprintf("%.1f", 100 * rows$true_reversal[i]), " & ",
+        sprintf("%.1f", 100 * rows$true_persistent[i]),
+        " \\\\\n\\addlinespace[1pt]\n", sep = "")
+  }
+  if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
+}
+cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages. Except for the starred Table 7 row, calculations condition only on the two status reports forming an apparent transition and integrate out the subsequent report. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The paired Table 6 references denote the stable and mobile columns of one FMM specification, with class membership integrated out. *In Table 7, duration reports are identifying measurement equations and impose consistency restrictions on latent paths; its row therefore uses the fitted full-record posterior, including tenure and timegap evidence, and is not a strictly status-pair-only comparison. Models use their own estimation samples, so cross-table differences combine specification and sample differences.}\n",
+    "\\end{table}\n", sep = "")
+```
+
+This comparison is deliberately placed after the model-specific tables because
+it synthesizes their implications for interpreting apparent transitions.
+
+# 9. No-error duration counterfactual (Appendix Table A8)
 
 - Estimated flexible AR(1) and AR(2) transition models treating reported status
   changes as error-free.
