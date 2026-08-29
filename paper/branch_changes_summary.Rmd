@@ -202,36 +202,53 @@ person-level score outer products. The duration-controlled AR(2) information
 matrix is locally full rank, although its high condition number means the
 initial-state and missing-duration directions warrant caution.
 
-The new extension is estimated as three exact nested likelihoods on the same
-308,240 observations. The first combines AR(2) with the Table 4 Set 4 transition
-equations and constant symmetric error. The second adds age/education
-inconsistency and severity predictors to the error equation. The third adds
-panel B-not-C and panel A-not-B matching-quality predictors. Stage-specific
-collapsing leaves 197,933, 220,795, and 228,195 exact cells. Each stage uses two
-substantively distinct starts, checks likelihood nesting, applies an
-observed-information Newton correction where useful, and is accepted only with
-a maximum normalized score below $2\times10^{-5}$ and full information rank.
-The final scores are $2.8\times10^{-6}$, $4.2\times10^{-6}$, and
-$2.8\times10^{-6}$. All three models are locally full rank, but condition
-numbers rise from about 746,558 to 2,800,426, motivating profile and
-long-start sensitivity checks. Appendix Table A5C is generated from a separate
-prospective decomposition that conditions only on the two reports forming an
-apparent transition and integrates out the subsequent report.
+The new extension is estimated as two exact nested likelihoods on the same
+308,240 observations. The first combines AR(2) with the Table 4 Set 2 transition
+equations and constant symmetric error. The second makes symmetric error depend
+on the same predictors as Table 3 column (1): age, education, race, and gender
+inconsistency plus mutually exclusive indicators for exactly two, three, or
+four inconsistencies. Each stage uses two substantively distinct starts, checks
+likelihood nesting, applies an observed-information Newton correction where
+useful, and is accepted only with a maximum normalized score below
+$2\times10^{-5}$ and full information rank. Stage-specific collapsing leaves
+197,933 and 223,907 exact cells. The final scores are $2.8\times10^{-6}$ and
+$3.4\times10^{-6}$; both models are locally full rank, with information
+condition numbers of about 746,558 and 7,710,884. Appendix Table A5C is
+reserved for the new duration-hazard profiles. The piecewise model replaces
+each log-duration slope with five indicators, uses 0--3 months as the omitted
+category, retains separate never-worked and missing-duration indicators, and
+keeps the same Set 2 sample and constant-error equation. Two starts converge to
+nearby likelihoods before a Newton correction; the accepted fit has score
+$2.6\times10^{-6}$, full information rank (37/37), and condition number about
+1,387,680. Because the piecewise and log-linear specifications are non-nested,
+their likelihood difference is descriptive rather than an LR statistic.
+Appendix Table A5D is generated from a common decomposition routine spanning
+the requested Tables 1, 4, 5, and 6 models. These comparisons condition only on
+the two reports forming an apparent transition and integrate out the subsequent
+report. The Table 7 row is explicitly distinguished: because duration reports
+are identifying measurement equations in that model, it uses the fitted
+full-record posterior including tenure and timegap evidence.
 
 ## Table 6: finite-mixture heterogeneity
 
 The two-type four-wave model uses exact likelihood refinement after EM warm
 starts, label normalization, multiple starts, and analytical sandwich/delta
 inference. The comparison now contains the no-error FMM, the uncontrolled
-symmetric-error FMM, the controlled common-error model, and the controlled
-type-specific-error model in one table. Observed transition slopes are common
-across latent types in the parsimonious controlled models, while type-specific
-intercepts retain mobility heterogeneity.
+symmetric-error FMM, the controlled common-error model, and two controlled
+type-specific-error models. Observed transition slopes are common across latent
+types in the controlled models, while type-specific intercepts retain mobility
+heterogeneity.
 
-Age and education inconsistencies determine error risk without assigning them
-to a particular behavioral mechanism. The preferred type-specific model allows
-the two classes to have different error intercepts and common inconsistency
-slopes. Its local information matrix is full rank. The failed three-wave
+The first new model uses only type-specific misclassification intercepts. The
+second adds the complete Table 3 column (1) predictor set---age, education,
+race, and gender inconsistencies plus indicators for exactly two, three, or
+four inconsistencies---with common slopes across types. This keeps the
+stable/mobile error contrast separate from observed reliability predictors
+without assigning either to a particular behavioral mechanism. Both local
+information matrices are full rank and have positive curvature. The richer
+model estimates posterior mean misclassification rates of 1.34% and 5.33% in
+the stable and mobile classes, respectively, and reduces the mobile-class entry
+and exit rates relative to the intercept-only model. The failed three-wave
 symmetric-error FMM is not reported as an identified result: three waves do not
 separate two-type transition heterogeneity from symmetric misclassification.
 
@@ -275,4 +292,4 @@ environment recorded by `renv`.
 The remaining inference priorities are the person-level bootstrap for the main
 covariate and duration specifications, robustness to alternative reliability
 links, and likelihood-profile and longer-start checks for the ill-conditioned
-Table 5 Set 4 AR(2) extensions.
+Table 5 Set 2 AR(2) extensions.

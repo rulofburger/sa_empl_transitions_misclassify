@@ -771,29 +771,15 @@ transition_implications <- read.csv(file.path(project_root,
   check.names = FALSE)
 direction_order <- c("All apparent transitions", "Apparent entries",
                      "Apparent exits")
-model_order <- c(
-  "Table 1 col 1: raw/no error",
-  "Table 1 col 2: symmetric error",
-  "Table 4 col 4: Set 2, constant error",
-  "Table 4 col 5: Set 2, reliability error",
-  "Table 5 col 2: AR(2)",
-  "Table 5 col 6: AR(2), reliability error",
-  "Table 6 cols 3/4: FMM, common error",
-  "Table 6 cols 7/8: FMM, type error",
-  "Table 7 col 4: independent duration error")
+model_order <- c("Table 1: raw/no error", "Table 1: symmetric error",
+                 "Table 5: final AR(2)")
 model_labels <- c(
-  `Table 1 col 1: raw/no error` = "Table 1 (1): raw/no error",
-  `Table 1 col 2: symmetric error` = "Table 1 (2): symmetric error",
-  `Table 4 col 4: Set 2, constant error` = "Table 4 (4): Set 2, constant error",
-  `Table 4 col 5: Set 2, reliability error` = "Table 4 (5): Set 2, reliability predictors",
-  `Table 5 col 2: AR(2)` = "Table 5 (2): AR(2)",
-  `Table 5 col 6: AR(2), reliability error` = "Table 5 (6): AR(2), reliability predictors",
-  `Table 6 cols 3/4: FMM, common error` = "Table 6 (3/4): FMM, common error",
-  `Table 6 cols 7/8: FMM, type error` = "Table 6 (7/8): FMM, type intercepts",
-  `Table 7 col 4: independent duration error` = "Table 7 (4): independent duration error*")
+  `Table 1: raw/no error` = "Table 1: raw/no error",
+  `Table 1: symmetric error` = "Table 1: symmetric-error adjustment",
+  `Table 5: final AR(2)` = "Table 5: final AR(2)")
 cat("\\begin{table}[H]\n\\centering\n",
     "\\caption*{Appendix Table A5D: Implications for apparent two-wave transitions}\n",
-    "\\scriptsize\n\\setlength{\\tabcolsep}{7pt}\n",
+    "\\small\n\\setlength{\\tabcolsep}{7pt}\n",
     "\\begin{tabular}{@{}lrrr@{}}\n\\toprule\n",
     "Model & Classification only & Genuine reversal & Genuine persistence \\\\\n",
     "\\midrule\n", sep = "")
@@ -812,7 +798,7 @@ for (direction in direction_order) {
   if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
 }
 cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages. Except for the starred Table 7 row, calculations condition only on the two status reports forming an apparent transition and integrate out the subsequent report. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The paired Table 6 references denote the stable and mobile columns of one FMM specification, with class membership integrated out. *In Table 7, duration reports are identifying measurement equations and impose consistency restrictions on latent paths; its row therefore uses the fitted full-record posterior, including tenure and timegap evidence, and is not a strictly status-pair-only comparison. Models use their own estimation samples, so cross-table differences combine specification and sample differences.}\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages conditional only on the two reports forming an apparent transition; the subsequent report is integrated out. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The Table 1 columns use the nonstationary three-wave estimates; the final AR(2) column uses the four-wave Set 2 model with the Table 3 column (1) predictors of symmetric classification error. Because the Table 1 and Table 5 estimation samples differ, comparisons combine model and sample differences.}\n",
     "\\end{table}\n", sep = "")
 ```
 
@@ -853,15 +839,12 @@ pass the normalized-score criterion.
   its posterior mean from 0.93% to 1.79%. The corresponding transition rates
   are 4.32%, 28.98%, 30.18%, and 4.03%, so the pronounced second-lag pattern
   remains after applying the same observed reliability controls used in Table 3.
-- Appendix Table A5D shows that the decomposition is specification-sensitive.
-  The Table 4 constant- and reliability-error models attribute 43.0% and 49.4%
-  of apparent transitions to classification, compared with 22.1% in the basic
-  AR(2), 38.5% in the reliability-adjusted AR(2), 31.5% in the common-error FMM,
-  and 27.5% in the type-intercept FMM. The corresponding genuine-reversal shares
-  range from 6.1--6.5% in Table 4 to 18.0--24.3% in the AR(2) and FMM models.
-  The Table 7 full-duration posterior assigns 50.8% to classification, 4.2% to
-  reversal, and 45.0% to persistence, but is not directly status-pair-only
-  because tenure and timegap reports help classify the latent path.
+- Appendix Table A5D shows that the final model attributes 38.5% of apparent
+  transitions to classification error, 18.0% to genuine transitions that
+  reverse next period, and 43.5% to genuine persistent transitions. Among the
+  61.5% inferred to be genuine, 29.3% reverse in the following period. This is
+  more balanced than the Table 1 symmetric-error model, which attributes 67.0%
+  to error and only 1.0% to genuine short-lived transitions.
 - Surviving AR(2) dependence may reflect unobserved duration, state dependence,
   latent heterogeneity, or within-quarter transitions; the current estimates do
   not distinguish these mechanisms.
@@ -887,49 +870,45 @@ pass the normalized-score criterion.
 - Removed the underidentified three-wave FMM table: only the no-error model with free initial
   conditions is locally identified; symmetric error cannot be separated from
   two-type transition heterogeneity.
-- Developed four-wave alternatives with observed covariates, duration controls,
-  and class-specific misclassification intercepts.
-- Replaced the earlier controlled type-specific-error specification with two
-  transparent variants: intercepts only, and intercepts plus the complete
-  Table 3 column (1) predictor set with slopes constrained to be common across
-  types.
+- Developed a four-wave alternative with observed covariates, duration
+  controls, and class-specific misclassification intercepts.
+- Compared all four specifications in one main table, including the nested
+  no-misclassification model, and moved inconsistency-specific error rates to
+  a secondary table.
 
-\Needspace{20\baselineskip}
+\Needspace{44\baselineskip}
 
-**Table 6. Comparison of four-wave two-type FMM specifications**
+**Table 6. Comparison of all four-wave two-type FMM specifications**
 
 \begin{center}
 \scriptsize
 \setlength{\tabcolsep}{2.7pt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}lrrrrrrrrrr@{}}
+\begin{tabular}{@{}lrrrrrrrr@{}}
 \toprule
-& \multicolumn{4}{c}{No controls} & \multicolumn{6}{c}{Controls} \\
-\cmidrule(lr){2-5}\cmidrule(lr){6-11}
+& \multicolumn{4}{c}{No controls} & \multicolumn{4}{c}{Controls} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
 & \multicolumn{2}{c}{No error} & \multicolumn{2}{c}{Common error}
-& \multicolumn{2}{c}{Common error} & \multicolumn{2}{c}{Type intercepts}
-& \multicolumn{2}{c}{Type intercepts + predictors} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}\cmidrule(lr){10-11}
-& Stable & Mobile & Stable & Mobile & Stable & Mobile & Stable & Mobile & Stable & Mobile \\
+& \multicolumn{2}{c}{Common error} & \multicolumn{2}{c}{Type-specific error} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+& Stable & Mobile & Stable & Mobile & Stable & Mobile & Stable & Mobile \\
 \midrule
-Latent-class share (\%) & 75.65 & 24.35 & 92.13 & 7.87 & 89.63 & 10.37 & 88.68 & 11.32 & 80.78 & 19.22 \\
-& (1.00) & (1.00) & (0.37) & (0.37) & (1.26) & (1.26) & (1.11) & (1.11) & (3.22) & (3.22) \\
-Entry rate (\%) & 0.46 & 30.46 & 2.36 & 42.16 & 3.20 & 27.30 & 3.20 & 31.05 & 2.49 & 20.79 \\
-& (0.18) & (0.75) & (0.07) & (1.15) & (0.12) & (2.49) & (0.11) & (2.42) & (0.21) & (2.42) \\
-Exit rate (\%) & 0.004 & 33.63 & 2.21 & 47.04 & 3.01 & 26.87 & 3.10 & 31.10 & 2.22 & 18.92 \\
-& (0.240) & (0.77) & (0.08) & (1.16) & (0.16) & (1.57) & (0.15) & (1.80) & (0.28) & (1.91) \\
-Misclassification rate (\%) & 0.00 & 0.00 & 1.35 & 1.35 & 1.74 & 1.98 & 1.01 & 6.28 & 1.34 & 5.33 \\
-& (fixed) & (fixed) & (0.03) & (0.03) & (0.03) & (0.03) & (0.04) & (1.00) & (0.07) & (0.44) \\
-Initial employment rate (\%) & 47.73 & 48.17 & 47.74 & 47.95 & 47.38 & 50.59 & 47.33 & 51.74 & 46.55 & 52.98 \\
-& (0.18) & (0.45) & (0.13) & (0.74) & (0.22) & (1.75) & (0.17) & (1.27) & (0.32) & (0.97) \\
+Latent-class share (\%) & 75.65 & 24.35 & 92.13 & 7.87 & 89.63 & 10.37 & 58.17 & 41.83 \\
+& (1.00) & (1.00) & (0.37) & (0.37) & (1.26) & (1.26) & (3.05) & (3.05) \\
+Entry rate (\%) & 0.46 & 30.46 & 2.36 & 42.16 & 3.20 & 27.30 & 1.33 & 11.98 \\
+& (0.18) & (0.75) & (0.07) & (1.15) & (0.12) & (2.49) & (0.15) & (0.64) \\
+Exit rate (\%) & 0.004 & 33.63 & 2.21 & 47.04 & 3.01 & 26.87 & 0.75 & 11.18 \\
+& (0.240) & (0.77) & (0.08) & (1.16) & (0.16) & (1.57) & (0.20) & (0.65) \\
+Misclassification rate (\%) & 0.00 & 0.00 & 1.35 & 1.35 & 1.74 & 1.98 & 0.68 & 4.60 \\
+& (fixed) & (fixed) & (0.03) & (0.03) & (0.03) & (0.03) & (0.09) & (0.18) \\
+Initial employment rate (\%) & 47.73 & 48.17 & 47.74 & 47.95 & 47.38 & 50.59 & 44.61 & 52.33 \\
+& (0.18) & (0.45) & (0.13) & (0.74) & (0.22) & (1.75) & (0.58) & (0.56) \\
 \addlinespace
 Log-likelihood & \multicolumn{2}{c}{-451,874.52}
 & \multicolumn{2}{c}{-450,805.93}
 & \multicolumn{2}{c}{-428,777.56}
-& \multicolumn{2}{c}{-439,546.18}
-& \multicolumn{2}{c}{-427,570.80} \\
+& \multicolumn{2}{c}{-428,568.60} \\
 $N$ & \multicolumn{2}{c}{308,240}
-& \multicolumn{2}{c}{308,240}
 & \multicolumn{2}{c}{308,240}
 & \multicolumn{2}{c}{308,240}
 & \multicolumn{2}{c}{308,240} \\
@@ -944,43 +923,52 @@ method, are in parentheses. Entry and exit rates are posterior risk-set weighted
 in the controlled models. Posterior mean misclassification averages each
 respondent-wave's fitted posterior mismatch probability using survey weights and
 posterior class membership. Controls comprise observed covariates and duration
-controls. All controlled models use common transition slopes and class-specific
-transition intercepts. The fourth model has class-specific misclassification
-intercepts and no misclassification covariates. The fifth adds the exact Table 3
-column (1) predictors---age, education, race, and gender inconsistencies and
-indicators for exactly two, three, or four inconsistencies---with slopes common
-across classes. In
+controls. Both controlled models use common slopes and class-specific transition
+intercepts. The last model additionally makes the misclassification intercept
+class-specific; the age- and education-inconsistency slopes remain common. In
 the no-error model, all misclassification probabilities are fixed at zero. The
 no-error model has full probability-Jacobian rank, but weak curvature around
-its near-zero stable-class exit estimate warrants caution. Misclassification
-coefficients and optimisation diagnostics are reported in Appendix Table A6.
+its near-zero stable-class exit estimate warrants caution. Pattern-specific
+implied misclassification rates are reported separately in Appendix Table A6.
 
 \Needspace{13\baselineskip}
 
-**Appendix Table A6. Misclassification equations and diagnostics**
+**Appendix Table A6. Misclassification rates by inconsistency pattern**
 
-| Quantity | Type intercepts | Type intercepts + predictors |
+| Inconsistency pattern | Common error: Stable | Common error: Mobile | Type-specific error: Stable | Type-specific error: Mobile | Mobile minus stable |
+|:--|--:|--:|--:|--:|--:|
+| None | 0.72 (0.02) | 0.72 (0.02) | 0.14 (0.04) | 2.37 (0.15) | 2.22 |
+| Age | 14.72 (0.31) | 14.72 (0.31) | 6.28 (0.98) | 35.52 (1.05) | 29.25 |
+| Education | 3.73 (0.12) | 3.73 (0.12) | 0.89 (0.21) | 11.83 (0.53) | 10.94 |
+| Age and education | 34.85 (0.40) | 34.85 (0.40) | 23.62 (1.97) | 46.93 (0.34) | 23.31 |
+
+Estimates are misclassification rates in percent; analytical standard errors
+are in parentheses. Both specifications include observed covariates and
+duration controls. The common-error model has a common misclassification
+intercept; the type-specific model has separate stable- and mobile-class
+intercepts. Age- and education-inconsistency slopes are common across classes.
+
+**Appendix Table A6, Panel B. Preferred FMM coefficients and diagnostics**
+
+| Quantity | Estimate | Analytical SE |
 |:--|--:|--:|
-| Stable-type intercept | -3.880 (0.037) | -4.815 (0.091) |
-| Mobile-type intercept | -1.940 (0.183) | -2.834 (0.120) |
-| Age inconsistent | -- | 3.189 (0.063) |
-| Education inconsistent | -- | 1.896 (0.055) |
-| Race inconsistent | -- | 0.745 (0.125) |
-| Gender inconsistent | -- | 2.343 (0.072) |
-| Exactly two inconsistencies | -- | -0.220 (0.085) |
-| Exactly three inconsistencies | -- | -1.474 (0.157) |
-| Exactly four inconsistencies | -- | -1.313 (1.720) |
-| Likelihood cells | 213,784 | 233,944 |
-| Information-matrix rank | 30/30 | 37/37 |
-| Minimum information eigenvalue | 0.0000174 | 0.00000217 |
-| Information condition number | 21,309 | 163,747 |
-| Maximum weighted score | 0.00000484 | 0.00000669 |
+| Persistence: log tenure | 0.650 | 0.015 |
+| Entry: log time since work | -0.325 | 0.007 |
+| Entry: never worked | -0.860 | 0.018 |
+| Persistence: permanent contract | 0.399 | 0.016 |
+| Persistence: informal sector | -0.266 | 0.016 |
+| Mobile-minus-stable misclassification intercept | 2.839 | 0.225 |
+| Wald statistic for common error intercept | 12.64 | -- |
+| Entry-risk peak age | 38 | -- |
+| Persistence peak age | 53 | -- |
+| Information-matrix rank | 32/32 | -- |
+| Minimum information eigenvalue | 0.0000120 | -- |
+| Information condition number | 29,216 | -- |
+| Maximum weighted score | 0.0000032 | -- |
 
-Coefficients enter the index of the symmetric misclassification probability,
-$0.5\operatorname{logit}^{-1}(z\delta)$. Standard errors in parentheses are
-analytical survey-weighted sandwich standard errors. Both specifications use
-the same 308,240-person controlled sample. The different cell counts reflect
-the additional error-equation predictors, not a different estimation sample.
+Coefficients are probit-index effects except the logit-scale difference between
+the class-specific misclassification intercepts. The controlled sample contains
+308,240 people and collapses exactly to 229,809 likelihood cells.
 
 \Needspace{16\baselineskip}
 
@@ -994,15 +982,14 @@ the additional error-equation predictors, not a different estimation sample.
   decomposition.
 - Four waves support a large stable/mobile distinction after controlling for
   observed characteristics and duration.
-- With type-specific error intercepts alone, the posterior mean error rate is
-  1.01% for the stable class and 6.28% for the mobile class. Adding the Table 3
-  predictors changes these to 1.34% and 5.33%, while increasing the estimated
-  mobile share from 11.32% to 19.22%.
-- The richer error equation substantially improves fit and produces less
-  extreme mobile-class entry and exit rates (20.79% and 18.92%) than the
-  intercept-only model (31.05% and 31.10%). Thus some heterogeneity otherwise
-  assigned to class membership is associated with observed report
-  inconsistencies and matching-quality signals.
+- Allowing the misclassification probability to differ by type makes the mobile
+  class larger and less extreme, showing that the uncontrolled FMM mixed
+  genuine mobility, observed heterogeneity, and heterogeneous classification
+  error.
+- In the preferred controlled model, the survey-weighted posterior mean
+  misclassification rate is 0.68% in the stable class and 4.60% in the mobile
+  class, a much sharper reliability contrast than the baseline probabilities
+  alone convey.
 - The type-specific probabilities describe joint latent classifications; they
   do not show that mobility causes reporting or matching error.
 - The four-wave results are best presented as a replacement or appendix

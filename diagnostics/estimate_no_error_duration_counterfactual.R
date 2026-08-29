@@ -183,9 +183,18 @@ clock_diagnostics <- function(fitted) {
   r <- fitted$rows
   metric <- function(use, inconsistent, label) {
     ok <- use & !is.na(inconsistent)
+    x <- as.numeric(inconsistent[ok])
+    w <- r$weight[ok]
+    ids <- r$id[ok]
+    estimate <- weighted.mean(x, w)
+    # Person-clustered linearization for the survey-weighted descriptive share.
+    # Clustering matters because each person can contribute two adjacent-wave
+    # records to a diagnostic.
+    cluster_score <- rowsum(w * (x - estimate), ids, reorder = FALSE)
+    standard_error <- sqrt(sum(cluster_score^2)) / sum(w)
     data.frame(model = unique(r$model), diagnostic = label,
-      inconsistent_share = weighted.mean(inconsistent[ok], r$weight[ok]),
-      risk_weight = sum(r$weight[ok]))
+      inconsistent_share = estimate, standard_error = standard_error,
+      risk_weight = sum(w), n_persons = length(unique(ids)))
   }
   entry_use <- r$origin == 0 & r$destination == 1 & is.finite(r$tenure_destination)
   exit_use <- r$origin == 1 & r$destination == 0 &

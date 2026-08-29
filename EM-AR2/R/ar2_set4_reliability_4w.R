@@ -1,11 +1,12 @@
-# Exact four-wave, one-type AR(2) likelihood with Set 4 transition covariates
-# and staged reliability-dependent symmetric misclassification.
+# Exact four-wave, one-type AR(2) likelihood with the full Table 4 Set 2
+# transition covariates and reliability-dependent symmetric misclassification.
 
 .ar2r_clamp <- function(x, lo = 1e-10, hi = 1 - 1e-10)
   pmin(pmax(x, lo), hi)
 
 compute_inconsistency_extent_4w <- function(df) {
-  required <- c(paste0("age", 1:4), paste0("educ", 1:4))
+  required <- c(paste0("age", 1:4), paste0("educ", 1:4),
+                paste0("race", 1:4), paste0("female", 1:4))
   if (length(missing <- setdiff(required, names(df))))
     stop("Missing four-wave reliability variables: ", paste(missing, collapse = ", "))
   edge <- function(prefix) {
@@ -31,27 +32,30 @@ compute_inconsistency_extent_4w <- function(df) {
   }
   age <- do.call(attribute_wave, edge("age"))
   educ <- do.call(attribute_wave, edge("educ"))
+  categorical_edge <- function(prefix) {
+    x <- as.matrix(df[paste0(prefix, 1:4)])
+    !is.na(x[, 2:4, drop = FALSE]) & !is.na(x[, 1:3, drop = FALSE]) &
+      x[, 2:4, drop = FALSE] != x[, 1:3, drop = FALSE]
+  }
+  categorical_wave <- function(bad)
+    cbind(bad[,1] & !bad[,2], bad[,1] & bad[,2],
+          (!bad[,1] & bad[,2]) | (bad[,2] & bad[,3]),
+          !bad[,2] & bad[,3]) * 1L
+  race <- categorical_wave(categorical_edge("race"))
+  gender <- categorical_wave(categorical_edge("female"))
   out <- list()
   for (tt in 1:4) {
     out[[paste0("Y_age_", tt)]] <- age$flag[, tt]
     out[[paste0("Y_edu_", tt)]] <- educ$flag[, tt]
+    out[[paste0("Y_race_", tt)]] <- race[, tt]
+    out[[paste0("Y_gender_", tt)]] <- gender[, tt]
     out[[paste0("extent_age_", tt)]] <- age$extent[, tt]
     out[[paste0("extent_edu_", tt)]] <- educ$extent[, tt]
+    count <- age$flag[, tt] + educ$flag[, tt] + race[, tt] + gender[, tt]
+    for (kk in 2:4)
+      out[[paste0("Y_exactly_", kk, "_", tt)]] <- as.integer(count == kk)
   }
   as.data.frame(out)
-}
-
-.ar2r_panel_keys <- function(panel_path) {
-  raw <- readRDS(panel_path); num <- function(x) as.numeric(unclass(x))
-  weight <- (num(raw$weight1) * num(raw$weight2) * num(raw$weight3))^(1 / 3)
-  keep <- num(raw$age1) > 17 & num(raw$age1) < 56 &
-    complete.cases(raw[paste0("employed", 1:3)]) & is.finite(weight) & weight > 0
-  raw <- raw[keep, c("hhnr", "pnr", paste0("period", 1:4)), drop = FALSE]
-  unique(unlist(lapply(1:4, function(tt) {
-    period <- raw[[paste0("period", tt)]]
-    paste(raw$hhnr[!is.na(period)], raw$pnr[!is.na(period)],
-          period[!is.na(period)], sep = "|")
-  }), use.names = FALSE))
 }
 
 prepare_ar2_set4_reliability_4w <- function(
@@ -63,36 +67,37 @@ prepare_ar2_set4_reliability_4w <- function(
     panel_path, sector_path, collapse = FALSE)
   raw <- readRDS(panel_path)
   required <- c("hhnr", "pnr", paste0("period", 1:4), paste0("employed", 1:4),
-                paste0("age", 1:4), paste0("educ", 1:4), "race1", "female1",
+                paste0("age", 1:4), paste0("educ", 1:4),
+                paste0("race", 1:4), paste0("female", 1:4),
                 paste0("weight", 1:4))
-  keep <- raw$age1 > 17 & raw$age1 < 56 & complete.cases(raw[required[-(1:6)]])
+  filter_required <- c(paste0("employed", 1:4), paste0("age", 1:4),
+                       paste0("educ", 1:4), "race1", "female1",
+                       paste0("weight", 1:4))
+  keep <- raw$age1 > 17 & raw$age1 < 56 &
+    complete.cases(raw[filter_required])
   raw <- raw[keep, required, drop = FALSE]
-  for (nm in c(paste0("age", 1:4), paste0("educ", 1:4)))
+  for (nm in c(paste0("age", 1:4), paste0("educ", 1:4),
+               paste0("race", 1:4), paste0("female", 1:4)))
     raw[[nm]] <- as.numeric(unclass(raw[[nm]]))
-  if (nrow(raw) != base$n_original) stop("Set 4 and reliability samples do not align")
+  if (nrow(raw) != base$n_original) stop("Set 2 and reliability samples do not align")
   inc <- compute_inconsistency_extent_4w(raw)
-  keys_B <- .ar2r_panel_keys("data/raw/df_qlfs_B.rds")
-  keys_C <- .ar2r_panel_keys("data/raw/df_qlfs_C.rds")
-  key_A <- sapply(1:4, function(tt)
-    paste(raw$hhnr, raw$pnr, raw[[paste0("period", tt)]], sep = "|"))
-  in_B <- matrix(key_A %in% keys_B, nrow(raw), 4L)
-  in_C <- matrix(key_A %in% keys_C, nrow(raw), 4L)
-  b_not_c <- 1L * (in_B & !in_C); a_not_b <- 1L * !in_B
-  if (sum(b_not_c * a_not_b)) stop("Matching-quality indicators overlap")
   Z <- lapply(1:4, function(tt) cbind(
     error_intercept = 1,
     age_inconsistency = inc[[paste0("Y_age_", tt)]],
     education_inconsistency = inc[[paste0("Y_edu_", tt)]],
-    large_age_inconsistency = as.integer(inc[[paste0("extent_age_", tt)]] >= 2),
-    large_education_inconsistency =
-      as.integer(inc[[paste0("extent_edu_", tt)]] >= 2),
-    panel_B_not_C = b_not_c[, tt], panel_A_not_B = a_not_b[, tt]))
+    race_inconsistency = inc[[paste0("Y_race_", tt)]],
+    gender_inconsistency = inc[[paste0("Y_gender_", tt)]],
+    two_inconsistencies = inc[[paste0("Y_exactly_2_", tt)]],
+    three_inconsistencies = inc[[paste0("Y_exactly_3_", tt)]],
+    four_inconsistencies = inc[[paste0("Y_exactly_4_", tt)]]))
   out <- list(y = base$y, weight = base$weight, weight_sq = base$weight_sq,
     X = base$X[2:3], Z = Z, entry_active = base$entry_active,
     persistence_active = base$persistence_active,
     covariate_names = base$covariate_names, scaling = base$scaling,
     n_original = base$n_original,
-    reliability_prevalence = c(B_not_C = mean(b_not_c), A_not_B = mean(a_not_b)))
+    reliability_prevalence = setNames(vapply(2:ncol(Z[[1]]), function(j)
+      mean(vapply(Z, function(z) mean(z[, j]), numeric(1))), numeric(1)),
+      colnames(Z[[1]])[-1]))
   if (!collapse) return(out)
   key_parts <- cbind(out$y, do.call(cbind, out$X),
                      do.call(cbind, lapply(Z, function(z) z[, -1, drop = FALSE])))
@@ -107,10 +112,105 @@ prepare_ar2_set4_reliability_4w <- function(
   out
 }
 
+.ar2_piecewise_duration_bins <- function(months, prefix) {
+  months <- as.numeric(months)
+  months[!is.finite(months) | months < 0] <- 0
+  lower <- c(3, 6, 12, 24, 60)
+  upper <- c(6, 12, 24, 60, Inf)
+  labels <- c("4_6m", "7_12m", "13_24m", "25_60m", "over_60m")
+  out <- vapply(seq_along(lower), function(j)
+    as.numeric(months > lower[j] & months <= upper[j]), numeric(length(months)))
+  if (is.null(dim(out))) out <- matrix(out, ncol = length(lower))
+  colnames(out) <- paste0(prefix, "_", labels)
+  out
+}
+
+# Prepare the Table 5 column (4) model with piecewise-constant rather than
+# log-linear duration hazards. The estimation sample and all non-duration
+# covariates are identical to the Set 2 specification.
+prepare_ar2_set2_piecewise_4w <- function(
+    panel_path = "data/raw/df_qlfs_A.rds",
+    sector_path = "data/raw/QLFSmerged_mapped.rds", collapse = TRUE) {
+  if (!exists("prepare_fmm_covariates_inconsistency_4w", mode = "function"))
+    stop("Source EM-AR1-4W/R/source_all.R before preparing piecewise AR(2) data")
+  base <- prepare_fmm_covariates_inconsistency_4w(
+    panel_path, sector_path, collapse = FALSE)
+  panel <- readRDS(panel_path)
+  filter_required <- c(paste0("employed", 1:4), paste0("age", 1:4),
+    paste0("educ", 1:4), "race1", "female1", paste0("weight", 1:4))
+  duration_required <- c(paste0("tenure", 1:3), paste0("timegap", 1:3),
+                         paste0("neverworked", 1:3))
+  missing <- setdiff(c(filter_required, duration_required), names(panel))
+  if (length(missing))
+    stop("Four-wave panel is missing: ", paste(missing, collapse = ", "))
+  keep <- panel$age1 > 17 & panel$age1 < 56 &
+    complete.cases(panel[filter_required])
+  panel <- panel[keep, c(filter_required, duration_required), drop = FALSE]
+  for (nm in names(panel)) panel[[nm]] <- as.numeric(unclass(panel[[nm]]))
+  if (nrow(panel) != base$n_original)
+    stop("Piecewise-duration and Set 2 samples do not align")
+
+  timegap_months <- c(`1` = 1.5, `2` = 4.5, `3` = 7.5, `4` = 10.5,
+                      `5` = 24, `6` = 48, `7` = 90)
+  tenure_bins <- timegap_bins <- vector("list", 3L)
+  for (tt in 1:3) {
+    reported <- panel[[paste0("employed", tt)]]
+    tenure <- panel[[paste0("tenure", tt)]]
+    tenure[tenure < 0] <- NA_real_
+    tenure <- ifelse(reported == 1 & !is.na(tenure), tenure, 0)
+
+    gap_code <- panel[[paste0("timegap", tt)]]
+    gap <- unname(timegap_months[as.character(gap_code)])
+    gap[gap_code == 0] <- 0
+    never <- panel[[paste0("neverworked", tt)]]
+    # Time since work is undefined for never-worked respondents; their
+    # separate indicator remains in the entry equation.
+    gap[reported == 1 | (reported == 0 & never == 1) | is.na(gap)] <- 0
+    tenure_bins[[tt]] <- .ar2_piecewise_duration_bins(tenure, "tenure")
+    timegap_bins[[tt]] <- .ar2_piecewise_duration_bins(gap, "timegap")
+  }
+
+  X <- lapply(1:3, function(tt) {
+    retained <- base$X[[tt]][, !colnames(base$X[[tt]]) %in%
+      c("log_tenure", "log_time_since_work"), drop = FALSE]
+    cbind(retained, tenure_bins[[tt]], timegap_bins[[tt]])
+  })
+  xnames <- colnames(X[[1]])
+  tenure_names <- colnames(tenure_bins[[1]])
+  timegap_names <- colnames(timegap_bins[[1]])
+  entry_active <- !xnames %in% c(tenure_names, "tenure_missing",
+    "permanent_contract", "informal_sector")
+  persistence_active <- !xnames %in% c(timegap_names, "never_worked",
+    "timegap_missing")
+  Z <- lapply(1:4, function(tt)
+    matrix(1, nrow(panel), 1L, dimnames = list(NULL, "error_intercept")))
+  out <- list(y = base$y, weight = base$weight, weight_sq = base$weight_sq,
+    X = X[2:3], Z = Z, entry_active = entry_active,
+    persistence_active = persistence_active, covariate_names = xnames,
+    scaling = c(base$scaling, list(duration_reference = "0--3 months",
+      duration_bins = c("4--6", "7--12", "13--24", "25--60", ">60"))),
+    n_original = base$n_original, stage = "piecewise_duration")
+  if (!collapse) return(out)
+  key_parts <- cbind(out$y, do.call(cbind, out$X))
+  key <- do.call(paste, c(as.data.frame(key_parts), sep = "\r"))
+  first <- !duplicated(key); group <- match(key, key[first])
+  collapse_sum <- function(x) as.vector(rowsum(x, group, reorder = FALSE))
+  out$y <- out$y[first, , drop = FALSE]
+  out$X <- lapply(out$X, function(x) x[first, , drop = FALSE])
+  out$Z <- lapply(out$Z, function(x) x[first, , drop = FALSE])
+  out$weight <- collapse_sum(out$weight)
+  out$weight_sq <- collapse_sum(out$weight_sq)
+  out$n_cells <- length(out$weight)
+  out
+}
+
 subset_ar2_reliability_stage <- function(data,
-    stage = c("constant", "inconsistency", "reliability")) {
+    stage = c("constant", "table3_column1", "inconsistency", "reliability")) {
   stage <- match.arg(stage)
-  keep <- switch(stage, constant = 1L, inconsistency = 1:5, reliability = 1:7)
+  keep <- switch(stage, constant = 1L,
+                 table3_column1 = seq_len(ncol(data$Z[[1]])),
+                 inconsistency = seq_len(min(5L, ncol(data$Z[[1]]))),
+                 reliability = seq_len(ncol(data$Z[[1]])))
   data$Z <- lapply(data$Z, function(z) z[, keep, drop = FALSE])
   # The full preparation is collapsed on all reliability variables. Re-collapse
   # after selecting a stage so omitted reliability fields do not create

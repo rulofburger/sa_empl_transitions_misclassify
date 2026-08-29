@@ -32,3 +32,29 @@ inference. Run it with
 For the robustness model with type-specific baseline misclassification but
 common inconsistency slopes, run
 `source("EM-AR1-4W/estimate_fmm_type_specific_misclassification.R")`.
+
+For the two Table 6 variants with type-specific error intercepts, run
+`source("EM-AR1-4W/estimate_fmm_type_specific_error_variants.R")`. The first
+has no observed predictors in the error equation. The second uses the Table 3
+column (1) age, education, race, and gender inconsistency indicators and the
+exactly-two, exactly-three, and exactly-four indicators, with common slopes and
+type-specific intercepts.
+
+The runner writes one saved fit per variant. Use
+`polish_fmm_type_specific_error_variant.R <variant>` for an additional exact-
+likelihood BFGS refinement and
+`finalize_fmm_type_specific_error_variants.R <saved-fit-stem>` to rebuild the
+sandwich/delta-method inference and audit the score, rank, and curvature. If the
+full Table 3-predictor fit has negative local curvature,
+`escape_fmm_table3_saddle.R` profiles the weakest information-matrix direction
+and restarts from an improving point before it is finalized again. Table 6 uses
+only fits with a maximum normalized score below `1e-5`, full information rank,
+and positive minimum curvature.
+
+The uncontrolled reliability-mixture specification is in
+`R/fmm_common_transitions_type_error_4w.R`. It holds entry, exit, and initial
+employment probabilities common across the two latent groups and allows only
+the symmetric misclassification probability to differ. It uses the same
+covariate-complete sample as Table 6 for comparison, without putting those
+covariates in the likelihood. Run it with
+`source("EM-AR1-4W/estimate_fmm_common_transitions_type_error.R")`.

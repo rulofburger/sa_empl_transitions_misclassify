@@ -75,6 +75,13 @@ From the project root:
 source("EM-AR2/estimate_pipeline.R")
 ```
 
+Run `source("EM-AR2/decompose_apparent_transitions_4w.R")` to rebuild Appendix
+Table A5D. The script compares the selected specifications from Tables 1, 4, 5,
+6, and 7 and writes `apparent_transition_decomposition.csv`. All but the Table
+7 row condition only on the two status reports forming the apparent transition;
+the Table 7 row is labelled separately because its full posterior also uses the
+duration measurement equations.
+
 ## Sample and inference
 
 The default pipeline uses every age-eligible observation with employment status

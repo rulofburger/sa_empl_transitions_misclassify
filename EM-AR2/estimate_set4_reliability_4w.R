@@ -1,4 +1,5 @@
-# Nested Table 5 extension: AR(2) + Set 4 transitions + reliability-dependent error.
+# Nested Table 5 extension: AR(2) + full Table 4 Set 2 transitions, followed by
+# the Table 3 column (1) reliability-dependent error equation.
 if (!file.exists("EM-AR2/R/source_all.R"))
   stop("Source EM-AR2/estimate_set4_reliability_4w.R from the project root")
 source("EM-AR1-4W/R/source_all.R")
@@ -15,6 +16,10 @@ cat(sprintf("Table 5 extension sample: N=%s; exact cells=%s\n",
 
 duration_fit <- readRDS("EM-AR2/output/results/ar2_duration_covariates_4w_latest.rds")
 table4_fit <- readRDS("EM-baseline-ext/output/results/fit_cov_s4_reliability_free.rds")
+legacy_reliability_path <- file.path(results_dir,
+  "fit_ar2_set4_reliability_latest.rds")
+legacy_reliability_fit <- if (file.exists(legacy_reliability_path))
+  readRDS(legacy_reliability_path) else NULL
 
 start_from_duration <- function(data) {
   out <- setNames(rep(0, length(ar2_reliability_names(data))),
@@ -41,7 +46,7 @@ expand_start <- function(old_eta, data, reliability_warm = FALSE) {
   out
 }
 
-stage_names <- c("constant", "inconsistency", "reliability")
+stage_names <- c("constant", "table3_column1")
 requested <- Sys.getenv("AR2_EXTENSION_STAGES", paste(stage_names, collapse=","))
 stage_names <- intersect(stage_names, trimws(strsplit(requested, ",", fixed=TRUE)[[1]]))
 if (!length(stage_names)) stop("AR2_EXTENSION_STAGES selected no valid stages")
@@ -70,16 +75,20 @@ for (stage in stage_names) {
   }
   nested <- if (is.null(previous)) start_from_duration(data) else
     expand_start(previous$eta, data, FALSE)
-  warm <- if (stage == "constant") nested else expand_start(previous$eta, data, TRUE)
+  warm_source <- if (stage == "table3_column1" &&
+                     !is.null(legacy_reliability_fit))
+    legacy_reliability_fit$eta else previous$eta
+  warm <- if (stage == "constant") nested else
+    expand_start(warm_source, data, TRUE)
   starts <- list(nested = nested)
   if (n_starts >= 2L) {
     if (stage == "constant") {
       scale <- ifelse(grepl("alpha|intercept|lag2", names(warm)), .08, .04)
       starts$perturbed_1 <- warm + rnorm(length(warm), 0, scale)
-    } else starts$reliability_warm <- warm
+    } else starts$table3_column1_warm <- warm
   }
   if (n_starts >= 3L) for (j in 3:n_starts) {
-    scale <- ifelse(grepl("inconsistency|panel_|error_", names(warm)), .12, .05)
+    scale <- ifelse(grepl("inconsistency|error_", names(warm)), .12, .05)
     starts[[paste0("perturbed_", length(starts))]] <-
       warm + rnorm(length(warm), 0, scale)
   }

@@ -57,10 +57,40 @@ testthat::test_that("type-specific misclassification score matches a direction d
   testthat::expect_equal(analytical,numerical,tolerance=2e-7)
 })
 
+testthat::test_that("type-specific intercept-only and Table 3 error scores are exact", {
+  for (design in c("intercept_only", "table3_column1")) {
+    d <- make_covinc_4w_test_data()
+    if (design == "intercept_only") {
+      d$Z <- lapply(d$Z, function(z) z[, "intercept", drop=FALSE])
+    } else {
+      set.seed(82)
+      d$Z <- lapply(d$Z, function(z) cbind(z,
+        race_inconsistent=rbinom(nrow(z),1,.03),
+        gender_inconsistent=rbinom(nrow(z),1,.02),
+        two_inconsistencies=rbinom(nrow(z),1,.02),
+        three_inconsistencies=rbinom(nrow(z),1,.005),
+        four_inconsistencies=0))
+    }
+    p <- .initial_fmm_covinc_4w(d)
+    slopes <- colnames(d$Z[[1]])[-1]
+    p$delta <- setNames(c(p$delta[1], p$delta[1]+.2, rep(.1,length(slopes))),
+      c("intercept_A", "intercept_B", slopes))
+    o <- .direct_fmm_covinc_objective(d,p); z <- .pack_fmm_covinc_4w(p)
+    set.seed(29); direction <- rnorm(length(z)); direction <- direction/sqrt(sum(direction^2))
+    h <- 1e-5
+    numerical <- (o$fn(z+h*direction)-o$fn(z-h*direction))/(2*h)
+    analytical <- sum(o$gr(z)*direction)
+    testthat::expect_equal(analytical,numerical,tolerance=3e-7)
+  }
+})
+
 testthat::test_that("four-wave inconsistency attribution extends the three-wave rule", {
   d <- data.frame(age1=c(30,30),age2=c(35,31),age3=c(36,37),age4=c(37,38),
-    educ1=c(5,5),educ2=c(5,5),educ3=c(5,5),educ4=c(5,5))
+    educ1=c(5,5),educ2=c(5,5),educ3=c(5,5),educ4=c(5,5),
+    race1=c(1,1),race2=c(1,1),race3=c(1,2),race4=c(1,2),
+    female1=c(0,0),female2=c(0,0),female3=c(0,0),female4=c(0,0))
   z <- compute_inconsistencies_4w(d)
   testthat::expect_equal(unname(z[1,paste0("Y_age_",1:4)]),c(1,0,0,0))
   testthat::expect_equal(unname(z[2,paste0("Y_age_",1:4)]),c(0,0,1,0))
+  testthat::expect_equal(unname(z[2,paste0("Y_race_",1:4)]),c(0,0,1,0))
 })

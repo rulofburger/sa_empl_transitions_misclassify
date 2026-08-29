@@ -1,4 +1,4 @@
-make_ar2r_test_data <- function(n = 18L, zcols = 7L, seed = 91L) {
+make_ar2r_test_data <- function(n = 18L, zcols = 8L, seed = 91L) {
   set.seed(seed)
   xnames <- c("age", "age_sq", "educ", "female", "log_tenure",
               "log_time_since_work", "never_worked", "tenure_missing",
@@ -10,10 +10,10 @@ make_ar2r_test_data <- function(n = 18L, zcols = 7L, seed = 91L) {
     x
   })
   znames <- c("error_intercept", "age_inconsistency",
-    "education_inconsistency", "large_age_inconsistency",
-    "large_education_inconsistency", "panel_B_not_C", "panel_A_not_B")
+    "education_inconsistency", "race_inconsistency", "gender_inconsistency",
+    "two_inconsistencies", "three_inconsistencies", "four_inconsistencies")
   Z <- lapply(1:4, function(tt) cbind(error_intercept = 1,
-    matrix(rbinom(n * 6, 1, .12), n, dimnames = list(NULL, znames[-1]))))
+    matrix(rbinom(n * 7, 1, .12), n, dimnames = list(NULL, znames[-1]))))
   list(y = matrix(rbinom(n * 4, 1, .5), n, 4), weight = runif(n, .5, 1.5),
     weight_sq = rep(1, n), X = X, Z = lapply(Z, function(z) z[,1:zcols,drop=FALSE]),
     entry_active = !xnames %in% c("log_tenure", "tenure_missing",
@@ -24,15 +24,33 @@ make_ar2r_test_data <- function(n = 18L, zcols = 7L, seed = 91L) {
 
 test_that("four-wave inconsistency attribution extends the Table 3 rule", {
   x <- data.frame(age1=30,age2=35,age3=36,age4=42,
-                  educ1=10,educ2=10,educ3=7,educ4=8)
+                  educ1=10,educ2=10,educ3=7,educ4=8,
+                  race1=1,race2=1,race3=2,race4=2,
+                  female1=0,female2=1,female3=0,female4=0)
   z <- compute_inconsistency_extent_4w(x)
   expect_equal(as.integer(z[1,paste0("Y_age_",1:4)]), c(1,0,0,1))
   expect_equal(as.integer(z[1,paste0("Y_edu_",1:4)]), c(0,0,1,0))
+  expect_equal(as.integer(z[1,paste0("Y_race_",1:4)]), c(0,0,1,0))
+  expect_equal(as.integer(z[1,paste0("Y_gender_",1:4)]), c(0,1,0,0))
+  expect_equal(as.integer(z[1,paste0("Y_exactly_2_",1:4)]), c(0,0,1,0))
   expect_true(z$extent_age_1 >= 2 && z$extent_age_4 >= 2)
   expect_true(z$extent_edu_3 >= 2)
 })
 
-test_that("AR2 Set 4 analytical score matches numerical derivatives", {
+test_that("piecewise duration bins use the stated intervals", {
+  x <- c(0, 3, 3.1, 6, 6.1, 12, 12.1, 24, 24.1, 60, 60.1, NA, -1)
+  bins <- .ar2_piecewise_duration_bins(x, "tenure")
+  expect_equal(colnames(bins), c("tenure_4_6m", "tenure_7_12m",
+    "tenure_13_24m", "tenure_25_60m", "tenure_over_60m"))
+  expect_equal(rowSums(bins), c(0, 0, rep(1, 9), 0, 0))
+  expect_equal(which(bins[, "tenure_4_6m"] == 1), 3:4)
+  expect_equal(which(bins[, "tenure_7_12m"] == 1), 5:6)
+  expect_equal(which(bins[, "tenure_13_24m"] == 1), 7:8)
+  expect_equal(which(bins[, "tenure_25_60m"] == 1), 9:10)
+  expect_equal(which(bins[, "tenure_over_60m"] == 1), 11)
+})
+
+test_that("AR2 Set 2 analytical score matches numerical derivatives", {
   data <- make_ar2r_test_data()
   eta <- setNames(rnorm(length(ar2_reliability_names(data)), 0, .18),
                   ar2_reliability_names(data))
@@ -49,7 +67,13 @@ test_that("AR2 Set 4 analytical score matches numerical derivatives", {
 })
 
 test_that("reliability stages are exact nested restrictions", {
-  full <- make_ar2r_test_data(); constant <- subset_ar2_reliability_stage(full, "constant")
+  full <- make_ar2r_test_data()
+  full <- subset_ar2_reliability_stage(full, "table3_column1")
+  constant <- subset_ar2_reliability_stage(full, "constant")
+  expect_equal(colnames(full$Z[[1]]), c("error_intercept",
+    "age_inconsistency", "education_inconsistency", "race_inconsistency",
+    "gender_inconsistency", "two_inconsistencies", "three_inconsistencies",
+    "four_inconsistencies"))
   e0 <- setNames(rnorm(length(ar2_reliability_names(constant)), 0, .1),
                  ar2_reliability_names(constant))
   e0["error_intercept"] <- -3
