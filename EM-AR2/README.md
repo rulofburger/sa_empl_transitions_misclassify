@@ -75,12 +75,16 @@ From the project root:
 source("EM-AR2/estimate_pipeline.R")
 ```
 
-Run `source("EM-AR2/decompose_apparent_transitions_4w.R")` to rebuild Appendix
-Table A5D. The script compares the selected specifications from Tables 1, 4, 5,
-6, and 7 and writes `apparent_transition_decomposition.csv`. All but the Table
-7 row condition only on the two status reports forming the apparent transition;
-the Table 7 row is labelled separately because its full posterior also uses the
-duration measurement equations.
+Run `source("EM-AR2/decompose_apparent_transitions_4w.R")` to rebuild Table 8.
+The script compares selected specifications from Tables 1, 4, 5, 6, 7 and
+candidate Table 9 and writes `apparent_transition_decomposition.csv`.
+Table 7 and Table 9 duration rows use full-record posteriors and are marked
+separately; other rows condition on the two status reports forming the apparent
+transition. The three categories count any latent change as genuine, even if
+opposite to the reported direction. To add/update only the two Table 9 models
+without recalculating the other rows, run
+`Rscript scripts/update_table8_duration_models.R`. This also saves the complete
+Table 8 LaTeX/CSV snapshot under `paper/generated/four_wave_duration/`.
 
 ## Sample and inference
 

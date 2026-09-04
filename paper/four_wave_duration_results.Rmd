@@ -1,0 +1,50 @@
+---
+title: "Four-wave duration model: paper table"
+output:
+  pdf_document:
+    latex_engine: xelatex
+geometry: margin=1in
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{caption}
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+project_root <- normalizePath("..",winslash="/",mustWork=TRUE)
+```
+
+The table compares the repaired four-wave AR(1) model with its two-parameter
+AR(2) extension on Panel A. Duration-reporting assumptions are unchanged.
+Table 8 also includes these models' apparent-transition implications.
+
+```{r table, results='asis'}
+path <- file.path(project_root,
+  "paper/generated/four_wave_duration/table_four_wave_duration.tex")
+if (!file.exists(path)) stop("Run scripts/build_four_wave_duration_paper_table.R first")
+lines <- readLines(path,warn=FALSE)
+lines <- lines[!grepl("^%",lines)]
+lines <- gsub("[htbp]","[H]",lines,fixed=TRUE)
+cat("\\setcounter{table}{8}\n",lines,sep="\n")
+```
+
+The AR(2) model attributes more turnover to genuine short-lived transitions,
+while retaining a substantial role for status misclassification. Recent
+entrants and leavers have much higher next-quarter transition probabilities
+than people whose status was unchanged in the preceding interval. These
+comparisons combine duration composition with the estimated history effects;
+they are not causal effects of switching.
+
+The questionnaire distinction is important: timegap measures time since last
+work, while tenure is derived from the reported employer/business start date.
+The current findings remain conditional on the treatment of new nonemployment
+spells and interruptions followed by return to the same employer. Those
+sensitivity checks and analytical uncertainty are still pending.
+
+Rebuild this table, without estimating any model, from the repository root:
+
+```sh
+Rscript scripts/build_four_wave_duration_paper_table.R
+```

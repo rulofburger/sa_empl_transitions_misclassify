@@ -1,0 +1,15 @@
+| Measure | AR(1) | AR(2) |
+|:--|--:|--:|
+| Entry rate | 2.693 | 3.206 |
+| Exit rate | 4.092 | 4.775 |
+| Misclassification rate | 2.646 | 2.441 |
+| Initial employment rate | 49.108 | 49.102 |
+| Entry after a recent exit | 6.085 | 18.460 |
+| Entry after continued nonemployment | 2.547 | 2.677 |
+| Exit after a recent entry | 5.860 | 29.292 |
+| Exit after continued employment | 3.997 | 3.989 |
+| Log likelihood | -2,894,475.05 | -2,892,278.65 |
+| N | 316,889 | 316,889 |
+| Parameters | 33 | 35 |
+
+Notes: All rates are percentages. Panel A; four waves; identical samples. Entry and exit rates are survey- and posterior-risk-weighted fitted probabilities pooled across all three quarterly transitions. History-specific rates pool only transitions 2--3 and 3--4; recent means a latent status change in the preceding interval, while continued means no such change. All four reports inform the posterior risk sets; these are not raw observed-switcher rates or real-time forecasts. Groups have different duration compositions. Both models retain the same piecewise duration hazards, duration-reporting mechanisms, and AR(1) first-transition initialization. The proposed new-nonemployment onset restriction and alternative same-employer return treatment have not been implemented. Likelihood weights are normalized to N. Standard errors and calibrated significance tests are pending; no significance stars are reported.

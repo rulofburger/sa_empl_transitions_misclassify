@@ -297,10 +297,13 @@ test_that("e_step_eps returns correct structure", {
 
   out <- e_step_eps(df, params)
 
-  expect_named(out, c("gamma", "loglik", "suff"))
+  expect_named(out, c("gamma", "loglik", "row_loglik", "suff"))
   expect_equal(dim(out$gamma), c(200L, 8L))
   expect_true(is.finite(out$loglik))
   expect_true(out$loglik <= 0)  # log-likelihood must be <= 0 for densities
+  expect_length(out$row_loglik, nrow(df))
+  expect_equal(sum(df$weight * out$row_loglik), out$loglik,
+               tolerance = 1e-8)
 })
 
 # ---------------------------------------------------------------------------

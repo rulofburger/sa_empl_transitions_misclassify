@@ -66,7 +66,7 @@
 #' @param df Data frame; same as for \code{e_step_eps()}.
 #' @return Invisibly NULL; stops with an informative error on failure.
 #' @keywords internal
-validate_df_eps <- function(df) {
+validate_df_eps <- function(df, allow_zero_tenure = FALSE) {
   cat_cols <- c("timegap_cat1", "timegap_cat2", "timegap_cat3")
   missing_cats <- setdiff(cat_cols, names(df))
   if (length(missing_cats) > 0)
@@ -93,12 +93,18 @@ validate_df_eps <- function(df) {
   if (any(na_tenure_emp))
     stop(sprintf("e_step_eps: %d obs have NA tenure at an employed wave.",
                  sum(na_tenure_emp)))
-  bad_tenure <- (df$y1 == 1 & df$tenure1 <= 0) |
-                (df$y2 == 1 & df$tenure2 <= 0) |
-                (df$y3 == 1 & df$tenure3 <= 0)
+  bad_tenure <- if (allow_zero_tenure) {
+    (df$y1 == 1 & df$tenure1 < 0) |
+      (df$y2 == 1 & df$tenure2 < 0) |
+      (df$y3 == 1 & df$tenure3 < 0)
+  } else {
+    (df$y1 == 1 & df$tenure1 <= 0) |
+      (df$y2 == 1 & df$tenure2 <= 0) |
+      (df$y3 == 1 & df$tenure3 <= 0)
+  }
   if (any(bad_tenure))
-    stop(sprintf("e_step_eps: %d obs have non-positive tenure for employed state.",
-                 sum(bad_tenure)))
+    stop(sprintf("e_step_eps: %d obs have invalid tenure for employed state.",
+      sum(bad_tenure)))
   if (is.null(df$weight)) stop("e_step_eps: df must contain a 'weight' column.")
   if (any(is.na(df$weight)))
     stop(sprintf("e_step_eps: %d obs have NA weight.", sum(is.na(df$weight))))
@@ -147,15 +153,87 @@ validate_df_eps <- function(df) {
 
 #' @export
 e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
+  reliability_shifts <- .duration_reliability_shifts(params)
+
+  # A fixed equal-weight two-point mixture links tenure and timegap reporting
+  # reliability across all waves of a record. The reliable class shifts the
+  # contamination logits down and the unreliable class shifts them up. The
+  # shifts may be common or clock-specific. At zero shifts the two components
+  # coincide exactly with the preceding model.
+  if (any(reliability_shifts>0)) {
+    if (suff_stats)
+      stop("duration-reliability mixtures require suff_stats=FALSE")
+    reliable_params <- .duration_reliability_component_params(params,
+      "reliable")
+    unreliable_params <- .duration_reliability_component_params(params,
+      "unreliable")
+    reliable <- e_step_eps(df,reliable_params,check_df=check_df,
+      suff_stats=FALSE)
+    unreliable <- e_step_eps(df,unreliable_params,check_df=FALSE,
+      suff_stats=FALSE)
+    row_max <- pmax(reliable$row_loglik,unreliable$row_loglik)
+    row_loglik <- row_max+log(.5*exp(reliable$row_loglik-row_max)+
+      .5*exp(unreliable$row_loglik-row_max))
+    posterior_unreliable <- .5*exp(unreliable$row_loglik-row_loglik)
+    posterior_reliable <- 1-posterior_unreliable
+    gamma <- reliable$gamma*posterior_reliable+
+      unreliable$gamma*posterior_unreliable
+    job_change_posterior <- list(
+      expected_changes=reliable$job_change_posterior$expected_changes*
+        posterior_reliable+
+        unreliable$job_change_posterior$expected_changes*
+          posterior_unreliable,
+      opportunities=reliable$job_change_posterior$opportunities*
+        posterior_reliable+
+        unreliable$job_change_posterior$opportunities*
+          posterior_unreliable)
+    return(list(gamma=gamma,loglik=sum(df$weight*row_loglik),
+      row_loglik=row_loglik,suff=NULL,
+      job_change_posterior=job_change_posterior,
+      duration_reliability_posterior=posterior_unreliable,
+      duration_reliability_component_probabilities=data.frame(
+        class=c("reliable","unreliable"),
+        tenure_contamination=c(reliable_params$eps,
+          unreliable_params$eps),
+        timegap_contamination=c(reliable_params$eps_d,
+          unreliable_params$eps_d))))
+  }
   # --- Validate df inputs (skipped from the EM loop for efficiency) ---
-  if (check_df) validate_df_eps(df)
+  monthly_tenure <- identical(params$tenure_measurement_model, "monthly")
+  if (check_df) validate_df_eps(df, allow_zero_tenure = monthly_tenure)
   # --- Unpack parameters ---
   alpha    <- params$alpha
   theta0   <- params$theta0
   theta1   <- params$theta1
   pi_par   <- params$pi
   eps      <- params$eps
+  tenure_model <- if (is.null(params$tenure_contamination_model))
+    "marginal" else params$tenure_contamination_model
+  eps_local <- if (is.null(params$eps_local)) 0 else params$eps_local
+  eps_gross <- if (is.null(params$eps_gross)) eps else params$eps_gross
   eps_d    <- if (is.null(params$eps_d)) 0 else params$eps_d
+  job_change_prob <- if (is.null(params$job_change_prob)) 0 else
+    params$job_change_prob
+  tenure_report_persistence <- if (is.null(params$tenure_report_persistence))
+    0 else params$tenure_report_persistence
+  tenure_heaping_prob <- if (is.null(params$tenure_heaping_prob)) 0 else
+    params$tenure_heaping_prob
+  tenure_year_revision_prob <-
+    if (is.null(params$tenure_year_revision_prob)) 0 else
+      params$tenure_year_revision_prob
+  tenure_clean_anchor_revision_prob <-
+    if (is.null(params$tenure_clean_anchor_revision_prob)) 0 else
+      params$tenure_clean_anchor_revision_prob
+  tenure_exact_anchor_retention_prob <-
+    if (is.null(params$tenure_exact_anchor_retention_prob)) 0 else
+      params$tenure_exact_anchor_retention_prob
+  tenure_local_revision_prob <-
+    if (is.null(params$tenure_local_revision_prob)) 0 else
+      params$tenure_local_revision_prob
+  tenure_start_month_probs <- if (is.null(params$tenure_start_month_probs))
+    rep(1/12,12L) else .validate_start_month_probs(
+      params$tenure_start_month_probs)
+  seasonal_start_month <- max(abs(tenure_start_month_probs-1/12))>1e-12
   timegap_model <- if (is.null(params$timegap_contamination_model))
     "marginal" else params$timegap_contamination_model
   local_decay <- if (is.null(params$timegap_local_decay)) 1 else
@@ -169,9 +247,75 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   if (!is.finite(eps) || eps <= 0 || eps >= 1) {
     stop(sprintf("e_step_eps: params$eps must be in (0, 1); got %.4g", eps))
   }
+  if (!tenure_model %in% c("marginal", "local_gross"))
+    stop("e_step_eps: unknown tenure contamination model")
+  if (identical(tenure_model, "local_gross") &&
+      (!is.finite(eps_local) || !is.finite(eps_gross) || eps_local < 0 ||
+       eps_gross < 0 || abs(eps - eps_local - eps_gross) > 1e-8))
+    stop("e_step_eps: invalid local/gross tenure-error probabilities")
   if (!is.finite(eps_d) || eps_d < 0 || eps_d >= 1) {
     stop(sprintf("e_step_eps: params$eps_d must be in [0, 1); got %.4g", eps_d))
   }
+  if (!is.finite(job_change_prob) || job_change_prob < 0 ||
+      job_change_prob >= 1)
+    stop("e_step_eps: params$job_change_prob must be in [0,1)")
+  if (!is.finite(tenure_report_persistence) ||
+      tenure_report_persistence < 0 || tenure_report_persistence >= 1)
+    stop("e_step_eps: params$tenure_report_persistence must be in [0,1)")
+  if (tenure_report_persistence > 0 && !monthly_tenure)
+    stop("e_step_eps: tenure-report persistence requires monthly tenure")
+  if (!is.finite(tenure_heaping_prob) || tenure_heaping_prob < 0 ||
+      tenure_heaping_prob >= 1)
+    stop("e_step_eps: params$tenure_heaping_prob must be in [0,1)")
+  if (tenure_heaping_prob > 0 && !monthly_tenure)
+    stop("e_step_eps: tenure heaping requires monthly tenure")
+  if (tenure_heaping_prob > 0 && tenure_report_persistence > 0)
+    stop("e_step_eps: persistence and calendar heaping are not jointly implemented")
+  if (!is.finite(tenure_year_revision_prob) ||
+      tenure_year_revision_prob < 0 || tenure_year_revision_prob >= 1)
+    stop("e_step_eps: params$tenure_year_revision_prob must be in [0,1)")
+  if (tenure_year_revision_prob > 0 && !monthly_tenure)
+    stop("e_step_eps: whole-year revisions require monthly tenure")
+  if (tenure_year_revision_prob > 0 && tenure_report_persistence > 0)
+    stop("e_step_eps: persistence and whole-year revisions are not jointly implemented")
+  if (!is.finite(tenure_clean_anchor_revision_prob) ||
+      tenure_clean_anchor_revision_prob < 0 ||
+      tenure_clean_anchor_revision_prob >= 1)
+    stop(paste0("e_step_eps: params$tenure_clean_anchor_revision_prob ",
+      "must be in [0,1)"))
+  if (tenure_clean_anchor_revision_prob > 0 && !monthly_tenure)
+    stop("e_step_eps: clean-anchor revisions require monthly tenure")
+  if (tenure_clean_anchor_revision_prob > 0 &&
+      tenure_report_persistence > 0)
+    stop("e_step_eps: persistence and clean-anchor revisions are not jointly implemented")
+  if (!is.finite(tenure_exact_anchor_retention_prob) ||
+      tenure_exact_anchor_retention_prob < 0 ||
+      tenure_exact_anchor_retention_prob >= 1)
+    stop(paste0("e_step_eps: params$tenure_exact_anchor_retention_prob ",
+      "must be in [0,1)"))
+  if (tenure_exact_anchor_retention_prob > 0 && !monthly_tenure)
+    stop("e_step_eps: exact-anchor retention requires monthly tenure")
+  if (tenure_exact_anchor_retention_prob > 0 &&
+      tenure_report_persistence > 0)
+    stop("e_step_eps: persistence and exact-anchor retention are not jointly implemented")
+  if (!is.finite(tenure_local_revision_prob) ||
+      tenure_local_revision_prob < 0 || tenure_local_revision_prob >= 1)
+    stop(paste0("e_step_eps: params$tenure_local_revision_prob ",
+      "must be in [0,1)"))
+  if (tenure_local_revision_prob > 0 && !monthly_tenure)
+    stop("e_step_eps: local revisions require monthly tenure")
+  if (tenure_local_revision_prob > 0 && tenure_report_persistence > 0)
+    stop("e_step_eps: persistence and local revisions are not jointly implemented")
+  interview_cols <- paste0("interview_month", 1:3)
+  if ((tenure_heaping_prob > 0 || tenure_year_revision_prob > 0 ||
+      tenure_clean_anchor_revision_prob > 0 ||
+      tenure_exact_anchor_retention_prob > 0 ||
+      tenure_local_revision_prob > 0 || seasonal_start_month) &&
+      (length(setdiff(interview_cols, names(df))) ||
+       any(!as.matrix(df[interview_cols]) %in% 1:12)))
+    stop("e_step_eps: calendar revisions require interview_month1-3 in 1:12")
+  if (job_change_prob > 0 && identical(tenure_model, "local_gross"))
+    stop("e_step_eps: job changes are currently implemented for marginal tenure contamination only")
   if (!timegap_model %in% c("marginal","local","joint_marginal"))
     stop("e_step_eps: unknown timegap contamination model")
   if (!is.finite(local_decay) || local_decay<=0)
@@ -250,9 +394,13 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
   lambda_xsum_mat  <- matrix(0, nrow = N, ncol = H)
   eps_num_mat      <- matrix(0, nrow = N, ncol = H)  # tau_sum (E[# contam waves], eps-informative spells)
   eps_den_mat      <- matrix(0, nrow = N, ncol = H)  # K (# obs waves, eps-informative spells)
+  job_num_mat      <- matrix(0, nrow = N, ncol = H)
+  job_den_mat      <- matrix(0, nrow = N, ncol = H)
 
   # Pre-compute full N x 3 tenure matrix (s_full is already computed above).
   g_full <- cbind(g1, g2, g3)
+  interview_month_full <- if (all(interview_cols %in% names(df)))
+    as.matrix(df[interview_cols]) else NULL
 
   # --- Loop over histories ---
   for (j in seq_len(H)) {
@@ -266,12 +414,38 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
       s_mat     <- s_full[, spell, drop = FALSE]
       t_offsets <- as.integer(spell - spell[1L])
 
-      out <- log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps,
-                                  beta_g = beta_g)
+      out <- if (monthly_tenure)
+        log_emission_spell_g_monthly(g_mat, s_mat, t_offsets, lambda_g,
+          eps, job_change_prob, beta_g = beta_g,
+          initial_model = if (spell[1L] > 1L) "within_interval" else
+            "marginal",
+          tenure_report_persistence=tenure_report_persistence,
+          tenure_heaping_prob=tenure_heaping_prob,
+          tenure_year_revision_prob=tenure_year_revision_prob,
+          tenure_clean_anchor_revision_prob=
+            tenure_clean_anchor_revision_prob,
+          tenure_exact_anchor_retention_prob=
+            tenure_exact_anchor_retention_prob,
+          tenure_local_revision_prob=tenure_local_revision_prob,
+          tenure_start_month_probs=tenure_start_month_probs,
+          interview_month_mat=if (is.null(interview_month_full)) NULL else
+            interview_month_full[, spell, drop=FALSE]) else if
+        (job_change_prob > 0)
+        log_emission_spell_g_job_change(g_mat, s_mat, t_offsets, lambda_g,
+          eps, job_change_prob, beta_g = beta_g) else if
+        (identical(tenure_model, "local_gross"))
+        log_emission_spell_g_local_gross(g_mat, s_mat, t_offsets, lambda_g,
+          eps_local, eps_gross, beta_g = beta_g) else
+        log_emission_spell_g(g_mat, s_mat, t_offsets, lambda_g, eps,
+          beta_g = beta_g)
 
       ld[, j]               <- ld[, j]               + out$loglik
       lambda_count_mat[, j] <- lambda_count_mat[, j] + out$lambda_count
       lambda_xsum_mat[, j]  <- lambda_xsum_mat[, j]  + out$lambda_xsum
+      if (!is.null(out$job_changes)) {
+        job_num_mat[, j] <- job_num_mat[, j] + out$job_changes
+        job_den_mat[, j] <- job_den_mat[, j] + out$job_change_opportunities
+      }
 
       # eps stats: accumulate for all eps-informative spells (K >= 2, or
       # K = 1 with offset > 0 where clean/contaminated branches differ).
@@ -289,8 +463,21 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
         g_t  <- g_list[[t]]
         mask <- (s_t == 1L)
         if (any(mask)) {
-          ld[mask, j] <- ld[mask, j] +
+          marginal_g <- if (monthly_tenure && seasonal_start_month)
+            .log_calendar_duration_month_mass(round(12*g_t[mask]),
+              df[[interview_cols[t]]][mask],lambda_g,beta_g,
+              tenure_start_month_probs) else if (monthly_tenure)
+            .log_duration_month_mass(round(12*g_t[mask]),lambda_g,
+              beta_g) else
             .log_duration_density(g_t[mask], lambda_g, beta_g)
+          if (monthly_tenure && tenure_heaping_prob > 0) {
+            heaped_g <- .log_january_duration_month_mass(
+              round(12 * g_t[mask]), df[[interview_cols[t]]][mask],
+              lambda_g, beta_g)
+            marginal_g <- .log_probability_mixture(marginal_g, heaped_g,
+              tenure_heaping_prob)
+          }
+          ld[mask, j] <- ld[mask, j] + marginal_g
           lambda_count_mat[mask, j] <- lambda_count_mat[mask, j] + 1
           lambda_xsum_mat[mask, j]  <- lambda_xsum_mat[mask, j]  + g_t[mask]
         }
@@ -373,11 +560,16 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
                       log_kernel[,5], log_kernel[,6], log_kernel[,7], log_kernel[,8])
     log_denom <- row_max + log(rowSums(exp(log_kernel - row_max)))
     gamma_mat <- exp(log_kernel - log_denom)
+    log_lik_i <- log_denom
     ll        <- sum(wi * log_denom)
   }
 
   if (!suff_stats) {
-    return(list(gamma = gamma_mat, loglik = ll, suff = NULL))
+    return(list(gamma = gamma_mat, loglik = ll, row_loglik = log_lik_i,
+      suff = NULL,
+      job_change_posterior = list(
+        expected_changes = rowSums(gamma_mat * job_num_mat),
+        opportunities = rowSums(gamma_mat * job_den_mat))))
   }
 
   # --- Sufficient statistics ---
@@ -501,5 +693,5 @@ e_step_eps <- function(df, params, check_df = TRUE, suff_stats = TRUE) {
     cat_d_trans_w    = unlist(cat_d_trans_w_list,    use.names = FALSE)
   )
 
-  list(gamma = gamma_mat, loglik = ll, suff = suff)
+  list(gamma = gamma_mat, loglik = ll, row_loglik = log_lik_i, suff = suff)
 }

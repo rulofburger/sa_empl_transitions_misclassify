@@ -1,0 +1,7 @@
+"direction","model","conditioning","classification_only","true_reversal","true_persistent"
+"All apparent transitions","Table 9 col 1: duration AR(1)","full_duration_posterior",0.563923606556348,0.0602261748180152,0.375850218625637
+"Apparent entries","Table 9 col 1: duration AR(1)","full_duration_posterior",0.61713529072897,0.0648188163643199,0.31804589290671
+"Apparent exits","Table 9 col 1: duration AR(1)","full_duration_posterior",0.508614410702489,0.0554524993608151,0.435933089936695
+"All apparent transitions","Table 9 col 2: duration AR(2)","full_duration_posterior",0.508109693340332,0.120779378083391,0.371110928576277
+"Apparent entries","Table 9 col 2: duration AR(2)","full_duration_posterior",0.557448411412961,0.140020229883045,0.302531358703994
+"Apparent exits","Table 9 col 2: duration AR(2)","full_duration_posterior",0.45682612914784,0.100780085500774,0.442393785351386

@@ -225,9 +225,10 @@ their likelihood difference is descriptive rather than an LR statistic.
 Table 8 is generated from a common decomposition routine spanning
 the requested Tables 1, 4, 5, and 6 models. These comparisons condition only on
 the two reports forming an apparent transition and integrate out the subsequent
-report. The Table 7 row is explicitly distinguished: because duration reports
-are identifying measurement equations in that model, it uses the fitted
-full-record posterior including tenure and timegap evidence.
+report. The Table 7 row and the new Table 9 AR(1)/AR(2) duration-model rows
+are explicitly distinguished: they use fitted full-record posteriors including
+tenure and timegap evidence. Table 9 pools the first two apparent transitions
+and their follow-up waves, with all four reports informing the posterior.
 
 ## Table 6: finite-mixture heterogeneity
 
@@ -267,12 +268,36 @@ observed-information matrix and delta method, not bootstrap errors. Appendix
 Table A7 retains hazard profiles, auxiliary comparisons, wrong-state-clock
 integration checks, and the within-quarter reset decomposition.
 
+The new tenure-error extension splits the existing marginal contamination
+branch into bounded local errors of one to six months and gross marginal draws.
+The kernel is discrete, symmetric, and fixed, avoiding a scale parameter that
+could collapse at exact reports. The likelihood is exactly nested at zero local
+mass. A boundary profile and 18 dispersed interior evaluations all favor that
+boundary: the estimated local rate is zero and the original 25.21% tenure-error
+rate remains entirely in the gross branch. Common estimates and analytical
+errors therefore equal the preceding joint per-wave model; the boundary local
+probability has no regular Wald standard error.
+
 ## Table 8: apparent-transition implications
 
 Table 8 uses a common decomposition routine to compare how the principal
 models classify apparent transitions as classification only, genuine reversal,
 or genuine persistence. It is presented after Table 7 because it synthesizes
 results across Tables 1 and 4--7 rather than documenting only the AR(2) model.
+It now also includes both repaired four-wave duration models in candidate
+Table 9. For all apparent transitions their classification-only, genuine-reversal,
+and genuine-persistence shares are respectively 56.39%, 6.02%, and 37.59% under
+AR(1), and 50.81%, 12.08%, and 37.11% under AR(2). The additional history terms
+mainly reallocate apparent transitions from no latent change to genuine reversal.
+These are retrospective decompositions, not forecasts conditional only on the
+initial pair. Classification only excludes any latent change, including a
+change opposite to the reported direction; it is not the overall misclassification
+rate. Existing model rows are retained unchanged. Rebuild just the new rows
+and the table snapshot with the dedicated updater:
+
+```sh
+Rscript scripts/update_table8_duration_models.R
+```
 
 ## Appendix Table A8: no-error duration counterfactual
 

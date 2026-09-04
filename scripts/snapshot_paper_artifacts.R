@@ -75,6 +75,12 @@ if (dir.exists(snapshot_root)) {
   existing <- list.files(snapshot_root, recursive = TRUE, full.names = TRUE,
                          all.files = TRUE, no.. = TRUE)
   existing <- existing[file.info(existing)$isdir %in% FALSE]
+  # Independently rebuilt Table 8/9 snapshots are owned by their dedicated
+  # builders, not this Table 1--3 snapshot operation. Preserve them.
+  duration_snapshot <- normalizePath(file.path(snapshot_root,"four_wave_duration"),
+    winslash="/",mustWork=FALSE)
+  existing <- existing[!startsWith(normalizePath(existing,winslash="/",
+    mustWork=FALSE),paste0(duration_snapshot,"/"))]
   keep <- normalizePath(file.path(snapshot_root, "README.md"), winslash = "/",
                         mustWork = FALSE)
   stale <- existing[normalizePath(existing, winslash = "/",

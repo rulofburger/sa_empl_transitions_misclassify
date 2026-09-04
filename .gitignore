@@ -37,6 +37,12 @@ output/results/*.csv
 *.rds
 *.Rds
 
+# Rebuildable, machine-specific Rcpp compilation products.
+EM-tenure/output/results/job_change_monthly/four_wave_ar1/rcpp-cache/
+# Rebuildable performance profiles and local document/test scratch files.
+EM-tenure/output/results/job_change_monthly/four_wave_ar1/profile*.out
+/tmp/
+
 # Generated working tables/figures — do not commit directly. A compact,
 # paper-facing snapshot is tracked under paper/generated/ and refreshed with
 # scripts/snapshot_paper_artifacts.R.

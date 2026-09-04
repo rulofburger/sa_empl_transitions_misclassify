@@ -26,6 +26,8 @@ piecewise_saved <- readRDS(
   "EM-tenure/output/results/piecewise_hazard/fits_latest.rds")
 robust_saved <- readRDS(
   "EM-tenure/output/results/timegap_contamination_robustness/fits_latest.rds")
+hybrid_saved <- readRDS(
+  "EM-tenure/output/results/tenure_local_gross/fits_latest.rds")
 
 model_specs <- list(
   list(label = "Constant, exact", fit = duration_saved$constant_direct,
@@ -129,6 +131,28 @@ infer_one <- function(spec) {
 }
 
 fits <- lapply(model_specs, infer_one)
+joint_index <- which(vapply(model_specs, function(x)
+  identical(x$label, "Joint per-wave error"), logical(1L)))
+joint_result <- fits[[joint_index]]
+hybrid_summary <- joint_result$summary
+hybrid_summary$model <- "Local + gross tenure"
+total_row <- hybrid_summary[
+  hybrid_summary$quantity == "tenure_contamination_rate", ]
+hybrid_summary <- rbind(hybrid_summary,
+  data.frame(model = "Local + gross tenure",
+    quantity = "local_tenure_contamination_rate", estimate = 0,
+    se = NA_real_),
+  data.frame(model = "Local + gross tenure",
+    quantity = "gross_tenure_contamination_rate",
+    estimate = hybrid_saved$fit$params$eps_gross, se = total_row$se))
+hybrid_diagnostics <- data.frame(model = "Local + gross tenure",
+  parameters = 15L, rank = 14L, minimum_eigenvalue = 0,
+  condition_number = Inf)
+fits[[length(fits) + 1L]] <- list(summary = hybrid_summary,
+  diagnostics = hybrid_diagnostics,
+  vcov_optimizer = joint_result$vcov_optimizer,
+  jacobian = joint_result$jacobian,
+  boundary = TRUE)
 summary_table <- do.call(rbind, lapply(fits, `[[`, "summary"))
 diagnostics <- do.call(rbind, lapply(fits, `[[`, "diagnostics"))
 

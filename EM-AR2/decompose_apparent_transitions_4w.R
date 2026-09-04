@@ -1,5 +1,5 @@
-# Decomposition of apparent two-wave employment transitions for Appendix A5D.
-# Except for the explicitly labelled Table 7 posterior decomposition, each row
+# Decomposition of apparent two-wave employment transitions for Table 8.
+# Except for the explicitly labelled Table 7/9 posterior decompositions, each row
 # conditions only on the two status reports forming the apparent transition and
 # integrates the subsequent report out of the fitted model.
 
@@ -331,12 +331,14 @@ result_list[[length(result_list) + 1L]] <- transform(
 result_list[[length(result_list) + 1L]] <- transform(
   prospective_apparent_transition_fmm_controlled(data_t6, fit_t6_type_intercepts),
   model = "Table 6 cols 7/8: FMM, type error", conditioning = "pair_only")
+source("EM-tenure/R/four_wave_duration_implications.R")
+result_list[[length(result_list) + 1L]] <- build_duration_implications_4w()
 results <- do.call(rbind, result_list)
 results <- results[, c("direction", "model", "conditioning",
   "classification_only", "true_reversal", "true_persistent")]
 stopifnot(
-  nrow(results) == 27L,
-  nrow(unique(results[c("direction", "model")])) == 27L,
+  nrow(results) == 33L,
+  nrow(unique(results[c("direction", "model")])) == 33L,
   setequal(unique(results$direction),
     c("All apparent transitions", "Apparent entries", "Apparent exits")),
   max(abs(rowSums(results[, 4:6]) - 1)) < 1e-10,

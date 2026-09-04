@@ -1,0 +1,3422 @@
+---
+title: "Audit and development log: current-job tenure model"
+subtitle: "Reported start dates, job changes, and duration contamination"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: false
+geometry: margin=1in
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{longtable}
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+project_root <- normalizePath("..", winslash = "/", mustWork = TRUE)
+audit_root <- file.path(project_root, "diagnostics", "output",
+                        "job_start_dates")
+comparison_file <- file.path(audit_root, "matching_comparison.csv")
+if (!file.exists(comparison_file)) {
+  stop("Run diagnostics/audit_job_start_dates.R for panels A, B, and C first")
+}
+audit <- read.csv(comparison_file, stringsAsFactors = FALSE)
+job_result_root <- file.path(project_root, "EM-tenure", "output", "results",
+                             "job_change")
+job_comparison <- read.csv(file.path(job_result_root,
+                                     "model_comparison_latest.csv"))
+job_lr <- read.csv(file.path(job_result_root, "boundary_lr_latest.csv"))
+matching_comparison <- read.csv(file.path(job_result_root,
+  "matching_robustness", "comparison_latest.csv"))
+validation_root <- file.path(job_result_root, "validation")
+validation_starts <- read.csv(file.path(validation_root,
+  "dispersed_starts_latest.csv"))
+validation_interval <- read.csv(file.path(validation_root,
+  "profile_interval_latest.csv"))
+validation_recovery <- read.csv(file.path(validation_root,
+  "recovery_summary_latest.csv"))
+validation_score <- read.csv(file.path(validation_root,
+  "large_sample_score_latest.csv"))
+monthly_root <- file.path(project_root, "EM-tenure", "output", "results",
+  "job_change_monthly")
+monthly_comparison <- read.csv(file.path(monthly_root,
+  "model_comparison_latest.csv"))
+monthly_starts <- read.csv(file.path(monthly_root,
+  "starting_values_latest.csv"))
+monthly_lr <- read.csv(file.path(monthly_root, "boundary_lr_latest.csv"))
+monthly_recovery <- read.csv(file.path(monthly_root, "validation",
+  "recovery_latest.csv"))
+monthly_recovery_grid <- read.csv(file.path(monthly_root, "recovery_grid",
+  "summary_latest.csv"))
+monthly_recovery_reps <- read.csv(file.path(monthly_root, "recovery_grid",
+  "replications_latest.csv"))
+monthly_inference <- read.csv(file.path(monthly_root, "inference",
+  "analytical_se_latest.csv"))
+monthly_hessian <- read.csv(file.path(monthly_root, "inference",
+  "hessian_diagnostics_latest.csv"))
+monthly_profile_interval <- read.csv(file.path(monthly_root, "inference",
+  "profile_interval_latest.csv"))
+monthly_matching <- read.csv(file.path(monthly_root, "matching_robustness",
+  "comparison_latest.csv"))
+monthly_matching_starts <- read.csv(file.path(monthly_root,
+  "matching_robustness", "starting_values_latest.csv"))
+persistent_root <- file.path(monthly_root, "persistent_reporting")
+persistent_comparison <- read.csv(file.path(persistent_root,
+  "model_comparison_latest.csv"))
+persistent_starts <- read.csv(file.path(persistent_root,
+  "starting_values_latest.csv"))
+persistent_lr <- read.csv(file.path(persistent_root,"boundary_lr_latest.csv"))
+persistent_recovery <- read.csv(file.path(persistent_root,"validation",
+  "recovery_latest.csv"))
+persistent_recovery_fits <- read.csv(file.path(persistent_root,"validation",
+  "fits_latest.csv"))
+persistent_profile <- read.csv(file.path(persistent_root,"validation",
+  "conditional_profile_latest.csv"))
+monthly_fits <- readRDS(file.path(monthly_root, "fits_latest.rds"))
+persistent_fits <- readRDS(file.path(persistent_root, "fits_latest.rds"))
+heaping_root <- file.path(monthly_root,"calendar_heaping")
+heaping_comparison <- read.csv(file.path(heaping_root,
+  "model_comparison_latest.csv"))
+heaping_starts <- read.csv(file.path(heaping_root,
+  "starting_values_latest.csv"))
+heaping_lr <- read.csv(file.path(heaping_root,"boundary_lr_latest.csv"))
+heaping_observed <- read.csv(file.path(heaping_root,
+  "observed_january_share_latest.csv"))
+heaping_recovery <- read.csv(file.path(heaping_root,"validation",
+  "recovery_latest.csv"))
+heaping_recovery_fits <- read.csv(file.path(heaping_root,"validation",
+  "fits_latest.csv"))
+heaping_inference <- read.csv(file.path(heaping_root,"inference",
+  "analytical_se_latest.csv"))
+heaping_fits <- readRDS(file.path(heaping_root,"fits_latest.rds"))
+revision_root <- file.path(monthly_root,"calendar_revision")
+revision_comparison <- read.csv(file.path(revision_root,
+  "model_comparison_latest.csv"))
+revision_starts <- read.csv(file.path(revision_root,
+  "starting_values_latest.csv"))
+revision_lr <- read.csv(file.path(revision_root,"boundary_lr_latest.csv"))
+revision_observed <- read.csv(file.path(revision_root,
+  "observed_revision_share_latest.csv"))
+revision_recovery <- read.csv(file.path(revision_root,"validation",
+  "recovery_latest.csv"))
+revision_recovery_fits <- read.csv(file.path(revision_root,"validation",
+  "fits_latest.csv"))
+revision_fits <- readRDS(file.path(revision_root,"fits_latest.rds"))
+revision_inference <- read.csv(file.path(revision_root,"inference",
+  "analytical_se_latest.csv"))
+revision_hessian <- read.csv(file.path(revision_root,"inference",
+  "hessian_diagnostics_latest.csv"))
+revision_profile_interval <- read.csv(file.path(revision_root,"inference",
+  "profile","profile_interval_latest.csv"))
+revision_predictive <- read.csv(file.path(revision_root,"diagnostics",
+  "posterior_predictive_latest.csv"))
+revision_decomposition <- read.csv(file.path(revision_root,"diagnostics",
+  "likelihood_gain_by_pattern_latest.csv"))
+clean_revision_root <- file.path(monthly_root,
+  "calendar_clean_anchor_revision")
+clean_revision_comparison <- read.csv(file.path(clean_revision_root,
+  "model_comparison_latest.csv"))
+clean_revision_starts <- read.csv(file.path(clean_revision_root,
+  "starting_values_latest.csv"))
+clean_revision_lr <- read.csv(file.path(clean_revision_root,
+  "boundary_lr_latest.csv"))
+clean_revision_recovery <- read.csv(file.path(clean_revision_root,
+  "validation","recovery_latest.csv"))
+clean_revision_recovery_fits <- read.csv(file.path(clean_revision_root,
+  "validation","fits_latest.csv"))
+clean_revision_inference <- read.csv(file.path(clean_revision_root,
+  "inference","analytical_se_latest.csv"))
+clean_revision_inference_full <- readRDS(file.path(clean_revision_root,
+  "inference","analytical_inference_latest.rds"))
+clean_revision_hessian <- read.csv(file.path(clean_revision_root,
+  "inference","hessian_diagnostics_latest.csv"))
+clean_revision_predictive <- read.csv(file.path(clean_revision_root,
+  "diagnostics","posterior_predictive_latest.csv"))
+clean_revision_decomposition <- read.csv(file.path(clean_revision_root,
+  "diagnostics","likelihood_gain_by_pattern_latest.csv"))
+start_month_root <- file.path(monthly_root,"calendar_start_month_baseline")
+start_month_comparison <- read.csv(file.path(start_month_root,
+  "model_comparison_latest.csv"))
+start_month_starts <- read.csv(file.path(start_month_root,
+  "starting_values_latest.csv"))
+start_month_distribution <- read.csv(file.path(start_month_root,
+  "start_month_distribution_latest.csv"))
+start_month_lr <- read.csv(file.path(start_month_root,"lr_latest.csv"))
+start_month_predictive <- read.csv(file.path(start_month_root,"diagnostics",
+  "posterior_predictive_latest.csv"))
+start_month_decomposition <- read.csv(file.path(start_month_root,"diagnostics",
+  "likelihood_gain_by_start_month_latest.csv"))
+start_month_recovery_fits <- read.csv(file.path(start_month_root,"validation",
+  "fits_latest.csv"))
+start_month_recovery <- read.csv(file.path(start_month_root,"validation",
+  "month_recovery_latest.csv"))
+exact_anchor_root <- file.path(monthly_root,
+  "calendar_exact_anchor_retention")
+exact_anchor_comparison <- read.csv(file.path(exact_anchor_root,
+  "model_comparison_latest.csv"))
+exact_anchor_lr <- read.csv(file.path(exact_anchor_root,"lr_latest.csv"))
+exact_anchor_predictive <- read.csv(file.path(exact_anchor_root,"diagnostics",
+  "posterior_predictive_latest.csv"))
+exact_anchor_decomposition <- read.csv(file.path(exact_anchor_root,
+  "diagnostics","likelihood_gain_by_continuation_pattern_latest.csv"))
+exact_anchor_recovery <- read.csv(file.path(exact_anchor_root,"validation",
+  "recovery_summary_latest.csv"))
+exact_anchor_refinement <- read.csv(file.path(exact_anchor_root,
+  "refinement_summary_latest.csv"))
+exact_anchor_joint_fits <- read.csv(file.path(exact_anchor_root,
+  "validation_joint","fit_summary_latest.csv"))
+exact_anchor_joint_recovery <- read.csv(file.path(exact_anchor_root,
+  "validation_joint","recovery_summary_latest.csv"))
+exact_anchor_opg <- read.csv(file.path(exact_anchor_root,"inference_opg",
+  "analytical_se_latest.csv"))
+exact_anchor_opg_diagnostics <- read.csv(file.path(exact_anchor_root,
+  "inference_opg","information_diagnostics_latest.csv"))
+exact_anchor_reporting_cor <- as.matrix(read.csv(file.path(exact_anchor_root,
+  "inference_opg","reporting_probability_correlations_latest.csv"),
+  row.names=1,check.names=FALSE))
+local_anchor_root <- file.path(monthly_root,"calendar_local_anchor_revision")
+local_anchor_comparison <- read.csv(file.path(local_anchor_root,
+  "model_comparison_latest.csv"))
+local_anchor_refinement <- read.csv(file.path(local_anchor_root,
+  "refinement_summary_latest.csv"))
+local_anchor_lr <- read.csv(file.path(local_anchor_root,"lr_latest.csv"))
+local_anchor_predictive <- read.csv(file.path(local_anchor_root,"diagnostics",
+  "posterior_predictive_latest.csv"))
+local_anchor_decomposition <- read.csv(file.path(local_anchor_root,
+  "diagnostics","likelihood_gain_by_continuation_pattern_latest.csv"))
+local_anchor_curvature <- read.csv(file.path(local_anchor_root,"diagnostics",
+  "conditional_curvature_latest.csv"))
+shared_reliability_root <- file.path(monthly_root,
+  "shared_duration_reliability")
+shared_reliability_comparison <- read.csv(file.path(shared_reliability_root,
+  "model_comparison_latest.csv"))
+shared_reliability_refinement <- read.csv(file.path(shared_reliability_root,
+  "refinement_summary_latest.csv"))
+shared_reliability_components <- read.csv(file.path(shared_reliability_root,
+  "component_probabilities_latest.csv"))
+shared_reliability_posterior <- read.csv(file.path(shared_reliability_root,
+  "posterior_unreliable_summary_latest.csv"))
+shared_reliability_lr <- read.csv(file.path(shared_reliability_root,
+  "lr_latest.csv"))
+shared_reliability_predictive <- read.csv(file.path(shared_reliability_root,
+  "diagnostics","posterior_predictive_latest.csv"))
+shared_reliability_decomposition <- read.csv(file.path(shared_reliability_root,
+  "diagnostics","likelihood_gain_by_duration_pattern_latest.csv"))
+separate_reliability_root <- file.path(monthly_root,
+  "separate_duration_reliability")
+separate_reliability_comparison <- read.csv(file.path(
+  separate_reliability_root,"model_comparison_latest.csv"))
+separate_reliability_refinement <- read.csv(file.path(
+  separate_reliability_root,"refinement_summary_latest.csv"))
+separate_reliability_components <- read.csv(file.path(
+  separate_reliability_root,"component_probabilities_latest.csv"))
+separate_reliability_posterior <- read.csv(file.path(
+  separate_reliability_root,"posterior_unreliable_summary_latest.csv"))
+separate_reliability_lr <- read.csv(file.path(separate_reliability_root,
+  "lr_latest.csv"))
+separate_reliability_predictive <- read.csv(file.path(
+  separate_reliability_root,"diagnostics","posterior_predictive_latest.csv"))
+separate_reliability_decomposition <- read.csv(file.path(
+  separate_reliability_root,"diagnostics",
+  "likelihood_gain_by_duration_pattern_latest.csv"))
+separate_reliability_joint <- read.csv(file.path(
+  separate_reliability_root,"joint_continuation_latest.csv"))
+separate_reliability_common_polish <- read.csv(file.path(
+  separate_reliability_root,"common_polish_latest.csv"))
+separate_reliability_recovery <- read.csv(file.path(
+  separate_reliability_root,"validation","recovery_draws_latest.csv"))
+separate_reliability_recovery_starts <- read.csv(file.path(
+  separate_reliability_root,"validation","multistart_summary_latest.csv"))
+separate_reliability_inference <- read.csv(file.path(
+  separate_reliability_root,"inference_opg","analytical_se_latest.csv"))
+separate_reliability_information <- read.csv(file.path(
+  separate_reliability_root,"inference_opg",
+  "information_diagnostics_latest.csv"))
+separate_reliability_profile <- read.csv(file.path(
+  separate_reliability_root,"profile_difference",
+  "profile_likelihood_latest.csv"))
+separate_reliability_profile_interval <- read.csv(file.path(
+  separate_reliability_root,"profile_difference",
+  "profile_interval_latest.csv"))
+
+format_metric <- function(label, percent = TRUE, digits = 1L) {
+  z <- audit[audit$quantity == label, c("panel", "estimate")]
+  z$panel <- sub("df_qlfs_", "Panel ", z$panel, fixed = TRUE)
+  if (percent) z$estimate <- 100 * z$estimate
+  setNames(as.list(round(z$estimate[match(c("Panel A", "Panel B", "Panel C"),
+                                         z$panel)], digits)),
+           c("Panel A", "Panel B", "Panel C"))
+}
+```
+
+# Purpose and status
+
+This document is a reproducible audit and development log for improvements to
+the tenure-contamination models reported in Table 7. It is deliberately
+separate from the branch-wide summaries. Its purposes are to:
+
+1. document the provenance and construction of the duration variables;
+2. record descriptive evidence used to select measurement assumptions;
+3. distinguish observed evidence from latent-model interpretation;
+4. list every new estimation script and the checks applied to it; and
+5. preserve point estimates, diagnostics, and model comparisons as the model
+   is extended incrementally.
+
+The start-date audit, job-reset extension, and discrete-month likelihood repair
+are implemented and estimated separately from Table 7. The continuous-density
+version fails full-model recovery and is retained only as a diagnostic. The
+monthly probability-mass version passes repeated recovery checks, converges
+from dispersed starts, has regular local inference, and remains stable under
+stricter matching panels. It is the current candidate model, but the remaining
+measurement-process extensions below should be assessed before it replaces the
+paper's Table 7 specification.
+
+# 1. Variable provenance and reconstruction
+
+The upstream mapped QLFS file contains `yearstart` (year commenced working),
+`monthstart` (month commenced working), survey `year`, quarterly `wave`, and
+the derived tenure variable `timeago`. The matched panels retain `period` and
+`tenure`, but not the start-year and start-month components.
+
+For survey period (p), define the nominal interview year and month by
+
+\[
+Y(p)=2008+\left\lfloor\frac{p-1}{4}\right\rfloor,
+\qquad
+M(p)=3\{(p-1)\bmod 4+1\}.
+\]
+
+Thus the nominal interview months are March, June, September, and December.
+For every upstream record with valid start-year and start-month fields,
+
+\[
+\text{tenure months}
+=12\{Y(p)-Y^{start}\}+M(p)-M^{start}.
+\]
+
+Consequently, the reported start month can be recovered without an upstream
+merge as
+
+\[
+R_{it}=12Y(p_{it})+M(p_{it})-g_{it},
+\]
+
+where (g_{it}) is tenure in months. This is a reported current-job start
+month, not necessarily the date of the worker's most recent entry into
+employment. The exact interview day is unavailable.
+
+## Audit cautions
+
+- A changed start date may reflect a new job, inconsistent reporting, or an
+  incorrect record link.
+- A date strictly after the previous nominal interview is strong evidence of
+  a job change, but dates in the previous interview month are ambiguous because
+  interview days are unavailable.
+- The matching algorithms affect which records are linked. Comparisons across
+  panels A, B, and C are therefore essential.
+- January concentration can reflect genuine seasonality, rounding, or a
+  reporting/coding convention. The available labels do not identify which.
+
+# 2. Descriptive start-date audit
+
+The audit uses the paper's age range (18--55), all available consecutive waves,
+survey weights, and the three alternative matching panels. It classifies each
+consecutive employed pair as an unchanged start date, a plausible job reset, an
+ambiguous boundary-month reset, or a revision to a date that predates the
+previous interview.
+
+```{r headline-table, results='asis'}
+metrics <- list(
+  c("Same reported start month", "Same reported start month"),
+  c("Plausible job-to-job reset", "Plausible job-to-job reset"),
+  c("Boundary-month reset", "Boundary-month reset"),
+  c("Any revised pre-existing start date", "Revised pre-existing date"),
+  c("Revisions that are exact whole-year shifts", "Whole-year shift among revisions"),
+  c("Revised date repeated in the next employed wave", "Revised date repeated next wave"),
+  c("Plausible reset repeated in the next employed wave", "Plausible reset repeated next wave"),
+  c("January share of reported start months", "Reported start month is January")
+)
+tab <- do.call(rbind, lapply(metrics, function(m) {
+  values <- if (m[1] == "Boundary-month reset") {
+    # This measure is stored in the pair-category output, not the summary.
+    vapply(c("A", "B", "C"), function(p) {
+      f <- file.path(audit_root, paste0("df_qlfs_", p),
+                     "consecutive_employed_pair_categories.csv")
+      z <- read.csv(f, stringsAsFactors = FALSE)
+      100 * z$weighted_share[z$pair == "All" &
+        z$category == "Boundary-month reset"]
+    }, numeric(1))
+  } else {
+    unlist(format_metric(m[1]))
+  }
+  data.frame(Measure = m[2], `Panel A` = values[1], `Panel B` = values[2],
+             `Panel C` = values[3], check.names = FALSE)
+}))
+rownames(tab) <- NULL
+knitr::kable(tab, format = "latex", booktabs = TRUE, digits = 1,
+             caption = "Start-date audit: survey-weighted percentages",
+             linesep = "", longtable = FALSE, row.names = FALSE,
+             table.envir = "table", position = "H")
+```
+
+```{r audit-figure, fig.cap='Reported current-job start dates and their revisions, matching panel A.', out.width='100%', fig.pos='H'}
+knitr::include_graphics(file.path(audit_root, "df_qlfs_A",
+                                  "job_start_date_audit.png"))
+```
+
+## Interpretation
+
+- Most consecutive employed reports preserve exactly the same implied start
+  month, and an unchanged date is repeated at the following employed wave in
+  roughly nine out of ten cases.
+- Stricter matching increases the unchanged share and reduces revisions, so
+  matching quality contributes to the observed inconsistencies.
+- Large revisions remain common under panel C. They should not be attributed
+  exclusively to either respondent reporting or record linkage.
+- Exact whole-year shifts and the January concentration favor a calendar-date
+  reporting model over a smooth local-error distribution for calculated
+  tenure.
+- A non-negligible group has a reported job start after the previous interview.
+  Current-job tenure can therefore reset without an intervening observed
+  nonemployment state.
+
+# 3. Audit of the existing Table 7 likelihood
+
+The preferred current specification combines piecewise duration-dependent
+entry and exit hazards, symmetric employment-status misclassification, gross
+marginal tenure contamination, and joint per-wave marginal timegap
+contamination. Its central duration restriction is that uncontaminated reports
+must follow the deterministic clock implied by a latent employment or
+nonemployment spell.
+
+For tenure, this treats a maximal latent employment spell as one current-job
+spell. That assumption is too strong when a worker can move directly between
+jobs. A legitimate job-start reset is then forced into one of three incorrect
+interpretations: a contaminated tenure report, a misclassified employment
+state, or a latent exit and re-entry.
+
+The local-plus-gross tenure extension does not repair this problem. Its local
+component assigns independent bounded deviations around a single employment
+clock; it does not allow the underlying current-job clock itself to restart.
+
+# 4. First improved model: a job-change mixture
+
+## Minimal defensible extension
+
+For a latent employed-to-employed transition, introduce a job-continuity event
+(J_{it}):
+
+\[
+J_{it}=0 \quad\text{same current job},
+\qquad
+J_{it}=1 \quad\text{new job while remaining employed}.
+\]
+
+Let
+
+\[
+P(J_{it}=1\mid H_{i,t-1}=H_{it}=1)=q.
+\]
+
+Conditional on (J_{it}=0), the uncontaminated tenure clock advances by the
+quarterly interval. Conditional on (J_{it}=1), the current-job tenure clock
+restarts within the interval. Initially, conditional event time can be taken
+as uniform within the quarter; a continuous-time job-change hazard can replace
+this approximation later.
+
+This adds only one parameter, (q), and leaves unchanged:
+
+- the latent employment-status transition process;
+- employment-status misclassification;
+- the piecewise exit and entry hazards;
+- tenure-report contamination; and
+- timegap contamination.
+
+It is preferable to deterministically splitting spells whenever a date resets.
+The mixture allows the likelihood to weigh job change against reporting/linking
+inconsistency and remains coherent when reported employment status is itself
+misclassified.
+
+## Identification and required comparisons
+
+The job-change probability is identified primarily by short destination tenure
+within a latent employed-to-employed transition and by subsequent persistence
+of the new start date. The first estimates must be compared on the same sample:
+
+1. current preferred piecewise model;
+2. preferred model plus (q);
+3. model 2 with (q=0), verifying exact likelihood nesting; and
+4. panels A, B, and C, verifying sensitivity to matching quality.
+
+The estimate should not be interpreted as a pure job-to-job transition rate
+until identification simulations show that it can be separated from tenure
+contamination and status misclassification.
+
+## First estimates
+
+The joint maximum-likelihood fit converged. It estimates a quarterly
+employed-to-employed current-job reset probability of
+`r sprintf("%.2f", 100 * job_comparison$job_change_prob[2])`%, and the
+survey-weighted posterior mean reset probability is
+`r sprintf("%.2f", 100 * job_comparison$posterior_job_change_rate[2])`%.
+The near equality of these two quantities is an internal consistency check.
+
+```{r job-change-comparison}
+shown <- job_comparison[, c("model", "loglik", "AIC", "job_change_prob",
+  "status_misclassification", "tenure_contamination",
+  "timegap_contamination", "weighted_entry", "weighted_exit")]
+names(shown) <- c("Model", "Log likelihood", "AIC", "Job reset",
+  "Status error", "Tenure error", "Timegap error", "Entry", "Exit")
+shown[, 4:9] <- lapply(shown[, 4:9], function(x) sprintf("%.3f", x))
+shown[, 2:3] <- lapply(shown[, 2:3], function(x) format(round(x, 1),
+  big.mark = ",", scientific = FALSE))
+knitr::kable(shown, booktabs = TRUE,
+  caption = "Preferred duration model and the one-parameter job-change extension")
+```
+
+The log likelihood rises by
+`r format(round(diff(job_comparison$loglik), 1), big.mark = ",")` and AIC falls
+by `r format(round(-diff(job_comparison$AIC), 1), big.mark = ",")`. A boundary
+likelihood-ratio statistic of `r round(job_lr$LR, 1)` provides overwhelming
+evidence against (q=0). Substantively, allowing legitimate current-job resets
+reduces the estimated gross tenure-contamination probability from
+`r sprintf("%.1f", 100 * job_comparison$tenure_contamination[1])`% to
+`r sprintf("%.1f", 100 * job_comparison$tenure_contamination[2])`%. It therefore
+explains an important subset of tenure discontinuities, but most tenure
+inconsistency is still assigned to the broader contamination mechanism. The
+weighted entry and exit rates move only modestly, so the extension improves the
+measurement model without overturning the employment-flow results.
+
+## Matching-panel robustness
+
+Panel A remains the preferred and main dataset. Panels B and C change only the
+record-matching restrictions and diagnose whether the reset mechanism is
+disproportionately supported by weaker links.
+
+```{r matching-model-comparison}
+match_show <- matching_comparison[, c("panel", "observations",
+  "job_change_prob", "posterior_job_change_rate",
+  "status_misclassification", "tenure_contamination",
+  "timegap_contamination", "weighted_entry", "weighted_exit")]
+names(match_show) <- c("Panel", "N", "Job reset", "Posterior reset",
+  "Status error", "Tenure error", "Timegap error", "Entry", "Exit")
+match_show$Panel <- paste("Panel", match_show$Panel)
+match_show$N <- format(match_show$N, big.mark=",", scientific=FALSE)
+match_show[, 3:9] <- lapply(match_show[, 3:9], function(x)
+  sprintf("%.3f", x))
+knitr::kable(match_show, booktabs=TRUE,
+  caption="Job-change model under alternative matching restrictions")
+```
+
+The reset probability is nearly unchanged between Panels A and B
+(`r sprintf('%.2f', 100 * matching_comparison$job_change_prob[1])`% versus
+`r sprintf('%.2f', 100 * matching_comparison$job_change_prob[2])`%) and declines
+to `r sprintf('%.2f', 100 * matching_comparison$job_change_prob[3])`% in Panel
+C. By contrast, status misclassification falls from
+`r sprintf('%.2f', 100 * matching_comparison$status_misclassification[1])`% to
+`r sprintf('%.2f', 100 * matching_comparison$status_misclassification[3])`%,
+and tenure contamination falls from
+`r sprintf('%.1f', 100 * matching_comparison$tenure_contamination[1])`% to
+`r sprintf('%.1f', 100 * matching_comparison$tenure_contamination[3])`%.
+Stricter matching therefore removes substantial measurement inconsistency but
+does not eliminate the current-job reset signal. The modest decline under C
+also cautions against interpreting every reset as a genuine job-to-job move.
+
+# 5. Numerical validation and recovery
+
+## Optimizer stability
+
+The high-reset dispersed start converges to the established optimum, and a
+tighter refinement changes the reset estimate only from
+`r sprintf('%.4f', 100 * validation_starts$job_change_prob[1])`% to
+`r sprintf('%.4f', 100 * validation_interval$estimate)`%. A deliberately low
+start converges to an inferior local mode, with a log likelihood lower by
+`r format(round(validation_starts$loglik[1]-validation_starts$loglik[2], 1), big.mark=',')`.
+Multiple starts and likelihood-based selection are therefore required.
+
+Reoptimizing all 14 nuisance parameters at seven fixed reset probabilities
+gives a provisional 95% profile-likelihood interval of
+[`r sprintf('%.3f', 100 * validation_interval$lower)`%,
+`r sprintf('%.3f', 100 * validation_interval$upper)`%]. The local quadratic
+fit has (R^2=`r sprintf('%.5f', validation_interval$quadratic_R2)`). This
+interval describes the implemented likelihood; it is not yet suitable for the
+paper because the recovery check below fails.
+
+## Full-likelihood recovery
+
+Three samples of 20,000 observations were simulated from the intended model
+and re-estimated from both low and high reset starts. The reset and tenure-error
+parameters are not recovered without systematic bias.
+
+```{r recovery-table}
+recover_show <- validation_recovery[, c("parameter", "truth",
+  "mean_estimate", "bias")]
+recover_show$parameter <- c("Job reset", "Status error", "Tenure error",
+  "Timegap error")
+names(recover_show) <- c("Parameter", "Truth", "Mean estimate", "Bias")
+recover_show[, 2:4] <- lapply(recover_show[, 2:4], function(x)
+  sprintf("%.3f", x))
+knitr::kable(recover_show, booktabs=TRUE,
+  caption="Full-likelihood recovery diagnostic")
+```
+
+In particular, a true reset probability of
+`r sprintf('%.3f', 100 * validation_recovery$truth[1])`% is estimated at
+`r sprintf('%.3f', 100 * validation_recovery$mean_estimate[1])`% on average,
+while tenure contamination rises from
+`r sprintf('%.1f', 100 * validation_recovery$truth[3])`% to
+`r sprintf('%.1f', 100 * validation_recovery$mean_estimate[3])`%. This is not
+just small-sample variation: with 100,000 simulated observations, the numerical
+likelihood scores at the generating values remain strongly nonzero
+(`r round(validation_score$q_score, 1)` for resets and
+`r round(validation_score$eps_score, 1)` for tenure contamination).
+
+The leading cause is a units problem in the continuous-density approximation.
+Mixture branches contain different numbers of independent tenure-density
+evaluations, and hence have different physical units, but the current
+likelihood adds them directly. Clean clock restrictions also create singular
+components that are mixed with ordinary continuous densities. Since tenure is
+constructed from a reported start **month**, the defensible repair is to model
+tenure in discrete months: replace marginal densities by monthly interval
+probabilities and replace the continuous within-quarter reset density by a
+probability over possible start months. The job-change result should not be
+promoted to Table 7 until that repair restores simulation recovery.
+
+## Discrete-month repair and re-estimation
+
+The repaired likelihood treats a reported tenure of (m) months as the mass
+
+\[
+P(m/12 \leq D < (m+1)/12),
+\]
+
+rather than evaluating a continuous density at (m/12). Clean tenure clocks
+advance by exactly three months between quarterly interviews. A latent spell
+that begins between waves, or a current-job reset within a persistent
+employment spell, starts at 0, 1, or 2 reported months. This puts every branch
+of the mixture on the same probability scale. The ingestion also retains
+2,753 genuine zero-month reports and drops two records that previously received
+an artificial quarter-month floor because no valid tenure report was available.
+
+```{r monthly-comparison}
+monthly_show <- monthly_comparison[, c("model", "loglik", "AIC",
+  "job_change_prob", "status_misclassification", "tenure_contamination",
+  "timegap_contamination", "entry_rate", "exit_rate")]
+names(monthly_show) <- c("Model", "Log likelihood", "AIC", "Job reset",
+  "Status error", "Tenure error", "Timegap error", "Entry", "Exit")
+monthly_show[, 4:9] <- lapply(monthly_show[, 4:9], function(x)
+  sprintf("%.3f", x))
+monthly_show[, 2:3] <- lapply(monthly_show[, 2:3], function(x)
+  format(round(x, 1), big.mark=",", scientific=FALSE))
+knitr::kable(monthly_show, booktabs=TRUE,
+  caption="Panel A discrete-month tenure likelihood")
+```
+
+The preferred reset fit estimates a quarterly current-job reset probability of
+`r sprintf('%.3f', 100*monthly_comparison$job_change_prob[2])`%, almost exactly
+equal to its posterior mean of
+`r sprintf('%.3f', 100*monthly_comparison$posterior_job_change_rate[2])`%.
+Allowing resets raises the log likelihood by
+`r format(round(diff(monthly_comparison$loglik), 1), big.mark=',')` and gives a
+boundary LR statistic of `r round(monthly_lr$LR, 1)`. Relative to the no-reset
+monthly model, it lowers tenure contamination only modestly, from
+`r sprintf('%.2f', 100*monthly_comparison$tenure_contamination[1])`% to
+`r sprintf('%.2f', 100*monthly_comparison$tenure_contamination[2])`%.
+
+All three reset starts converge near the same solution: their reset estimates
+range from `r sprintf('%.3f',100*min(monthly_starts$job_change_prob))`% to
+`r sprintf('%.3f',100*max(monthly_starts$job_change_prob))`%, and their log
+likelihoods differ by less than
+`r sprintf('%.1f',diff(range(monthly_starts$loglik)))`.
+
+Six additional full-likelihood recovery fits use three independent samples at
+each of 10,000 and 40,000 observations. All converge, and high dispersed starts
+at both sample sizes do not improve the likelihood.
+
+```{r monthly-recovery-grid}
+keep <- monthly_recovery_grid$parameter %in%
+  c("job_change_prob", "pi", "eps", "eps_d")
+rec_show <- monthly_recovery_grid[keep,
+  c("n", "parameter", "truth", "mean", "bias", "rmse")]
+rec_show$parameter <- c("Job reset", "Status error", "Tenure error",
+  "Timegap error")[match(rec_show$parameter,
+    c("job_change_prob", "pi", "eps", "eps_d"))]
+names(rec_show) <- c("N", "Parameter", "Truth", "Mean", "Bias", "RMSE")
+rec_show$N <- format(rec_show$N, big.mark=",", scientific=FALSE)
+rec_show[, 3:6] <- lapply(100*rec_show[, 3:6], function(x)
+  sprintf("%.3f", x))
+rownames(rec_show) <- NULL
+knitr::kable(rec_show, booktabs=TRUE,
+  caption="Repeated full-likelihood recovery (percentage points)")
+```
+
+At 40,000 observations, mean bias is only
+`r sprintf('%+.3f',100*monthly_recovery_grid$bias[monthly_recovery_grid$n==40000 & monthly_recovery_grid$parameter=='job_change_prob'])`
+percentage points for resets,
+`r sprintf('%+.3f',100*monthly_recovery_grid$bias[monthly_recovery_grid$n==40000 & monthly_recovery_grid$parameter=='pi'])`
+for status error,
+`r sprintf('%+.3f',100*monthly_recovery_grid$bias[monthly_recovery_grid$n==40000 & monthly_recovery_grid$parameter=='eps'])`
+for tenure contamination, and
+`r sprintf('%+.3f',100*monthly_recovery_grid$bias[monthly_recovery_grid$n==40000 & monthly_recovery_grid$parameter=='eps_d'])`
+for timegap contamination. RMSE also falls with sample size. The likelihood
+scores at the generating parameters change sign across replications rather
+than showing the systematic direction found under the continuous model. These
+checks support accepting the discrete likelihood repair. A larger simulation
+would still be required to assess confidence-interval coverage directly.
+
+## Analytical and profile inference
+
+The full 15-parameter numerical observed-information matrix is positive
+definite and full rank. Its minimum eigenvalue is
+`r sprintf('%.4g',monthly_hessian$minimum_eigenvalue)`, and its condition number
+is `r sprintf('%.1f',monthly_hessian$condition_number)`. Delta-method standard
+errors therefore propagate the joint uncertainty in all transition hazards,
+contamination probabilities, initial employment, and job resets.
+
+```{r monthly-inference}
+order_q <- c("entry_rate", "exit_rate", "status_misclassification",
+  "tenure_contamination", "timegap_contamination", "initial_employment",
+  "job_change_prob")
+inf_show <- monthly_inference[match(order_q, monthly_inference$quantity),
+  c("quantity", "estimate", "se", "lower", "upper")]
+inf_show$quantity <- c("Entry", "Exit", "Status error", "Tenure error",
+  "Timegap error", "Initial employment", "Job reset")
+names(inf_show) <- c("Quantity", "Estimate", "SE", "Lower 95%", "Upper 95%")
+inf_show[,2:5] <- lapply(100*inf_show[,2:5], function(x) sprintf("%.3f",x))
+knitr::kable(inf_show, booktabs=TRUE,
+  caption="Discrete-month model: analytical standard errors (percent)")
+```
+
+The reset estimate is
+`r sprintf('%.3f',100*monthly_profile_interval$estimate)`% with analytical SE
+`r sprintf('%.3f',100*monthly_profile_interval$analytical_se)` percentage
+points. Reoptimizing all 14 nuisance parameters at each fixed reset probability
+gives a 95% profile interval of
+[`r sprintf('%.3f',100*monthly_profile_interval$lower)`%,
+`r sprintf('%.3f',100*monthly_profile_interval$upper)`%]. It is nearly
+identical to the Wald interval, and the profile quadratic has
+(R^2=`r sprintf('%.5f',monthly_profile_interval$quadratic_R2)`). Thus profile
+asymmetry is negligible around the interior optimum.
+
+The discrete model materially changes the substantive allocation. Compared
+with the continuous reset fit, the reset probability falls from
+`r sprintf('%.2f',100*job_comparison$job_change_prob[2])`% to
+`r sprintf('%.2f',100*monthly_comparison$job_change_prob[2])`%, status
+misclassification rises from
+`r sprintf('%.2f',100*job_comparison$status_misclassification[2])`% to
+`r sprintf('%.2f',100*monthly_comparison$status_misclassification[2])`%, and
+tenure contamination falls from
+`r sprintf('%.1f',100*job_comparison$tenure_contamination[2])`% to
+`r sprintf('%.1f',100*monthly_comparison$tenure_contamination[2])`%. Entry also
+falls, while exit changes less. Log likelihoods across the continuous and
+monthly models are not comparable because one uses densities and the other
+uses discrete probability masses.
+
+\newpage
+
+## Matching-panel sensitivity of the corrected model
+
+The identical corrected monthly specification was re-estimated on Panels B and
+C. Panel A remains the main sample; the stricter panels are sensitivity checks,
+not alternative preferred datasets.
+
+```{r monthly-matching-comparison}
+mm_show <- monthly_matching[, c("panel", "observations", "job_change_prob",
+  "posterior_job_change_rate", "status_misclassification",
+  "tenure_contamination", "timegap_contamination", "entry_rate", "exit_rate")]
+names(mm_show) <- c("Panel", "N", "Job reset", "Posterior reset",
+  "Status error", "Tenure error", "Timegap error", "Entry", "Exit")
+mm_show$N <- format(mm_show$N, big.mark=",", scientific=FALSE)
+mm_show[,3:9] <- lapply(100*mm_show[,3:9], function(x) sprintf("%.3f", x))
+knitr::kable(mm_show, booktabs=TRUE,
+  caption="Corrected discrete-month model under alternative matching restrictions (percent)")
+```
+
+The reset estimate declines monotonically from
+`r sprintf('%.3f',100*monthly_matching$job_change_prob[1])`% in Panel A to
+`r sprintf('%.3f',100*monthly_matching$job_change_prob[2])`% in B and
+`r sprintf('%.3f',100*monthly_matching$job_change_prob[3])`% in C. Status
+misclassification falls from
+`r sprintf('%.2f',100*monthly_matching$status_misclassification[1])`% to
+`r sprintf('%.2f',100*monthly_matching$status_misclassification[3])`%, tenure
+contamination from
+`r sprintf('%.1f',100*monthly_matching$tenure_contamination[1])`% to
+`r sprintf('%.1f',100*monthly_matching$tenure_contamination[3])`%, and timegap
+contamination from
+`r sprintf('%.1f',100*monthly_matching$timegap_contamination[1])`% to
+`r sprintf('%.1f',100*monthly_matching$timegap_contamination[3])`%. Entry is
+nearly unchanged in B and modestly lower in C; exit also falls slightly. Thus
+stricter matching removes some apparent transition and duration inconsistency,
+but it does not eliminate the estimated current-job reset process.
+
+All six B/C optimizations converged normally. Within each panel, low, main, and
+high reset starts reach log likelihoods agreeing within
+`r sprintf('%.2f', max(tapply(monthly_matching_starts$loglik,
+  monthly_matching_starts$panel, function(x) diff(range(x)))[c('B','C')]))`
+log-likelihood units; reset estimates span only
+`r sprintf('%.4f',100*max(tapply(monthly_matching_starts$job_change_prob,
+  monthly_matching_starts$panel, function(x) diff(range(x)))[c('B','C')]))`
+percentage points within either Panel B or C.
+
+\newpage
+
+## Reporting-process extensions
+
+The five nested Panel A versions can be compared coefficient by coefficient.
+The first rules out job resets and persistent gross reports. The second adds a
+job-reset probability but treats gross start-date reports as independent over
+time. The third estimates whether a gross report retains the preceding
+reported start-date anchor. The fourth instead allows gross reports to follow
+the empirically prominent January-heaping pattern. The fifth adds a correlated
+whole-year revision of the previously reported start date.
+
+```{r nested-model-coefficients}
+no_reset <- monthly_fits$no_reset$params
+independent <- monthly_fits$reset$params
+persistent <- persistent_fits$persistent$params
+heaping <- heaping_fits$heaping$params
+revision <- revision_fits$revision$params
+
+duration_labels <- c("0-3 months", "3-12 months", "1-3 years",
+                     "3-5 years", "5+ years")
+coefficient_labels <- c(
+  "Initial employment probability",
+  "Status misclassification probability",
+  "Tenure contamination probability",
+  "Timegap contamination probability",
+  paste0("Exit hazard: ", duration_labels),
+  paste0("Entry hazard: ", duration_labels),
+  "Job-reset probability",
+  "Gross-report persistence probability",
+  "January-heaping probability",
+  "Whole-year revision probability"
+)
+
+extract_coefficients <- function(x, persistence = 0, heaping = 0,
+                                 revision = 0) {
+  c(x$alpha, x$pi, x$eps, x$eps_d, x$lambda_g, x$lambda_d,
+    x$job_change_prob, persistence, heaping, revision)
+}
+fmt_coefficient <- function(x) sprintf("%.4f", x)
+
+coef_table <- data.frame(
+  Coefficient = coefficient_labels,
+  `No reset` = fmt_coefficient(extract_coefficients(no_reset)),
+  `Independent gross` = fmt_coefficient(extract_coefficients(independent)),
+  `Persistent gross` = fmt_coefficient(extract_coefficients(
+    persistent, persistent$tenure_report_persistence)),
+  `January heap` = fmt_coefficient(extract_coefficients(
+    heaping, heaping=heaping$tenure_heaping_prob)),
+  `January + year revision` = fmt_coefficient(extract_coefficients(
+    revision, heaping=revision$tenure_heaping_prob,
+    revision=revision$tenure_year_revision_prob)),
+  check.names = FALSE
+)
+reset_row <- match("Job-reset probability",coef_table$Coefficient)
+persistence_row <- match("Gross-report persistence probability",
+  coef_table$Coefficient)
+heaping_row <- match("January-heaping probability",coef_table$Coefficient)
+revision_row <- match("Whole-year revision probability",
+  coef_table$Coefficient)
+coef_table[reset_row, "No reset"] <- "0 (fixed)"
+coef_table[persistence_row,
+  c("No reset", "Independent gross", "January heap",
+    "January + year revision")] <-
+  "0 (fixed)"
+coef_table[persistence_row, "Persistent gross"] <- "0 (boundary)"
+coef_table[heaping_row,
+  c("No reset", "Independent gross", "Persistent gross")] <- "0 (fixed)"
+coef_table[revision_row,
+  c("No reset", "Independent gross", "Persistent gross",
+    "January heap")] <- "0 (fixed)"
+
+fit_rows <- data.frame(
+  Coefficient = c("Log likelihood", "AIC", "Number of parameters"),
+  `No reset` = c(
+    format(round(monthly_fits$no_reset$loglik, 1), big.mark = ",",
+           scientific = FALSE),
+    format(round(monthly_fits$comparison$AIC[1], 1), big.mark = ",",
+           scientific = FALSE),
+    monthly_fits$comparison$parameters[1]
+  ),
+  `Independent gross` = c(
+    format(round(monthly_fits$reset$loglik, 1), big.mark = ",",
+           scientific = FALSE),
+    format(round(monthly_fits$comparison$AIC[2], 1), big.mark = ",",
+           scientific = FALSE),
+    monthly_fits$comparison$parameters[2]
+  ),
+  `Persistent gross` = c(
+    format(round(persistent_fits$persistent$loglik, 1), big.mark = ",",
+           scientific = FALSE),
+    format(round(persistent_fits$comparison$AIC[2], 1), big.mark = ",",
+           scientific = FALSE),
+    persistent_fits$comparison$parameters[2]
+  ),
+  `January heap` = c(
+    format(round(heaping_fits$heaping$loglik, 1), big.mark = ",",
+           scientific = FALSE),
+    format(round(heaping_fits$comparison$AIC[2], 1), big.mark = ",",
+           scientific = FALSE),
+    heaping_fits$comparison$parameters[2]
+  ),
+  `January + year revision` = c(
+    format(round(revision_fits$revision$loglik, 1), big.mark = ",",
+           scientific = FALSE),
+    format(round(revision_fits$comparison$AIC[2], 1), big.mark = ",",
+           scientific = FALSE),
+    revision_fits$comparison$parameters[2]
+  ),
+  check.names = FALSE
+)
+
+knitr::kable(rbind(coef_table, fit_rows), booktabs = TRUE,
+  align = c("l", "r", "r", "r", "r", "r"),
+  caption = paste("Natural-scale coefficients across nested corrected",
+                  "discrete-month models (Panel A)"))
+```
+
+All probability and hazard coefficients are shown on the natural zero-to-one
+scale. Exit and entry hazards are annualized piecewise-constant hazards for the
+indicated duration band. The job-reset coefficient is the probability within
+an observed quarterly interval; gross-report persistence is the conditional
+probability that a contaminated report retains the previous reported anchor.
+January heaping is the conditional probability that a gross report is drawn
+from the marginal duration law restricted to an implied January start date.
+Whole-year revision is the conditional probability that an eligible new gross
+report preserves the previous reported start month but changes its year.
+“Fixed” denotes a nesting restriction, while “boundary” denotes an estimated
+coefficient whose constrained MLE is zero.
+
+### Persistent reported-start-date extension
+
+The first reporting-process extension allows a consecutive gross tenure report
+within the same latent job to retain the preceding reported start-date anchor
+with probability (rho). Otherwise it draws a new marginal anchor. Clean tenure
+reports remain exactly consistent with the true employment spell, job changes
+start a new segment, and the timegap process is unchanged. The independent
+gross-report model is nested exactly at (rho=0).
+
+```{r persistent-reporting-comparison}
+rate_names <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "tenure_report_persistence")
+pr_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","Persistence","Log likelihood","AIC"),
+  Independent=c(sprintf("%.3f",100*unlist(persistent_comparison[1,rate_names])),
+    format(round(persistent_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(persistent_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  Persistent=c(sprintf("%.3f",100*unlist(persistent_comparison[2,rate_names])),
+    format(round(persistent_comparison$loglik[2],1),big.mark=",",
+      scientific=FALSE),format(round(persistent_comparison$AIC[2],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(pr_show)[2:3] <- c("Independent gross reports","Persistent gross anchor")
+knitr::kable(pr_show,booktabs=TRUE,
+  caption="Persistent reported-start-date extension (rates in percent)")
+```
+
+The constrained MLE is exactly at (rho=0). Consequently, every other reported
+rate is unchanged, the likelihood-ratio statistic is
+`r sprintf('%.1f',persistent_lr$LR)`, and adding the unused parameter raises
+AIC by two. The converged middle start reaches the numerical lower bound
+(`r sprintf('%.6f',100*persistent_starts$tenure_report_persistence[2])`%),
+while the high start returns to the same basin from (rho=0.90) but reaches the
+iteration cap only after matching its likelihood closely. A low start finds an
+inferior local solution approximately
+`r format(round(max(persistent_starts$loglik)-persistent_starts$loglik[1],1),big.mark=',')`
+log-likelihood units below the boundary solution. The exact nested fit is
+therefore retained rather than a slightly inferior numerical approximation to
+zero.
+
+This boundary result is not caused by an intrinsically unidentified
+persistence parameter. In a 12,000-record simulation with true (rho=0.60), the
+conditional likelihood peaks at
+`r sprintf('%.3f',persistent_profile$rho[which.max(persistent_profile$loglik)])`
+on the reported grid, and the two full-likelihood starts converge to
+`r paste(sprintf('%.3f',persistent_recovery_fits$tenure_report_persistence),collapse=' and ')`.
+The likelihood can therefore distinguish substantial persistence, although
+the best estimate is downward biased by
+`r sprintf('%.3f',-persistent_recovery$bias[persistent_recovery$parameter=='tenure_report_persistence'])`
+in this single moderate-size simulation. More replications would be needed for
+coverage or bias correction.
+
+Substantively, the data do not support this particular one-parameter mechanism
+in addition to the clean-clock and independent gross-report branches. This is
+not evidence that respondents never repeat start dates: clock-consistent
+sequences are already assigned to the clean branch, and a persistently wrong
+anchor can be observationally similar for jobs that began before the panel.
+The next reporting extension should therefore focus on structured start-month
+heaping or a persistent offset tied to jobs whose start is bounded by an
+observed entry or reset, rather than adding further unrestricted persistence.
+
+\newpage
+
+### January-heaped gross-report extension
+
+The next extension uses the strongest calendar pattern in the audit. For an
+interview in nominal month (M), a tenure report of (m) months implies a January
+start when $m \bmod 12=M-1$. Conditional on a gross tenure report, the model
+now uses
+
+\[
+f^{gross}(m\mid M)=(1-h)f(m)+h
+\frac{\mathbf{1}\{m\bmod 12=M-1\}f(m)}
+{P_f(m\bmod 12=M-1)}.
+\]
+
+Thus the heaped component preserves the estimated marginal duration shape but
+conditions it on an implied January start. It is normalized exactly, adds one
+parameter, and nests the independent-gross model at (h=0). Nominal interview
+months are retained when the likelihood cells are collapsed.
+
+```{r calendar-heaping-comparison}
+heap_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","prior_heaped_tenure_report_prob")
+heap_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","January heaping, conditional on gross",
+    "Gross-and-heaped tenure report","Log likelihood","AIC"),
+  Independent=c(sprintf("%.3f",100*unlist(
+    heaping_comparison[1,heap_rates])),
+    format(round(heaping_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(heaping_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  January_heaping=c(sprintf("%.3f",100*unlist(
+    heaping_comparison[2,heap_rates])),
+    format(round(heaping_comparison$loglik[2],1),big.mark=",",
+      scientific=FALSE),format(round(heaping_comparison$AIC[2],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(heap_show)[2:3] <- c("Independent gross","January-heaped gross")
+knitr::kable(heap_show,booktabs=TRUE,
+  caption="January-heaped gross-report extension (rates in percent)")
+```
+
+All three starts converge normally. They estimate (h) between
+`r sprintf('%.5f',min(heaping_starts$gross_january_heaping_prob))` and
+`r sprintf('%.5f',max(heaping_starts$gross_january_heaping_prob))`, while their
+log likelihoods differ by only
+`r sprintf('%.3f',diff(range(heaping_starts$loglik)))`. The preferred estimate
+is `r sprintf('%.2f',100*heaping_comparison$gross_january_heaping_prob[2])`%:
+conditional on a gross tenure report, roughly one quarter of reports are
+assigned to the January-conditioned component. Because gross reporting itself
+has probability `r sprintf('%.2f',100*heaping_comparison$tenure_contamination[2])`%,
+their prior product is
+`r sprintf('%.2f',100*heaping_comparison$prior_heaped_tenure_report_prob[2])`%
+of otherwise correctly classified employed-wave tenure reports.
+
+Fit improves sharply: the log likelihood rises by
+`r format(round(diff(heaping_comparison$loglik),1),big.mark=',')`, AIC falls by
+`r format(round(-diff(heaping_comparison$AIC),1),big.mark=',')`, and the
+boundary likelihood-ratio statistic is
+`r format(round(heaping_lr$LR,1),big.mark=',')`. Entry changes from
+`r sprintf('%.3f',100*heaping_comparison$entry_rate[1])`% to
+`r sprintf('%.3f',100*heaping_comparison$entry_rate[2])`%, exit from
+`r sprintf('%.3f',100*heaping_comparison$exit_rate[1])`% to
+`r sprintf('%.3f',100*heaping_comparison$exit_rate[2])`%, and the job-reset
+probability from `r sprintf('%.3f',100*heaping_comparison$job_change_prob[1])`%
+to `r sprintf('%.3f',100*heaping_comparison$job_change_prob[2])`%. The main
+transition conclusions are therefore stable, while the reporting likelihood
+fits the calendar pattern much better.
+
+The observed survey-weighted January share averages
+`r sprintf('%.1f',100*heaping_observed$observed_january_share[2])`% across the
+three waves. This is not directly comparable to (h): clean reports and the
+ordinary marginal gross distribution can also imply January starts. Nor does
+the model establish that January reports are errors; genuine seasonal hiring
+or a coding convention could generate the same concentration. The parameter
+should be described as a structured reporting component unless external
+validation separates those mechanisms.
+
+```{r calendar-heaping-recovery}
+heap_recovery_show <- heaping_recovery
+heap_recovery_show$parameter <- c("January heaping","Job reset",
+  "Status error","Tenure error","Timegap error")
+for (nm in c("truth","estimate","bias"))
+  heap_recovery_show[[nm]] <- sprintf("%.4f",heap_recovery_show[[nm]])
+names(heap_recovery_show) <- c("Parameter","Truth","Estimate","Bias")
+knitr::kable(heap_recovery_show,booktabs=TRUE,
+  caption="Calendar-heaping recovery check (6,000 simulated records)")
+```
+
+In the recovery exercise, the truth is (h=0.40). The conditional optimum is
+0.385, and two dispersed joint starts converge to estimates agreeing within
+`r sprintf('%.5f',diff(range(heaping_recovery_fits$tenure_heaping_prob)))`.
+The small downward error in (h) does not materially distort the reset, status,
+or timegap-error probabilities. This supports identification of the added
+component, although repeated simulations would be required for bias and
+coverage statements.
+
+```{r calendar-heaping-inference}
+heap_se_names <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob")
+heap_se_labels <- c("Entry","Exit","Status error","Tenure error",
+  "Timegap error","Job reset","January heaping, conditional on gross")
+heap_se_show <- heaping_inference[match(heap_se_names,
+  heaping_inference$quantity),c("estimate","se","lower","upper")]
+heap_se_show <- 100*heap_se_show
+heap_se_show <- data.frame(Quantity=heap_se_labels,
+  Estimate=sprintf("%.3f",heap_se_show$estimate),
+  `Analytical SE`=sprintf("%.3f",heap_se_show$se),
+  `95% lower`=sprintf("%.3f",heap_se_show$lower),
+  `95% upper`=sprintf("%.3f",heap_se_show$upper),check.names=FALSE)
+knitr::kable(heap_se_show,booktabs=TRUE,
+  caption="Observed-information and delta-method inference for January heaping (percent)")
+```
+
+The full 16-parameter observed-information matrix is positive definite and
+full rank. Its condition number is 97.2, providing no numerical indication of
+a locally unidentified heaping parameter. These are analytical
+observed-information standard errors, not bootstrap standard errors.
+
+### Correlated whole-year date revisions
+
+The next nested component targets the second prominent calendar pattern. Let
+$m_{t-1}$ be the previous gross tenure report, let $c=m_{t-1}+3\Delta$ be its
+exact continuation after $\Delta$ panel intervals, and let $S_{t-1}$ be its
+implied reported start month. A whole-year revision draws the current report
+from the marginal duration law conditional on preserving $S_{t-1}$ while
+excluding (c):
+
+\[
+ f^{year}(m_t\mid S_{t-1},c)=
+ \frac{\mathbf{1}\{S(m_t)=S_{t-1},\ m_t\ne c\}f(m_t)}
+ {P_f\{S(m)=S_{t-1}\}-f(c)}.
+\]
+
+For eligible consecutive gross reports within the same latent job, the model
+uses the ordinary January-heaping gross law with probability $1-\omega$ and
+this different-year law with probability $\omega$. It is normalized exactly
+and nests the preceding model at $\omega=0$. This is distinct from the failed
+persistence extension: persistence repeats the exact reported date, whereas
+this component changes the year but preserves the month.
+
+```{r calendar-revision-comparison}
+revision_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","whole_year_revision_prob")
+revision_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","January heaping, conditional on gross",
+    "Whole-year revision, conditional on eligible gross pair",
+    "Log likelihood","AIC"),
+  January_heaping=c(sprintf("%.3f",100*unlist(
+    revision_comparison[1,revision_rates])),
+    format(round(revision_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(revision_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  Whole_year_revision=c(sprintf("%.3f",100*unlist(
+    revision_comparison[2,revision_rates])),
+    format(round(revision_comparison$loglik[2],1),big.mark=",",
+      scientific=FALSE),format(round(revision_comparison$AIC[2],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(revision_show)[2:3] <- c("January heaping",
+  "January + whole-year revisions")
+knitr::kable(revision_show,booktabs=TRUE,
+  caption="Correlated whole-year date-revision extension (rates in percent)")
+```
+
+The preferred high start converges normally at
+$\omega=`r sprintf('%.4f',revision_comparison$whole_year_revision_prob[2])`$.
+The central start reaches
+`r sprintf('%.4f',revision_starts$whole_year_revision_prob[revision_starts$start=='main'])`
+but is
+`r sprintf('%.1f',max(revision_starts$loglik)-revision_starts$loglik[revision_starts$start=='main'])`
+log-likelihood points lower. The deliberately low 0.03 start stops in an
+inferior local mode at its initial revision probability, more than
+`r format(round(max(revision_starts$loglik)-min(revision_starts$loglik),1),big.mark=',')`
+points below the preferred solution. It is therefore a numerical warning, not
+a competing substantive estimate: multistart likelihood selection is needed.
+Relative to January heaping alone, the preferred log likelihood changes by
+`r format(round(diff(revision_comparison$loglik),1),big.mark=',')`, AIC changes
+by `r format(round(diff(revision_comparison$AIC),1),big.mark=',')`, and the
+boundary LR statistic is `r format(round(revision_lr$LR,1),big.mark=',')`.
+Entry moves from `r sprintf('%.3f',100*revision_comparison$entry_rate[1])`% to
+`r sprintf('%.3f',100*revision_comparison$entry_rate[2])`%, exit from
+`r sprintf('%.3f',100*revision_comparison$exit_rate[1])`% to
+`r sprintf('%.3f',100*revision_comparison$exit_rate[2])`%, and tenure
+contamination from
+`r sprintf('%.3f',100*revision_comparison$tenure_contamination[1])`% to
+`r sprintf('%.3f',100*revision_comparison$tenure_contamination[2])`%.
+
+The raw survey-weighted share of employed-report pairs whose implied start
+month is unchanged but whose year differs ranges from
+`r sprintf('%.2f',100*min(revision_observed$observed_whole_year_revision_share))`%
+to
+`r sprintf('%.2f',100*max(revision_observed$observed_whole_year_revision_share))`%.
+This is not directly $\omega$: the observed share mixes clean clocks, job
+changes, gross reports, and status error, whereas $\omega$ is conditional on
+an eligible latent gross-report pair.
+
+```{r calendar-revision-recovery}
+revision_recovery_show <- revision_recovery
+revision_recovery_show$parameter <- c("Whole-year revision","January heaping",
+  "Job reset","Status error","Tenure error","Timegap error")
+for (nm in c("truth","estimate","bias"))
+  revision_recovery_show[[nm]] <- sprintf("%.4f",revision_recovery_show[[nm]])
+names(revision_recovery_show) <- c("Parameter","Truth","Estimate","Bias")
+knitr::kable(revision_recovery_show,booktabs=TRUE,
+  caption="Whole-year revision recovery check (6,000 simulated records)")
+```
+
+With a generating value of $\omega=0.45$, the conditional likelihood optimum
+is 0.456. Two dispersed joint starts recover 0.443 and 0.458. The best fit also
+recovers January heaping within 0.0005 and tenure contamination within 0.0040
+of their generating values, supporting separate identification of the two
+calendar components in this diagnostic sample.
+
+```{r calendar-revision-inference}
+revision_se_names <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","whole_year_revision_prob")
+revision_se_labels <- c("Entry","Exit","Status error","Tenure error",
+  "Timegap error","Job reset","January heaping, conditional on gross",
+  "Whole-year revision, conditional on eligible gross pair")
+revision_se_show <- revision_inference[match(revision_se_names,
+  revision_inference$quantity),c("estimate","se","lower","upper")]
+revision_se_show <- 100*revision_se_show
+revision_se_show <- data.frame(Quantity=revision_se_labels,
+  Estimate=sprintf("%.3f",revision_se_show$estimate),
+  `Analytical SE`=sprintf("%.3f",revision_se_show$se),
+  `95% lower`=sprintf("%.3f",revision_se_show$lower),
+  `95% upper`=sprintf("%.3f",revision_se_show$upper),check.names=FALSE)
+knitr::kable(revision_se_show,booktabs=TRUE,
+  caption="Observed-information and delta-method inference for the whole-year revision model (percent)")
+```
+
+The full 17-parameter observed-information matrix is positive definite and
+full rank. Its condition number is
+`r sprintf('%.1f',revision_hessian$condition_number)`. The analytical standard
+error of $\omega$ is
+`r sprintf('%.3f',100*revision_inference$se[revision_inference$quantity=='whole_year_revision_prob'])`
+percentage points. The nuisance-adjusted profile interval is
+`r sprintf('%.2f',100*revision_profile_interval$profile_lower)`--
+`r sprintf('%.2f',100*revision_profile_interval$profile_upper)`%, compared with
+the analytical interval
+`r sprintf('%.2f',100*revision_profile_interval$analytical_lower)`--
+`r sprintf('%.2f',100*revision_profile_interval$analytical_upper)`%. Thus the
+preferred local solution has regular local curvature; this does not by itself
+establish that the reporting process is correctly specified.
+
+### Parametric predictive checks and source of fit improvement
+
+The fitted-parameter checks below compare observed Panel A moments with 40
+simulated samples of 50,000 records. They assess replication of the observed
+calendar patterns conditional on the fitted parameters; they do not integrate
+over parameter uncertainty.
+
+```{r calendar-revision-predictive}
+predictive_metrics <- c("all_employed_reports_january_start",
+  "consecutive_pairs_exact","consecutive_pairs_whole_year",
+  "consecutive_pairs_other")
+predictive_labels <- c("January start month, all employed reports",
+  "Exact continuation, consecutive employed pairs",
+  "Whole-year revision, consecutive employed pairs",
+  "Other revision, consecutive employed pairs")
+pred <- revision_predictive[revision_predictive$metric %in% predictive_metrics,]
+pred$Measure <- predictive_labels[match(pred$metric,predictive_metrics)]
+pred$Model <- ifelse(pred$model=="January heaping","January only",
+  "January + year revision")
+pred_show <- reshape(pred[,c("Measure","Model","predicted_mean")],
+  idvar="Measure",timevar="Model",direction="wide")
+names(pred_show) <- sub("predicted_mean\\.","",names(pred_show))
+pred_show$Observed <- pred$observed[match(pred_show$Measure,pred$Measure)]
+pred_show <- pred_show[match(predictive_labels,pred_show$Measure),]
+pred_show <- pred_show[,c("Measure","January only",
+  "January + year revision","Observed")]
+for (nm in names(pred_show)[-1]) pred_show[[nm]] <-
+  sprintf("%.2f",100*pred_show[[nm]])
+knitr::kable(pred_show,booktabs=TRUE,row.names=FALSE,
+  caption="Fitted-parameter predictive checks for observed calendar patterns (percent)")
+```
+
+The revision component moves the predicted whole-year-revision share in the
+intended direction, from
+`r sprintf('%.2f',100*pred$predicted_mean[pred$Model=='January only' & pred$metric=='consecutive_pairs_whole_year'])`%
+to
+`r sprintf('%.2f',100*pred$predicted_mean[pred$Model=='January + year revision' & pred$metric=='consecutive_pairs_whole_year'])`%,
+but the observed share is
+`r sprintf('%.2f',100*pred$observed[pred$metric=='consecutive_pairs_whole_year'][1])`%.
+None of the four observed moments lies within the corresponding 95% simulation
+envelope. In particular, predicted January starts remain near 13.6% compared
+with 26.4% observed. A conditional January probability of about 24% among
+gross reports cannot reproduce the aggregate month distribution when only
+about 22% of tenure reports use that gross component. Genuine hiring
+seasonality, calendar-specific clean reports, or both may therefore be
+missing from the baseline start-month law.
+
+```{r calendar-revision-decomposition}
+decomp_show <- revision_decomposition
+decomp_show$pattern <- c(
+  "Exact continuation"="Exact continuation",
+  "At least one exact continuation"="Exact continuation",
+  "At least one whole-year revision"="At least one whole-year revision",
+  "Fewer than two employed reports"="Fewer than two employed reports",
+  "Other multiple employed reports"="Other multiple-employed pattern"
+)[decomp_show$pattern]
+decomp_show <- data.frame(Pattern=unname(decomp_show$pattern),
+  `Population share (%)`=sprintf("%.2f",100*decomp_show$population_share),
+  `Log-likelihood gain`=sprintf("%.1f",decomp_show$loglik_gain),
+  `Share of net gain (%)`=sprintf("%.1f",100*decomp_show$gain_share),
+  check.names=FALSE)
+knitr::kable(decomp_show,booktabs=TRUE,
+  caption="Decomposition of the whole-year extension's log-likelihood gain")
+```
+
+All of the positive fit improvement comes from the 6.16% of weighted records
+with at least one observed whole-year date revision. Their gain exceeds the
+net gain because the extension loses about 3,083 log-likelihood points on
+other patterns. This concentration is substantively informative, but the
+offsetting deterioration and failed predictive checks show that the current
+correlated branch is too narrow. It requires both adjacent reports to be
+gross. The following extension implements the first repair; start-month
+seasonality remains a separate next step.
+
+\clearpage
+
+### Revisions of preceding clean reports
+
+Let $\eta$ denote the probability that a gross current tenure report draws
+from the same normalized whole-year revision law when its preceding observed
+tenure report was clean. The existing gross-to-gross probability $\omega$
+remains separate. Thus $\eta=0$ reproduces the preceding 17-parameter model
+exactly, while the 18-parameter extension distinguishes which type of report
+supplies the preceding date anchor. Missing tenure reports do not erase an
+anchor within the same latent job, but a latent job change does.
+
+```{r clean-anchor-revision-comparison}
+clean_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","gross_anchor_revision_prob",
+  "clean_anchor_revision_prob")
+clean_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","January heaping, conditional on gross",
+    "Gross-anchor whole-year revision",
+    "Clean-anchor whole-year revision","Log likelihood","AIC"),
+  Nested=c(sprintf("%.3f",100*unlist(
+    clean_revision_comparison[1,clean_rates])),
+    format(round(clean_revision_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(clean_revision_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  Extended=c(sprintf("%.3f",100*unlist(
+    clean_revision_comparison[2,clean_rates])),
+    format(round(clean_revision_comparison$loglik[2],1),big.mark=",",
+      scientific=FALSE),format(round(clean_revision_comparison$AIC[2],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(clean_show)[2:3] <- c("Gross-anchor revisions only",
+  "Gross + clean-anchor revisions")
+knitr::kable(clean_show,booktabs=TRUE,
+  caption="Clean-anchor whole-year revision extension (rates in percent)")
+```
+
+The extension improves the log likelihood by
+`r format(round(diff(clean_revision_comparison$loglik),1),big.mark=',')`
+points and lowers AIC by
+`r format(round(-diff(clean_revision_comparison$AIC),1),big.mark=',')`.
+The boundary LR statistic is
+`r format(round(clean_revision_lr$LR,1),big.mark=',')`.
+Starts at 3%, 25%, and 65% all converge near
+`r sprintf('%.2f',100*clean_revision_comparison$clean_anchor_revision_prob[2])`%
+for $\eta$. Allowing clean anchors reduces $\omega$ from
+`r sprintf('%.2f',100*clean_revision_comparison$gross_anchor_revision_prob[1])`%
+to
+`r sprintf('%.2f',100*clean_revision_comparison$gross_anchor_revision_prob[2])`%,
+while entry, exit, status error, and the two marginal contamination rates move
+by less than 0.04 percentage points. The new channel therefore reallocates
+the reporting process without materially changing the employment-transition
+interpretation.
+
+\clearpage
+
+```{r clean-anchor-revision-inference}
+clean_se_names <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","whole_year_revision_prob",
+  "clean_anchor_revision_prob")
+clean_se_labels <- c("Entry","Exit","Status error","Tenure error",
+  "Timegap error","Job reset","January heaping, conditional on gross",
+  "Gross-anchor whole-year revision","Clean-anchor whole-year revision")
+clean_se_show <- clean_revision_inference[match(clean_se_names,
+  clean_revision_inference$quantity),c("estimate","se","lower","upper")]
+clean_se_show <- 100*clean_se_show
+clean_se_show <- data.frame(Quantity=clean_se_labels,
+  Estimate=sprintf("%.3f",clean_se_show$estimate),
+  `Analytical SE`=sprintf("%.3f",clean_se_show$se),
+  `95% lower`=sprintf("%.3f",clean_se_show$lower),
+  `95% upper`=sprintf("%.3f",clean_se_show$upper),check.names=FALSE)
+knitr::kable(clean_se_show,booktabs=TRUE,
+  caption="Observed-information inference for the clean-anchor extension (percent)")
+```
+
+The 18-parameter observed-information matrix is positive definite and full
+rank, with condition number
+`r sprintf('%.1f',clean_revision_hessian$condition_number)`. The analytical
+standard error of $\eta$ is
+`r sprintf('%.3f',100*clean_revision_inference$se[clean_revision_inference$quantity=='clean_anchor_revision_prob'])`
+percentage points. The delta-method correlation between $\eta$ and $\omega$
+is
+`r sprintf('%.3f',cov2cor(clean_revision_inference_full$vcov_quantities)['clean_anchor_revision_prob','whole_year_revision_prob'])`.
+The channels are related but the local information does not indicate a nearly
+singular reallocation.
+
+```{r clean-anchor-revision-recovery}
+clean_recovery_show <- clean_revision_recovery
+clean_recovery_show$parameter <- c("Clean-anchor revision",
+  "Gross-anchor revision","January heaping","Tenure error","Job reset",
+  "Status error")
+for (nm in c("truth","estimate","bias"))
+  clean_recovery_show[[nm]] <- sprintf("%.4f",clean_recovery_show[[nm]])
+names(clean_recovery_show) <- c("Parameter","Truth","Estimate","Bias")
+knitr::kable(clean_recovery_show,booktabs=TRUE,
+  caption="Clean-anchor revision recovery check (8,000 simulated records)")
+```
+
+Both recovery starts converge to the same likelihood and estimate $\eta$ at
+about 0.325 when its generating value is 0.35. The corresponding estimate of
+$\omega$ is about 0.244 rather than 0.204. This demonstrates joint
+recoverability, while the offsetting finite-sample biases caution against
+interpreting the two probabilities too finely without a larger repeated
+recovery design.
+
+```{r clean-anchor-revision-predictive}
+clean_pred_metrics <- c("all_employed_reports_january_start",
+  "consecutive_pairs_exact","consecutive_pairs_whole_year",
+  "consecutive_pairs_other")
+clean_pred_labels <- c("January start month, all employed reports",
+  "Exact continuation, consecutive employed pairs",
+  "Whole-year revision, consecutive employed pairs",
+  "Other revision, consecutive employed pairs")
+cp <- clean_revision_predictive[
+  clean_revision_predictive$metric %in% clean_pred_metrics,]
+cp$Measure <- clean_pred_labels[match(cp$metric,clean_pred_metrics)]
+cp$Model <- ifelse(cp$model=="Gross-anchor revisions only",
+  "Gross-anchor only","Gross + clean-anchor")
+cp_show <- reshape(cp[,c("Measure","Model","predicted_mean")],
+  idvar="Measure",timevar="Model",direction="wide")
+names(cp_show) <- sub("predicted_mean\\.","",names(cp_show))
+cp_show$Observed <- cp$observed[match(cp_show$Measure,cp$Measure)]
+cp_show <- cp_show[match(clean_pred_labels,cp_show$Measure),
+  c("Measure","Gross-anchor only","Gross + clean-anchor","Observed")]
+for (nm in names(cp_show)[-1]) cp_show[[nm]] <-
+  sprintf("%.2f",100*cp_show[[nm]])
+knitr::kable(cp_show,booktabs=TRUE,row.names=FALSE,
+  caption="Predictive checks after allowing clean-anchor revisions (percent)")
+```
+
+The targeted whole-year-revision prediction rises from 4.10% to 5.79%, closer
+to the observed 7.01%, while other revisions fall from 35.58% to about 33.8%
+against 28.29% observed. The checks nevertheless still fail: exact
+continuations remain too low and January starts remain near 13.4% rather than
+26.4%. The extension explains an important part of the date-revision pattern,
+but it does not repair the missing baseline calendar distribution.
+
+```{r clean-anchor-revision-decomposition}
+clean_decomp_show <- data.frame(
+  Pattern=clean_revision_decomposition$pattern,
+  `Population share (%)`=sprintf("%.2f",
+    100*clean_revision_decomposition$population_share),
+  `Log-likelihood gain`=sprintf("%.1f",
+    clean_revision_decomposition$loglik_gain),
+  `Share of net gain (%)`=sprintf("%.1f",
+    100*clean_revision_decomposition$gain_share),check.names=FALSE)
+knitr::kable(clean_decomp_show,booktabs=TRUE,
+  caption="Likelihood gain from allowing clean-anchor revisions")
+```
+
+As intended, the positive gain is concentrated among the 6.16% of weighted
+records with a whole-year revision. Their gain is partly offset by lower fit
+for exact continuations and other multiple-employed patterns. The next model
+should therefore estimate a genuine start-month distribution shared by clean
+and gross reports before adding further dependence or AR(2) dynamics.
+
+\clearpage
+
+### Flexible baseline start-month distribution
+
+The next extension replaces the implicit uniform distribution of job-start
+months with 12 probabilities, estimated through 11 logits relative to
+December. The duration mass is multiplied by the probability of its implied
+calendar start month and renormalized separately for each interview month.
+The same distribution enters clean and gross marginal tenure reports and the
+0--2 month support for latent entries and job resets. Uniform probabilities
+reproduce the preceding 18-parameter likelihood exactly. The gross-only
+January-heaping branch and the two whole-year revision probabilities remain
+separate.
+
+```{r start-month-baseline-comparison}
+start_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","gross_anchor_revision_prob",
+  "clean_anchor_revision_prob")
+start_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","January heaping, conditional on gross",
+    "Gross-anchor whole-year revision",
+    "Clean-anchor whole-year revision","Log likelihood","AIC"),
+  Uniform=c(sprintf("%.3f",100*unlist(
+    start_month_comparison[1,start_rates])),
+    format(round(start_month_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(start_month_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  Flexible=c(sprintf("%.3f",100*unlist(
+    start_month_comparison[2,start_rates])),
+    format(round(start_month_comparison$loglik[2],1),big.mark=",",
+      scientific=FALSE),format(round(start_month_comparison$AIC[2],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(start_show)[2:3] <- c("Uniform baseline","Flexible baseline")
+knitr::kable(start_show,booktabs=TRUE,
+  caption="Shared flexible baseline start-month distribution (rates in percent)")
+```
+
+The flexible distribution improves the log likelihood by
+`r format(round(diff(start_month_comparison$loglik),1),big.mark=',')` points
+and lowers AIC by
+`r format(round(-diff(start_month_comparison$AIC),1),big.mark=',')` despite 11
+additional parameters. The LR statistic for equal month probabilities is
+`r format(round(start_month_lr$LR,1),big.mark=',')` on 11 degrees of freedom.
+Entry, exit, status error, and tenure and timegap contamination each move by
+less than 0.2 percentage points. The transition interpretation is therefore
+stable. In contrast, the gross-specific January-heaping probability falls
+from
+`r sprintf('%.2f',100*start_month_comparison$gross_january_heaping_prob[1])`%
+to approximately zero. January concentration belongs in the shared baseline
+calendar distribution rather than in an error process used only by gross
+reports.
+
+\clearpage
+
+```{r start-month-baseline-distribution}
+month_show <- data.frame(Month=start_month_distribution$month,
+  `Observed reports`=sprintf("%.2f",
+    100*start_month_distribution$observed_report_share),
+  `Estimated baseline`=sprintf("%.2f",
+    100*start_month_distribution$estimated_baseline),
+  Uniform=sprintf("%.2f",100*start_month_distribution$uniform),
+  check.names=FALSE)
+knitr::kable(month_show,booktabs=TRUE,
+  caption="Observed and estimated job-start month distributions (percent)")
+```
+
+The estimated baseline puts
+`r sprintf('%.2f',100*start_month_distribution$estimated_baseline[1])`% of
+start dates in January, followed by March, February, and April. December has
+only
+`r sprintf('%.2f',100*start_month_distribution$estimated_baseline[12])`%.
+This strongly non-uniform pattern explains why the earlier gross-only heaping
+component could not reproduce the aggregate data: most January concentration
+is common to clean and gross reports.
+
+```{r start-month-baseline-predictive}
+pred_metrics <- c("consecutive_pairs_exact","consecutive_pairs_whole_year",
+  "consecutive_pairs_other","start_month_1")
+pred_labels <- c("Exact continuation","Whole-year revision","Other revision",
+  "January start month")
+sp <- start_month_predictive[start_month_predictive$model=="Flexible baseline" &
+  start_month_predictive$metric %in% pred_metrics,]
+sp <- sp[match(pred_metrics,sp$metric),]
+pred_show <- data.frame(Measure=pred_labels,
+  Predicted=sprintf("%.2f",100*sp$predicted_mean),
+  Observed=sprintf("%.2f",100*sp$observed),
+  `Within 95% simulation envelope`=ifelse(sp$within_95,"Yes","No"),
+  check.names=FALSE)
+knitr::kable(pred_show,booktabs=TRUE,
+  caption="Predictive checks for the flexible baseline (percent)")
+```
+
+The month distribution is repaired: 11 of 12 observed month shares lie inside
+their fitted-parameter simulation envelopes. Whole-year revisions rise to
+6.89%, close to 7.01% observed. However, exact continuations remain too low
+(60.7% versus 64.7%) and other revisions too high (32.5% versus 28.3%). The
+remaining misspecification is therefore serial dependence in reporting, not
+baseline calendar seasonality.
+
+\clearpage
+
+```{r start-month-baseline-recovery}
+best_recovery <- start_month_recovery_fits[
+  which.max(start_month_recovery_fits$loglik),]
+recovery_show <- data.frame(
+  Quantity=c("January probability","Month-distribution RMSE",
+    "Gross-anchor revision","Clean-anchor revision","Tenure error",
+    "Status error"),
+  Truth=c(start_month_recovery$truth[1],NA,0.065764500,0.104707950,
+    0.218171810,0.030195474),
+  Estimate=c(start_month_recovery$estimate[1],best_recovery$month_rmse,
+    best_recovery$gross_anchor_revision_prob,
+    best_recovery$clean_anchor_revision_prob,
+    best_recovery$tenure_contamination,
+    best_recovery$status_misclassification))
+recovery_show$Truth <- ifelse(is.na(recovery_show$Truth),"--",
+  sprintf("%.4f",recovery_show$Truth))
+recovery_show$Estimate <- sprintf("%.4f",recovery_show$Estimate)
+knitr::kable(recovery_show,booktabs=TRUE,
+  caption="Joint recovery check (2,000 simulated records)")
+```
+
+Uniform and reversed conditional starts converge to essentially the same
+likelihood, and the safeguarded joint optimizer converges before a capped
+central refinement. The 12-month distribution is recovered with RMSE about
+0.0044. The two revision channels show more small-sample reallocation, so
+their sum and predictive implications remain more reliable than a fine
+comparison of their separate probabilities. Full observed-information
+inference for all 29 parameters remains to be completed; the near-zero
+gross-only January-heaping estimate is a boundary quantity and should not be
+given a regular Wald interpretation.
+
+\clearpage
+
+### Exact reported-start-date retention
+
+The next nested extension lets a gross current tenure report retain the
+preceding reported job-start date exactly, regardless of whether the preceding
+report was clean or gross. Let $\rho$ denote this retention probability. If
+the anchor is not retained, the report follows the existing whole-year
+revision versus marginal-redraw mixture. Thus $\rho=0$ reproduces the flexible
+baseline likelihood exactly and the two revision parameters retain their
+conditional interpretation.
+
+```{r exact-anchor-comparison}
+anchor_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_anchor_revision_prob","clean_anchor_revision_prob",
+  "exact_anchor_retention_prob")
+anchor_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","Gross-anchor whole-year revision",
+    "Clean-anchor whole-year revision","Exact-anchor retention",
+    "Log likelihood","AIC"),
+  Baseline=c(sprintf("%.3f",100*unlist(
+    exact_anchor_comparison[1,anchor_rates])),
+    format(round(exact_anchor_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(exact_anchor_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  Retention=c(sprintf("%.3f",100*unlist(
+    exact_anchor_comparison[3,anchor_rates])),
+    format(round(exact_anchor_comparison$loglik[3],1),big.mark=",",
+      scientific=FALSE),format(round(exact_anchor_comparison$AIC[3],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+names(anchor_show)[2:3] <- c("Flexible baseline","Exact retention")
+knitr::kable(anchor_show,booktabs=TRUE,
+  caption="Exact reported-start-date retention (rates in percent)")
+```
+
+The polished joint estimate is
+`r sprintf('%.2f',100*exact_anchor_comparison$exact_anchor_retention_prob[3])`%.
+The log likelihood rises by
+`r format(round(exact_anchor_comparison$loglik[3]-
+  exact_anchor_comparison$loglik[1],1),big.mark=',')` points; the corresponding
+one-parameter LR statistic is
+`r format(round(exact_anchor_lr$LR,1),big.mark=',')`. Entry and exit rates move
+only from 2.28% and 4.14% to 2.31% and 4.14%. The substantive transition result
+is therefore stable. Tenure contamination rises from 21.82% to
+`r sprintf('%.2f',100*exact_anchor_comparison$tenure_contamination[3])`% because
+the enlarged gross-report process can now include both retained and redrawn
+dates.
+
+```{r exact-anchor-refinement}
+refine_keep <- exact_anchor_refinement$stage %in%
+  c("continued","low","high","promoted","polished")
+refine_show <- exact_anchor_refinement[refine_keep,
+  c("stage","loglik","gain_over_incumbent","exact_anchor_retention")]
+refine_show$gain_over_incumbent <- refine_show$loglik-
+  exact_anchor_refinement$loglik[exact_anchor_refinement$stage=="continued"]
+refine_show$stage <- c("First central block","Low-retention start",
+  "High-retention start","Continued joint fit","Conditional polish")
+refine_show$loglik <- format(round(refine_show$loglik,1),big.mark=",",
+  scientific=FALSE)
+refine_show$gain_over_incumbent <- sprintf("%+.2f",
+  refine_show$gain_over_incumbent)
+refine_show$exact_anchor_retention <- sprintf("%.2f",
+  100*refine_show$exact_anchor_retention)
+names(refine_show) <- c("Fit","Log likelihood","Gain","Retention (%)")
+rownames(refine_show) <- NULL
+knitr::kable(refine_show,booktabs=TRUE,
+  caption="Longer refinement of the exact-retention model")
+```
+
+The continued joint refinement raises the log likelihood by
+`r sprintf('%.2f',exact_anchor_refinement$loglik[
+  exact_anchor_refinement$stage=='polished']-
+  exact_anchor_refinement$loglik[exact_anchor_refinement$stage=='continued'])`
+points relative to the first central block. Low- and high-retention screens
+are hundreds of likelihood points worse. The final scalar
+polish adds 0.001 point, so the point estimates are practically stable even
+though the capped joint blocks retain optimizer convergence code 1. Full
+observed-information inference for the 30 parameters remains outstanding.
+
+```{r exact-anchor-predictive}
+anchor_metrics <- c("exact_continuation","whole_year_revision",
+  "other_revision")
+anchor_labels <- c("Exact continuation","Whole-year revision",
+  "Other revision")
+ap <- exact_anchor_predictive[
+  exact_anchor_predictive$metric %in% anchor_metrics,]
+ap <- ap[order(match(ap$metric,anchor_metrics),ap$model),]
+ap_show <- data.frame(Measure=rep(anchor_labels,each=2),
+  Model=ap$model,Predicted=sprintf("%.2f",100*ap$predicted_mean),
+  Observed=sprintf("%.2f",100*ap$observed),check.names=FALSE)
+knitr::kable(ap_show,booktabs=TRUE,
+  caption="Predictive implications of exact-anchor retention (percent)")
+```
+
+Exact continuations rise from
+`r sprintf('%.1f',100*ap$predicted_mean[ap$model=='Flexible baseline' & ap$metric=='exact_continuation'])`%
+to
+`r sprintf('%.1f',100*ap$predicted_mean[ap$model=='Exact-anchor retention' & ap$metric=='exact_continuation'])`%,
+toward the observed 64.7%, and other revisions fall from
+`r sprintf('%.1f',100*ap$predicted_mean[ap$model=='Flexible baseline' & ap$metric=='other_revision'])`%
+to
+`r sprintf('%.1f',100*ap$predicted_mean[ap$model=='Exact-anchor retention' & ap$metric=='other_revision'])`%,
+toward 28.3%. Whole-year revisions
+remain essentially exact at 7.0%. The extension therefore targets the intended
+serial feature but does not close the full gap. Likelihood gains are concentrated
+in records containing a mixture of continuation patterns and are offset by
+losses among single-pattern records. A richer local date-revision kernel remains
+warranted.
+
+```{r exact-anchor-recovery}
+anchor_recovery_show <- data.frame(
+  Quantity=c("Generating retention","Mean recovered retention",
+    "Recovery RMSE","Minimum estimate","Maximum estimate",
+    "Mean LR against zero"),
+  Value=c(exact_anchor_recovery$truth,
+    exact_anchor_recovery$mean_estimate,exact_anchor_recovery$rmse,
+    exact_anchor_recovery$minimum,exact_anchor_recovery$maximum,
+    exact_anchor_recovery$mean_LR_zero))
+anchor_recovery_show$Value <- sprintf("%.4f",anchor_recovery_show$Value)
+knitr::kable(anchor_recovery_show,booktabs=TRUE,
+  caption="Conditional recovery of exact-anchor retention (20 samples of 5,000)")
+```
+
+Holding nuisance parameters at their generating values, the new probability
+is recovered with small mean bias and an RMSE of about three percentage points.
+All 20 replications produce a positive interior estimate and strongly favor
+retention over the nested zero value. This establishes conditional
+identification, but is intentionally an easier check than joint recovery.
+
+```{r exact-anchor-joint-recovery}
+joint_selected <- exact_anchor_joint_fits[exact_anchor_joint_fits$selected,]
+transition_recovery <- data.frame(
+  Sample=paste("Replication",joint_selected$replication),
+  `True entry`=100*joint_selected$true_entry_rate,
+  `Estimated entry`=100*joint_selected$entry_rate,
+  `True exit`=100*joint_selected$true_exit_rate,
+  `Estimated exit`=100*joint_selected$exit_rate,
+  check.names=FALSE)
+for (j in 2:ncol(transition_recovery))
+  transition_recovery[[j]] <- sprintf("%.3f",transition_recovery[[j]])
+knitr::kable(transition_recovery,booktabs=TRUE,
+  caption="Full 30-parameter recovery: transition rates (percent)")
+
+joint_parameters <- c("exact_anchor_retention","eps","pi",
+  "clean_anchor_revision","gross_anchor_revision")
+joint_labels <- c("Exact-anchor retention","Tenure contamination",
+  "Status misclassification","Clean-anchor revision",
+  "Gross-anchor revision")
+jr <- exact_anchor_joint_recovery[
+  match(joint_parameters,exact_anchor_joint_recovery$parameter),]
+joint_recovery_show <- data.frame(Parameter=joint_labels,
+  Truth=sprintf("%.2f",100*jr$truth),
+  Mean=sprintf("%.2f",100*jr$mean_estimate),
+  Bias=sprintf("%+.2f",100*jr$mean_bias),
+  RMSE=sprintf("%.2f",100*jr$rmse),check.names=FALSE)
+knitr::kable(joint_recovery_show,booktabs=TRUE,
+  caption="Full 30-parameter recovery: reporting probabilities (percentage points)")
+```
+
+All three simulated samples can be re-estimated from near and dispersed starts.
+The selected pooled entry- and exit-rate RMSEs are
+`r sprintf('%.3f',100*sqrt(mean(joint_selected$entry_rate_bias^2)))` and
+`r sprintf('%.3f',100*sqrt(mean(joint_selected$exit_rate_bias^2)))` percentage
+points. The third replication is less favorable than the first two, with
+entry and exit errors of
+`r sprintf('%+.3f',100*joint_selected$entry_rate_bias[3])` and
+`r sprintf('%+.3f',100*joint_selected$exit_rate_bias[3])` points, respectively.
+The aggregate transition result is nevertheless much more robust than
+individual duration-hazard bins. By
+contrast, the reporting decomposition is weakly separated at this sample size:
+the retention RMSE is
+`r sprintf('%.2f',100*jr$rmse[jr$parameter=='exact_anchor_retention'])` points,
+and clean- and gross-anchor revision probabilities partly offset one another.
+The exercise shows that the full likelihood is estimable, but three
+replications do not establish
+precise finite-sample identification of every reporting component.
+
+```{r exact-anchor-opg-inference}
+opg_names <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_january_heaping_prob","gross_anchor_revision_prob",
+  "clean_anchor_revision_prob","exact_anchor_retention_prob")
+opg_labels <- c("Entry","Exit","Status error","Tenure error",
+  "Timegap error","Job reset","Gross-only January heaping",
+  "Gross-anchor revision","Clean-anchor revision","Exact-anchor retention")
+oi <- exact_anchor_opg[match(opg_names,exact_anchor_opg$quantity),]
+opg_show <- data.frame(Quantity=opg_labels,
+  Estimate=sprintf("%.3f",100*oi$estimate),
+  `Analytical SE`=sprintf("%.3f",100*oi$se),
+  `95% interval`=sprintf("[%.3f, %.3f]",100*oi$lower,100*oi$upper),
+  check.names=FALSE)
+knitr::kable(opg_show,booktabs=TRUE,
+  caption="OPG analytical inference for the exact-retention model (percent)")
+```
+
+The 30-parameter score matrix is full rank, but its condition number is
+`r format(signif(exact_anchor_opg_diagnostics$condition_number,3),scientific=TRUE)`,
+consistent with weak local separation. The exact-retention standard error is
+0.574 percentage points under this analytical approximation. The most
+important natural-scale correlations are 0.885 between exact retention and
+overall tenure contamination, and -0.540 between the clean- and gross-anchor
+revision probabilities. These correlations agree with the simulation evidence
+that reporting channels can offset one another. Gross-only January heaping is
+effectively on the boundary: its regular interval crosses zero by a wide
+margin, so its Wald standard error should be treated only as a diagnostic.
+The OPG calculation uses 61 likelihood evaluations. A resumable central
+observed-Hessian calculation has also been implemented; its first 48 of 1,801
+points are cached, but the exact calculation is not yet complete.
+
+\clearpage
+
+### Local reported-start-date revisions
+
+The next nested extension addresses near-anchor changes directly. Conditional
+on a gross current tenure report, the preceding reported start date is first
+retained exactly with probability $\rho$. If it is not retained, the report
+receives a non-zero local revision with probability $\kappa$; otherwise it
+passes to the existing whole-year-revision versus marginal-redraw mixture. The
+local revision is a normalized discrete-Laplace kernel over one to six months
+in either direction, with fixed three-month scale and truncation at zero
+tenure. Consequently, $\kappa=0$ reproduces the exact-anchor model exactly and
+zero-month changes are not counted twice.
+
+```{r local-anchor-comparison}
+local_rates <- c("entry_rate","exit_rate","status_misclassification",
+  "tenure_contamination","timegap_contamination","job_change_prob",
+  "gross_anchor_revision_prob","clean_anchor_revision_prob",
+  "exact_anchor_retention_prob","local_anchor_revision_prob")
+local_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Tenure error","Timegap error",
+    "Job reset","Gross-anchor whole-year revision",
+    "Clean-anchor whole-year revision","Exact-anchor retention",
+    "Local revision conditional on no exact retention","Log likelihood",
+    "AIC"),
+  `Exact retention`=c(sprintf("%.3f",100*unlist(
+    local_anchor_comparison[1,local_rates])),
+    format(round(local_anchor_comparison$loglik[1],1),big.mark=",",
+      scientific=FALSE),format(round(local_anchor_comparison$AIC[1],1),
+      big.mark=",",scientific=FALSE)),
+  `Local revision`=c(sprintf("%.3f",100*unlist(
+    local_anchor_comparison[3,local_rates])),
+    format(round(local_anchor_comparison$loglik[3],1),big.mark=",",
+      scientific=FALSE),format(round(local_anchor_comparison$AIC[3],1),
+      big.mark=",",scientific=FALSE)),check.names=FALSE)
+knitr::kable(local_show,booktabs=TRUE,
+  caption="Local reported-start-date revision extension (rates in percent)")
+```
+
+The conditional local-revision estimate is
+`r sprintf('%.2f',100*local_anchor_comparison$local_anchor_revision_prob[3])`%.
+Because exact retention is tried first, its corresponding unconditional share
+among eligible gross reports is
+`r sprintf('%.2f',100*(1-local_anchor_comparison$exact_anchor_retention_prob[3])*
+  local_anchor_comparison$local_anchor_revision_prob[3])`%. The log likelihood
+increases by
+`r format(round(local_anchor_comparison$loglik[3]-
+  local_anchor_comparison$loglik[1],1),big.mark=',')` points, giving a boundary
+LR statistic of `r format(round(local_anchor_lr$LR,1),big.mark=',')` and a much
+lower AIC. The conditional profile peaks near 0.35. Reporting-parameter fits
+started near 0.02, the conditional optimum, and 0.65; the low and high screens
+are respectively
+`r format(round(max(local_anchor_refinement$loglik)-
+  local_anchor_refinement$loglik[local_anchor_refinement$stage=='low'],1),
+  big.mark=',')` and
+`r format(round(max(local_anchor_refinement$loglik)-
+  local_anchor_refinement$loglik[local_anchor_refinement$stage=='high'],1),
+  big.mark=',')` likelihood points below the best result. A central-difference
+reporting block improves the main forward result and a separate transition-
+hazard block adds only
+`r sprintf('%.2f',local_anchor_refinement$loglik[
+  local_anchor_refinement$stage=='transition']-
+  local_anchor_refinement$loglik[local_anchor_refinement$stage=='central'])`
+points. The blocks are deliberately short and retain convergence code 1, so
+this is strong multistart evidence but not a claim of final full convergence.
+
+Entry changes from 2.308% to
+`r sprintf('%.3f',100*local_anchor_comparison$entry_rate[3])`% and exit from
+4.142% to `r sprintf('%.3f',100*local_anchor_comparison$exit_rate[3])`%.
+Status error also remains near 2.96%. The new channel therefore changes the
+measurement process while leaving the paper's transition interpretation
+essentially intact.
+
+\clearpage
+
+```{r local-anchor-predictive}
+local_metrics <- c("exact_continuation","local_revision_1_to_6_months",
+  "whole_year_revision","other_revision")
+local_labels <- c("Exact continuation","Local revision (1 to 6 months)",
+  "Whole-year revision","Other revision")
+lp <- local_anchor_predictive[
+  local_anchor_predictive$metric %in% local_metrics,]
+lp <- lp[order(match(lp$metric,local_metrics),lp$model),]
+lp_show <- data.frame(Measure=rep(local_labels,each=2),Model=lp$model,
+  Predicted=sprintf("%.2f",100*lp$predicted_mean),
+  Observed=sprintf("%.2f",100*lp$observed),check.names=FALSE)
+knitr::kable(lp_show,booktabs=TRUE,
+  caption="Predictive implications of local anchor revisions (percent)")
+```
+
+The old exact-anchor model predicts only
+`r sprintf('%.1f',100*lp$predicted_mean[lp$model=='Exact-anchor model' &
+  lp$metric=='local_revision_1_to_6_months'])`% local revisions, compared with
+`r sprintf('%.1f',100*lp$observed[lp$metric==
+  'local_revision_1_to_6_months'][1])`% observed. The extension raises the
+prediction to
+`r sprintf('%.1f',100*lp$predicted_mean[lp$model=='Local anchor revisions' &
+  lp$metric=='local_revision_1_to_6_months'])`%. Local-only records contribute
+`r format(round(local_anchor_decomposition$loglik_gain[
+  local_anchor_decomposition$pattern=='Local revision only']),big.mark=',')`
+likelihood points and mixed-pattern records contribute another
+`r format(round(local_anchor_decomposition$loglik_gain[
+  local_anchor_decomposition$pattern=='Mixed']),big.mark=',')`; losses on
+other and whole-year-only records partly offset these gains. This confirms
+that the extension improves the feature it was designed to capture rather
+than obtaining its fit from unrelated observations.
+
+The check is not yet fully satisfactory. Exact continuations remain
+underpredicted (about 61.7% versus 64.7%), local revisions remain slightly
+underpredicted (10.8% versus 11.4%), and residual revisions remain
+overpredicted (22.2% versus 16.9%). Whole-year revisions now fall below the
+observed share. The fixed local kernel is therefore a useful first repair, not
+a complete reporting model. Holding all other parameters fixed, the local
+probability has a curvature-based standard error of
+`r sprintf('%.3f',100*local_anchor_curvature$se_probability)` percentage
+points and a 95% interval of
+[`r sprintf('%.2f',100*local_anchor_curvature$lower_probability)`%,
+`r sprintf('%.2f',100*local_anchor_curvature$upper_probability)`%]. This is
+conditional rather than full nuisance-adjusted inference and should not be
+used as the final paper standard error.
+
+\clearpage
+
+### Shared person-level duration-reporting reliability
+
+The next extension allows tenure and timegap reports from the same person to
+share a latent propensity for contamination. Each person belongs with equal
+prior probability to a reliable or unreliable reporting class. Relative to a
+common midpoint, the reliable class shifts both contamination logits down by
+$\delta$ and the unreliable class shifts them up by $\delta$. Thus
+$\delta=0$ reproduces the preceding independent-reporting likelihood exactly.
+The fixed equal class shares keep this first extension parsimonious and avoid
+an additional mixing-proportion parameter and label switching.
+
+```{r shared-reliability-comparison}
+sr <- shared_reliability_comparison[c(1,3),]
+shared_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Job reset",
+    "Exact-anchor retention","Local revision",
+    "Reliability-logit dispersion","Log likelihood","AIC"),
+  Independent=c(sprintf("%.3f",100*c(sr$entry_rate[1],sr$exit_rate[1],
+    sr$status_misclassification[1],sr$job_change_prob[1],
+    sr$exact_anchor_retention_prob[1],sr$local_anchor_revision_prob[1])),
+    "0.000",format(round(sr$loglik[1],1),big.mark=",",scientific=FALSE),
+    format(round(sr$AIC[1],1),big.mark=",",scientific=FALSE)),
+  `Shared reliability`=c(sprintf("%.3f",100*c(sr$entry_rate[2],
+    sr$exit_rate[2],sr$status_misclassification[2],sr$job_change_prob[2],
+    sr$exact_anchor_retention_prob[2],sr$local_anchor_revision_prob[2])),
+    sprintf("%.3f",sr$duration_reliability_shift[2]),
+    format(round(sr$loglik[2],1),big.mark=",",scientific=FALSE),
+    format(round(sr$AIC[2],1),big.mark=",",scientific=FALSE)),
+  check.names=FALSE)
+knitr::kable(shared_show,booktabs=TRUE,
+  caption="Shared duration-reporting reliability (rates in percent)")
+```
+
+The likelihood rises by
+`r format(round(diff(sr$loglik),1),big.mark=',')` points with one additional
+parameter, while entry remains `r sprintf('%.3f',100*sr$entry_rate[2])`% and
+exit remains `r sprintf('%.3f',100*sr$exit_rate[2])`%. The reporting extension
+therefore leaves the substantive transition estimates essentially unchanged.
+The exact equality of the two likelihoods at $\delta=0$ was verified
+numerically. The LR statistic is
+`r format(round(shared_reliability_lr$LR,1),big.mark=',')`, but its usual
+one-degree-of-freedom chi-squared reference distribution is not valid because
+the null is a homogeneous-mixture boundary. Final inference requires a
+parametric bootstrap.
+
+```{r shared-reliability-components}
+component_show <- data.frame(
+  Class=c("Reliable","Unreliable","Equal-prior marginal mean"),
+  `Prior share`=c(sprintf("%.1f",100*
+    shared_reliability_components$prior_probability),"--"),
+  `Tenure contamination`=sprintf("%.2f",100*c(
+    shared_reliability_components$tenure_contamination,
+    mean(shared_reliability_components$tenure_contamination))),
+  `Timegap contamination`=sprintf("%.2f",100*c(
+    shared_reliability_components$timegap_contamination,
+    mean(shared_reliability_components$timegap_contamination))),
+  check.names=FALSE)
+knitr::kable(component_show,booktabs=TRUE,
+  caption="Implied duration-contamination probabilities by latent reliability class (percent)")
+```
+
+The reliable class has tenure and timegap contamination probabilities of
+`r sprintf('%.2f',100*shared_reliability_components$tenure_contamination[1])`%
+and
+`r sprintf('%.2f',100*shared_reliability_components$timegap_contamination[1])`%,
+compared with
+`r sprintf('%.2f',100*shared_reliability_components$tenure_contamination[2])`%
+and
+`r sprintf('%.2f',100*shared_reliability_components$timegap_contamination[2])`%
+in the unreliable class. The survey-weighted mean posterior probability of
+the unreliable class is
+`r sprintf('%.1f',100*shared_reliability_posterior$posterior_unreliable[shared_reliability_posterior$statistic=='weighted mean'])`%,
+with a median of
+`r sprintf('%.1f',100*shared_reliability_posterior$posterior_unreliable[shared_reliability_posterior$statistic=='median'])`%.
+The midpoint contamination parameters reported by the optimizer are not
+population-average probabilities in this mixture; the class-specific values
+and equal-prior marginal means above are the interpretable quantities.
+
+All three deliberately dispersed joint starts improve on the independent
+model. The best low and high starts remain respectively
+`r format(round(max(shared_reliability_refinement$loglik)-shared_reliability_refinement$loglik[shared_reliability_refinement$stage=='low'],1),big.mark=',')`
+and
+`r format(round(max(shared_reliability_refinement$loglik)-shared_reliability_refinement$loglik[shared_reliability_refinement$stage=='high'],1),big.mark=',')`
+likelihood points below the preferred basin. The short joint blocks terminate
+at their iteration caps, however, so the result is a strong provisional point
+estimate rather than a final convergence claim.
+
+```{r shared-reliability-predictive}
+shared_metrics <- c("exact_continuation","local_revision_1_to_6_months",
+  "other_revision","timegap_inconsistent",
+  "two_opportunities_no_irregularity",
+  "two_opportunities_one_irregularity",
+  "two_opportunities_two_irregularities")
+shared_labels <- c("Exact continuation","Local revision (1 to 6 months)",
+  "Other revision","Timegap inconsistency",
+  "Two opportunities: no irregularity",
+  "Two opportunities: one irregularity",
+  "Two opportunities: two irregularities")
+sp <- shared_reliability_predictive[
+  shared_reliability_predictive$metric %in% shared_metrics,]
+sp$label <- shared_labels[match(sp$metric,shared_metrics)]
+sp_wide <- reshape(sp[,c("label","model","predicted_mean")],
+  idvar="label",timevar="model",direction="wide")
+sp_obs <- sp[!duplicated(sp$label),c("label","observed")]
+sp_wide <- merge(sp_obs,sp_wide,by="label",sort=FALSE)
+sp_wide <- sp_wide[match(shared_labels,sp_wide$label),]
+shared_pred_show <- data.frame(
+  Measure=sp_wide$label,Observed=sprintf("%.2f",100*sp_wide$observed),
+  Independent=sprintf("%.2f",100*sp_wide$`predicted_mean.Independent reliability`),
+  `Shared reliability`=sprintf("%.2f",100*sp_wide$`predicted_mean.Shared reliability`),
+  check.names=FALSE)
+knitr::kable(shared_pred_show,booktabs=TRUE,
+  caption="Predictive implications of shared reporting reliability (percent)")
+```
+
+Shared reliability improves the local-revision prediction from 10.77% to
+11.13% against 11.43% observed and moves the repeated-opportunity distribution
+in the right direction: the predicted shares with no and exactly one
+irregularity change from 60.36% and 24.07% to 62.88% and 19.39%, against
+68.05% and 16.43% observed. It is not a complete repair. The model raises the
+two-irregularity share from 15.58% to 17.73% against 15.52% observed, and the
+exact, residual-revision, and timegap moments remain outside their simulation
+intervals.
+
+The likelihood decomposition confirms that the improvement is concentrated
+where duration information is informative: records with no irregularity,
+tenure deviations, and timegap inconsistencies account for 65.6%, 28.9%, and
+5.8% of the gain, respectively. The average posterior unreliable probability
+is 28.0% for regular repeated-state records, 87.5% for tenure deviations, and
+92.6% for timegap inconsistencies.
+
+There is an important identification limitation. Across only three waves, a
+record cannot contain both a repeated employed spell and a repeated
+nonemployment spell. The common shift across tenure and timegap is therefore
+not identified from observing both clocks repeatedly for the same person.
+Instead, it is a parsimonious cross-clock restriction learned indirectly from
+serial clustering within each clock. The following specification check allows
+separate tenure- and timegap-reliability dispersions and tests whether the
+common-shift restriction is supported.
+
+\clearpage
+
+#### Relaxing the common-shift restriction
+
+The restriction test replaces the single $\delta$ with separate nonnegative
+tenure and timegap dispersions, while retaining the same person-level class
+and equal prior shares. Setting the two dispersions equal reproduces the
+common-shift likelihood exactly; this was verified to numerical precision.
+
+```{r separate-reliability-comparison}
+sep <- separate_reliability_comparison
+separate_show <- data.frame(
+  Quantity=c("Entry","Exit","Status error","Job reset",
+    "Exact-anchor retention","Local revision","Tenure dispersion",
+    "Timegap dispersion","Log likelihood","AIC"),
+  `Common dispersion`=c(sprintf("%.3f",100*c(sep$entry_rate[1],
+    sep$exit_rate[1],sep$status_misclassification[1],
+    sep$job_change_prob[1],sep$exact_anchor_retention_prob[1],
+    sep$local_anchor_revision_prob[1])),
+    sprintf("%.3f",c(sep$tenure_reliability_shift[1],
+      sep$timegap_reliability_shift[1])),
+    format(round(sep$loglik[1],1),big.mark=",",scientific=FALSE),
+    format(round(sep$AIC[1],1),big.mark=",",scientific=FALSE)),
+  `Separate dispersions`=c(sprintf("%.3f",100*c(sep$entry_rate[2],
+    sep$exit_rate[2],sep$status_misclassification[2],
+    sep$job_change_prob[2],sep$exact_anchor_retention_prob[2],
+    sep$local_anchor_revision_prob[2])),
+    sprintf("%.3f",c(sep$tenure_reliability_shift[2],
+      sep$timegap_reliability_shift[2])),
+    format(round(sep$loglik[2],1),big.mark=",",scientific=FALSE),
+    format(round(sep$AIC[2],1),big.mark=",",scientific=FALSE)),
+  check.names=FALSE)
+knitr::kable(separate_show,booktabs=TRUE,
+  caption="Relaxing equal tenure and timegap reliability dispersions (rates in percent)")
+```
+
+The estimated tenure dispersion is
+`r sprintf('%.3f',sep$tenure_reliability_shift[2])`, compared with
+`r sprintf('%.3f',sep$timegap_reliability_shift[2])` for timegap. The log
+likelihood rises by
+`r format(round(diff(sep$loglik),1),big.mark=',')` points and AIC falls by
+`r format(round(-diff(sep$AIC),1),big.mark=',')`. The equality-restriction LR
+statistic is `r format(round(separate_reliability_lr$LR,1),big.mark=',')` on
+one degree of freedom. This is a like-for-like comparison: the unrestricted
+fit was continued jointly until a further step made no improvement, the
+restricted fit was initialized by projecting those nuisance estimates onto a
+common shift, its common shift was polished conditionally, and a final full
+restricted step also made no improvement. Both retained fits have convergence
+code zero. The earlier unrefined LR statistic was much larger because it
+incorrectly attributed unrelated nuisance-parameter refinement to the single
+dispersion restriction.
+
+Entry and exit remain
+`r sprintf('%.3f',100*sep$entry_rate[2])`% and
+`r sprintf('%.3f',100*sep$exit_rate[2])`%. Relaxing the restriction therefore
+changes the duration-reporting decomposition without changing the paper's
+substantive employment-transition estimates.
+
+```{r separate-reliability-components}
+separate_component_show <- data.frame(
+  Class=c("Reliable","Unreliable","Equal-prior marginal mean"),
+  `Prior share`=c(sprintf("%.1f",100*
+    separate_reliability_components$prior_probability),"--"),
+  `Tenure contamination`=sprintf("%.2f",100*c(
+    separate_reliability_components$tenure_contamination,
+    mean(separate_reliability_components$tenure_contamination))),
+  `Timegap contamination`=sprintf("%.2f",100*c(
+    separate_reliability_components$timegap_contamination,
+    mean(separate_reliability_components$timegap_contamination))),
+  check.names=FALSE)
+knitr::kable(separate_component_show,booktabs=TRUE,
+  caption="Contamination probabilities under separate reliability dispersions (percent)")
+```
+
+The unrestricted model sharpens the tenure separation: tenure contamination
+is `r sprintf('%.2f',100*separate_reliability_components$tenure_contamination[1])`%
+in the reliable class and
+`r sprintf('%.2f',100*separate_reliability_components$tenure_contamination[2])`%
+in the unreliable class. The corresponding timegap probabilities are
+`r sprintf('%.2f',100*separate_reliability_components$timegap_contamination[1])`%
+and
+`r sprintf('%.2f',100*separate_reliability_components$timegap_contamination[2])`%.
+The survey-weighted
+mean posterior unreliable probability is
+`r sprintf('%.1f',100*separate_reliability_posterior$posterior_unreliable[separate_reliability_posterior$statistic=='weighted mean'])`%.
+
+```{r separate-reliability-inference}
+inference_labels <- c(
+  entry_rate="Entry rate",exit_rate="Exit rate",
+  status_misclassification="Status error",
+  reliable_tenure="Tenure contamination: reliable",
+  unreliable_tenure="Tenure contamination: unreliable",
+  reliable_timegap="Timegap contamination: reliable",
+  unreliable_timegap="Timegap contamination: unreliable",
+  tenure_reliability_shift="Tenure dispersion",
+  timegap_reliability_shift="Timegap dispersion",
+  shift_difference="Timegap minus tenure dispersion")
+sir <- separate_reliability_inference[
+  separate_reliability_inference$quantity %in% names(inference_labels),]
+sir <- sir[match(names(inference_labels),sir$quantity),]
+probability <- !sir$quantity %in% c("tenure_reliability_shift",
+  "timegap_reliability_shift","shift_difference")
+scale <- ifelse(probability,100,1)
+inference_show <- data.frame(
+  Quantity=unname(inference_labels[sir$quantity]),
+  Estimate=sprintf("%.3f",scale*sir$estimate),
+  `OPG standard error`=sprintf("(%.3f)",scale*sir$se),check.names=FALSE)
+knitr::kable(inference_show,booktabs=TRUE,
+  caption="Provisional full-nuisance OPG inference (rates in percent)")
+```
+
+The 33-parameter OPG matrix is full rank and positive definite, but its
+condition number is
+`r format(round(separate_reliability_information$condition_number),big.mark=',')`.
+The fourth exit-hazard perturbation required a tenfold smaller finite-
+difference step. Most importantly, the OPG Wald interval for the difference
+between the two dispersions includes zero even though the directly optimized
+LR statistic is large. The OPG is an outer-product approximation rather than
+the exact observed Hessian, and the mixture likelihood is evidently not well
+approximated by one common local quadratic for this contrast. The LR comparison
+is therefore the preferred evidence about the equality restriction; the OPG
+errors are useful provisional uncertainty measures for the headline rates but
+not a substitute for a profile or bootstrap of the dispersion difference.
+
+```{r separate-reliability-profile}
+srpi <- separate_reliability_profile_interval[1,]
+profile_show <- data.frame(
+  Quantity=c("Timegap minus tenure dispersion","95% profile interval",
+    "LR test of equal dispersions","LR p-value"),
+  Result=c(sprintf("%.4f",srpi$estimate),
+    sprintf("[%.4f, %.4f]",srpi$profile_lower,srpi$profile_upper),
+    sprintf("%.2f",srpi$equality_LR),
+    format(srpi$equality_p_value,digits=3,scientific=TRUE)))
+knitr::kable(profile_show,booktabs=TRUE,
+  caption="Nuisance-adjusted profile inference for the dispersion difference")
+```
+
+The direct profile fixes the timegap-minus-tenure dispersion difference and
+reoptimizes the other 32 parameters. Each outer bracket was screened from a
+nearby solution and from the common-dispersion nuisance estimates; all
+retained fits converged, and the nearby starts gave the higher likelihood on
+both sides. Tightly optimized points near both confidence limits
+give a 95% profile interval from
+`r sprintf('%.4f',srpi$profile_lower)` to
+`r sprintf('%.4f',srpi$profile_upper)`, which excludes zero by a wide margin.
+The profile therefore agrees with the fully optimized LR test and shows that
+the broad OPG Wald interval is a numerical/local-quadratic failure for this
+specific contrast. It does not invalidate the provisional OPG uncertainty
+measures for the headline transition rates.
+
+A 10,000-person simulation-recovery check held the remaining nuisance
+parameters at their generating values and estimated the two midpoints and two
+dispersions from three widely separated starts. All starts converged to the
+same likelihood. Tenure midpoint and dispersion biases were
+`r sprintf('%+.3f',100*(separate_reliability_recovery$eps-
+  separate_reliability_comparison$tenure_contamination_midpoint[2]))`
+percentage points and
+`r sprintf('%+.3f',separate_reliability_recovery$tenure_reliability_shift-
+  separate_reliability_comparison$tenure_reliability_shift[2])`;
+timegap was noisier, with corresponding biases of
+`r sprintf('%+.3f',100*(separate_reliability_recovery$eps_d-
+  separate_reliability_comparison$timegap_contamination_midpoint[2]))`
+points and
+`r sprintf('%+.3f',separate_reliability_recovery$timegap_reliability_shift-
+  separate_reliability_comparison$timegap_reliability_shift[2])`.
+The posterior reliability score classified the simulated latent groups with
+AUC `r sprintf('%.3f',separate_reliability_recovery$AUC)`. This is encouraging
+but remains a one-replication, conditional recovery diagnostic rather than a
+complete finite-sample validation of all 33 parameters.
+
+```{r separate-reliability-predictive}
+sep_metrics <- c("exact_continuation","local_revision_1_to_6_months",
+  "other_revision","timegap_inconsistent",
+  "two_opportunities_no_irregularity",
+  "two_opportunities_one_irregularity",
+  "two_opportunities_two_irregularities")
+sep_labels <- c("Exact continuation","Local revision (1 to 6 months)",
+  "Other revision","Timegap inconsistency",
+  "Two opportunities: no irregularity",
+  "Two opportunities: one irregularity",
+  "Two opportunities: two irregularities")
+spp <- separate_reliability_predictive[
+  separate_reliability_predictive$metric %in% sep_metrics,]
+spp$label <- sep_labels[match(spp$metric,sep_metrics)]
+spp_wide <- reshape(spp[,c("label","model","predicted_mean")],
+  idvar="label",timevar="model",direction="wide")
+spp_obs <- spp[!duplicated(spp$label),c("label","observed")]
+spp_wide <- merge(spp_obs,spp_wide,by="label",sort=FALSE)
+spp_wide <- spp_wide[match(sep_labels,spp_wide$label),]
+separate_pred_show <- data.frame(
+  Measure=spp_wide$label,Observed=sprintf("%.2f",100*spp_wide$observed),
+  `Common dispersion`=sprintf("%.2f",100*
+    spp_wide$`predicted_mean.Common dispersion`),
+  `Separate dispersions`=sprintf("%.2f",100*
+    spp_wide$`predicted_mean.Separate dispersions`),check.names=FALSE)
+knitr::kable(separate_pred_show,booktabs=TRUE,
+  caption="Predictive implications of separate reliability dispersions (percent)")
+```
+
+Separate dispersions improve exact continuations from 63.8% to 64.1% against
+64.7% observed. They change the predicted share with two regular duration
+opportunities from 65.0% to 64.8% against 68.1%, and increase predicted
+timegap inconsistencies from 16.6% to 17.1% against 15.5%. The local-revision
+prediction also moves away from its observed value, and all reported moments
+remain outside the simulation intervals. The extension is preferred by the
+observed likelihood, but is not an adequate reporting model on these coarse
+predictive checks.
+
+The likelihood decomposition makes the tradeoff explicit. Regular
+repeated-state records lose about 591 likelihood points relative to the
+fully refined common-dispersion model, tenure deviations lose about 559, and
+records without repeated-state duration information lose about 9. These are
+more than offset by a gain of about 1,231 among timegap-inconsistent records.
+Thus the likelihood improvement comes from fitting the distribution within
+the timegap-inconsistent group, not from reducing its aggregate predicted
+frequency.
+
+# 6. Script and output register
+
+**`diagnostics/audit_job_start_dates.R`.** Implemented. Reconstructs
+reported start months and audits heaping, revisions, persistence, and matching
+sensitivity. It is a base-R script, accepts an A/B/C panel path, and writes
+panel-specific and combined outputs.
+
+**`EM-tenure/R/job_change_eps.R`.** Implemented. Enumerates same-job and
+new-job branches inside full latent employment spells, exactly nests the old
+emission at (q=0), uses log-sum-exp, and exposes posterior job-change counts.
+
+**`EM-tenure/estimate_job_change_tenure_contamination.R`.** Implemented.
+Profiles (q), jointly estimates it with all nuisance parameters, rejects an
+invalid or inferior fit, and preserves the preferred Table 7 fit as the nested
+comparison. It does not bootstrap.
+
+**`EM-tenure/estimate_job_change_matching_robustness.R`.** Implemented.
+Re-estimates the identical 15-parameter model on Panels B and C from the Panel
+A optimum and writes separate robustness outputs without replacing the main
+fit.
+
+**`EM-tenure/validate_job_change_model.R`.** Implemented. Runs dispersed
+starts, tight refinement, a nuisance-adjusted profile, multistart full-model
+recovery simulations, and a large-sample score diagnostic. The recovery check
+currently fails and identifies the monthly-mass repair as the next priority.
+
+**`EM-tenure/R/tenure_monthly_eps.R`.** Implemented. Replaces continuous
+tenure densities with monthly probability masses, advances clean clocks by
+three months, and uses a discrete 0--2 month support for entries and resets.
+
+**`EM-tenure/validate_monthly_tenure_model.R`.** Implemented. Checks mass
+normalization, evaluates large-sample scores, and re-estimates simulated data
+from dispersed starts. The first full-likelihood recovery exercise is close to
+the generating parameters.
+
+**`EM-tenure/validate_monthly_tenure_recovery_grid.R`.** Implemented. Runs a
+resumable recovery grid at multiple sample sizes, repeats dispersed-start
+checks, and reports bias, RMSE, hazard recovery, and likelihood scores.
+
+**`EM-tenure/estimate_monthly_job_change_tenure_contamination.R`.**
+Implemented. Preserves reported zero-month tenure, estimates the no-reset and
+reset models on Panel A, and compares three reset starting values.
+
+**`EM-tenure/estimate_monthly_job_change_matching_robustness.R`.**
+Implemented. Re-estimates the corrected monthly model on Panels B and C,
+checks the monthly grid, screens low, main, and high reset starts, and writes
+separate cached robustness outputs without replacing Panel A.
+
+**`EM-tenure/estimate_monthly_persistent_tenure_reporting.R`.** Implemented.
+Adds a within-job retain-versus-redraw process for consecutive gross tenure
+reports, checks exact nesting, screens three persistence starts, and retains
+the exact boundary fit when all positive approximations are inferior.
+
+**`EM-tenure/validate_monthly_persistent_tenure_reporting.R`.** Implemented.
+Simulates positive persistence, evaluates a conditional profile, and performs
+two full-likelihood recovery fits from dispersed starts.
+
+**`EM-tenure/estimate_monthly_calendar_heaping.R`.** Implemented. Retains the
+nominal interview quarter, adds a normalized January-conditioned component to
+gross tenure reports, verifies exact nesting, and screens three Panel A starts.
+
+**`EM-tenure/validate_monthly_calendar_heaping.R`.** Implemented. Simulates a
+positive January-heaping probability, evaluates its conditional likelihood,
+and checks joint recovery from low and high starts.
+
+**`EM-tenure/infer_monthly_calendar_heaping.R`.** Implemented. Evaluates the
+full numerical observed-information matrix in resumable parallel chunks and
+uses the delta method for the reported rates and calendar-heaping quantities.
+
+**`EM-tenure/estimate_monthly_calendar_revision.R`.** Implemented. Adds a
+normalized, correlated whole-year revision branch to eligible consecutive
+gross reports, verifies exact nesting, and screens three Panel A starts.
+
+**`EM-tenure/validate_monthly_calendar_revision.R`.** Implemented. Verifies
+conditional identification and joint recovery of whole-year revision and
+January-heaping probabilities from dispersed starts.
+
+**`EM-tenure/infer_monthly_calendar_revision.R`.** Implemented. Computes the
+full 17-parameter observed-information matrix in resumable parallel chunks and
+uses the delta method for all reported rates.
+
+**`EM-tenure/profile_monthly_calendar_revision.R`.** Implemented. Reoptimizes
+all nuisance parameters from warm and alternative starts on both sides of the
+whole-year revision estimate and interpolates the 95% profile interval.
+
+**`EM-tenure/diagnose_monthly_calendar_revision.R`.** Implemented. Simulates
+calendar moments at fitted parameters and decomposes the exact observed-data
+likelihood gain by mutually exclusive observed patterns.
+
+**`EM-tenure/estimate_monthly_clean_anchor_revision.R`.** Implemented. Adds a
+separate whole-year revision probability for a current gross report following
+a clean reported date, verifies exact nesting, and screens three starts.
+
+**`EM-tenure/validate_monthly_clean_anchor_revision.R`.** Implemented. Checks
+the conditional likelihood and joint recovery of clean-anchor, gross-anchor,
+and January-heaping probabilities from two dispersed starts.
+
+**`EM-tenure/diagnose_monthly_clean_anchor_revision.R`.** Implemented. Compares
+fitted calendar moments with the nested model and decomposes the row-level
+likelihood gain by observable report patterns.
+
+**`EM-tenure/estimate_monthly_start_month_baseline.R`.** Implemented. Adds 11
+month logits shared by clean and gross marginal reports, verifies exact nesting
+at equal probabilities, screens three conditional starts, and performs staged
+joint Panel A refinement.
+
+**`EM-tenure/refine_monthly_start_month_baseline.R`.** Implemented. Continues
+the full-sample central-difference refinement without repeating the conditional
+mode search.
+
+**`EM-tenure/diagnose_monthly_start_month_baseline.R`.** Implemented. Compares
+the full fitted month distribution and consecutive-report patterns with the
+nested model and decomposes the likelihood gain by observed start month.
+
+**`EM-tenure/validate_monthly_start_month_baseline.R`.** Implemented. Checks
+distant month-distribution starts and joint recovery, including a safeguarded
+one-sided gradient near the zero-heaping boundary.
+
+**`EM-tenure/estimate_monthly_exact_anchor_retention.R`.** Implemented. Adds a
+single retain-versus-revise/redraw channel after either a clean or gross
+reported anchor, verifies exact nesting, profiles the new parameter widely,
+and performs staged joint refinement plus a conditional polish.
+
+**`EM-tenure/diagnose_monthly_exact_anchor_retention.R`.** Implemented.
+Compares exact, whole-year, and other consecutive-report changes with fitted
+simulations and decomposes the observed likelihood gain by report pattern.
+
+**`EM-tenure/validate_monthly_exact_anchor_retention.R`.** Implemented. Runs
+20 conditional recovery samples at the empirical generating value and records
+bias, RMSE, range, and the LR statistic against zero.
+
+**`EM-tenure/refine_monthly_exact_anchor_retention.R`.** Implemented. Resumes
+the saved 30-parameter fit, compares continued, low-retention, and
+high-retention starts, promotes the best joint fit, and finishes with an exact
+conditional polish without discarding cached work.
+
+**`EM-tenure/validate_monthly_exact_anchor_joint_recovery.R`.** Implemented.
+Simulates the complete model and re-estimates all 30 parameters from near and
+dispersed starts, with resumable replication caches and separate summaries of
+transition, hazard, calendar-baseline, and reporting-process recovery.
+
+**`EM-tenure/infer_monthly_exact_anchor_retention_opg.R`.** Implemented. Uses
+61 finite-difference likelihood evaluations and record-level scores to obtain
+a full-rank OPG information approximation, delta-method errors, boundary
+flags, and correlations among natural-scale reporting probabilities.
+
+**`EM-tenure/infer_monthly_exact_anchor_retention.R`.** Implemented as a
+resumable exact central observed-Hessian calculation. It requires 1,801 full
+likelihood evaluations; 48 are currently cached, so this remains a
+confirmatory calculation rather than the reported inference result.
+
+**`EM-tenure/estimate_monthly_local_anchor_revision.R`.** Implemented. Adds a
+normalized one-to-six-month revision kernel conditional on not retaining the
+preceding anchor exactly. It verifies exact nesting, profiles the new
+probability, screens low and high starts, refines the competing reporting
+parameters, checks the transition-hazard block, and caches every completed
+stage. The calendar fitter now accepts named free-parameter blocks while
+retaining its full-fit default.
+
+**`EM-tenure/diagnose_monthly_local_anchor_revision.R`.** Implemented. Compares
+exact, local, whole-year, and residual revisions in observed and simulated
+data, decomposes the likelihood gain by report pattern, and reports a clearly
+labelled conditional-curvature approximation for the new probability.
+
+**`EM-tenure/estimate_monthly_shared_duration_reliability.R`.** Implemented.
+Adds an equal-weight person-level reliability mixture shared by tenure and
+timegap contamination, verifies exact nesting at zero dispersion, profiles
+the new parameter, and performs resumable dispersed-start joint refinement.
+
+**`EM-tenure/diagnose_monthly_shared_duration_reliability.R`.** Implemented.
+Compares observed and fitted duration-irregularity patterns, decomposes the
+row-level likelihood gain, and summarizes posterior unreliable-class
+probabilities without interpreting class membership as an observed trait.
+
+**`EM-tenure/estimate_monthly_separate_duration_reliability.R`.** Implemented.
+Allows tenure and timegap contamination to have separate reliability
+dispersions, verifies exact nesting when they are equal, maps the conditional
+surface, and screens common and asymmetric starts before a conditional polish.
+
+**`EM-tenure/diagnose_monthly_separate_duration_reliability.R`.** Implemented.
+Compares fitted duration-pattern distributions under common and separate
+dispersions and decomposes their row-level likelihood difference.
+
+**Separate-reliability refinements.** Implemented in:
+
+```
+EM-tenure/refine_monthly_separate_duration_reliability.R
+EM-tenure/refine_monthly_separate_reliability_blocks.R
+EM-tenure/refine_monthly_separate_reliability_joint.R
+```
+
+Continue the four focal parameters, test reporting, transition-hazard, and
+full blocks, and finish in interruption-safe joint checkpoints.
+
+**Common-reliability refinements.** Implemented in:
+
+```
+EM-tenure/refine_monthly_common_duration_reliability.R
+EM-tenure/polish_monthly_common_duration_reliability.R
+```
+
+Project the converged nuisance estimates into the equality-restricted model,
+polish its common shift, and verify that a full restricted step cannot improve
+the comparison likelihood.
+
+**`EM-tenure/validate_monthly_separate_duration_reliability.R`.** Implemented.
+Runs cached multiple-start conditional recovery simulations for the two
+midpoints and two dispersions and checks posterior latent-class separation.
+
+**`EM-tenure/infer_monthly_separate_duration_reliability_opg.R`.** Implemented.
+Computes full-nuisance OPG/delta-method errors from cached record-level scores,
+with adaptive perturbations and explicit rank, conditioning, and score
+diagnostics.
+
+**Separate-reliability profile.** Implemented in:
+
+```
+EM-tenure/profile_monthly_separate_duration_reliability.R
+EM-tenure/refine_monthly_separate_duration_reliability_profile_limits.R
+```
+
+Reparameterize the clock-specific dispersions by their average
+and fixed difference, screen both profile sides from distinct nuisance starts,
+and tightly refine the two 95% likelihood-ratio crossings.
+
+**[Analytical-inference script](../EM-tenure/infer_monthly_job_change_tenure_contamination.R).** Implemented.
+Computes the full observed-information matrix in parallel, propagates it to
+reported rates by the delta method, and reoptimizes all nuisance parameters for
+the reset-probability profile.
+
+**[Profile-refinement script](../EM-tenure/refine_monthly_profile_point.R).**
+Implemented. Refines a single
+fixed reset-probability point from the nearest converged saved profile fit.
+
+**`EM-tenure/tests/testthat/test-job-change-eps.R`.** Implemented. Covers
+unit behavior, exact emission and complete-likelihood nesting, finite
+likelihoods, strict validation, posterior reset classification, and recovery
+of (q) in a simulated emission model.
+
+Generated diagnostics belong under
+`diagnostics/output/job_start_dates/`; fitted-model outputs belong under
+`EM-tenure/output/results/job_change/`. Both are ignored working artifacts.
+
+# 7. Acceptance checks for the first extension
+
+The first empirical result should not be added to Table 7 until all of the
+following are complete. Checks already passed are marked accordingly:
+
+- exact equality to the existing likelihood at (q=0) --- **passed**;
+- finite likelihoods at interior (q) values and valid posterior probabilities
+  --- **passed**;
+- optimizer convergence from the nested fit --- **passed**;
+- no deterioration relative to the nested model --- **passed**;
+- recovery of (q) in a simplified emission simulation --- **passed**;
+- dispersed starts and tighter tolerances --- **passed**, with an inferior
+  low-reset local mode that makes multistart selection necessary;
+- recovery of (q) and nuisance parameters in full-likelihood simulations ---
+  **failed** under the current continuous-density approximation;
+- discrete monthly masses sum to one and zero-month reports are retained ---
+  **passed**;
+- discrete-month full-likelihood recovery from dispersed starts ---
+  **passed** in six repeated fits at 10,000 and 40,000 observations, with bias
+  and RMSE contracting at the larger sample;
+- discrete-month Panel A convergence from low, main, and high reset starts ---
+  **passed**, with closely agreeing estimates and log likelihoods;
+- matching-panel sensitivity --- **passed** for both the continuous diagnostic
+  and the corrected discrete model; all B/C starts converge, while reset and
+  contamination estimates decline monotonically with stricter matching; and
+- full-rank positive-definite observed information and delta-method errors ---
+  **passed**; and
+- nuisance-adjusted profile-likelihood inference --- **passed**, with all
+  retained points converged and a profile interval nearly identical to the
+  analytical interval; and
+- positive persistence recoverability --- **passed provisionally** in one
+  12,000-record simulation; both joint starts identify substantial positive
+  persistence, although additional replications are required to characterize
+  its finite-sample bias; and
+- January-heaping normalization, nesting, recovery, and Panel A multistart
+  convergence --- **passed**; all three empirical starts estimate about 24%
+  conditional heaping, and a 6,000-record simulation closely recovers a 40%
+  generating probability; and
+- January-heaping observed-information inference --- **passed**; the full
+  16-parameter information matrix is positive definite and full rank; and
+- whole-year revision normalization, nesting, recovery, and Panel A multistart
+  convergence --- **passed**; the recovery exercise separates the revision
+  and January-heaping components, and the empirical results are reported
+  above;
+- whole-year revision observed-information and nuisance-profile inference ---
+  **passed**; the information matrix is full rank and positive definite, and
+  the two interval estimates agree closely; and
+- whole-year revision predictive adequacy --- **failed**; the extension moves
+  the targeted moment in the correct direction but materially underpredicts
+  both January starts and whole-year revisions, while its positive likelihood
+  gain is concentrated in 6.16% of weighted records;
+- clean-anchor revision nesting, multistart convergence, and joint recovery
+  --- **passed provisionally**; three empirical starts agree and two simulated
+  starts recover both revision channels, although an 8,000-record exercise
+  shows offsetting finite-sample bias between them;
+- clean-anchor observed-information inference --- **passed**; the full
+  18-parameter matrix is positive definite and full rank; and
+- clean-anchor predictive adequacy --- **failed but improved**; the predicted
+  whole-year revision share moves from 4.10% to 5.79% against 7.01% observed,
+  while January starts and exact continuations remain poorly reproduced;
+- shared baseline start-month normalization and exact nesting --- **passed**;
+  equal probabilities reproduce the 18-parameter model exactly and the
+  calendar-weighted duration masses sum to one for every interview month;
+- baseline start-month multistart and recovery --- **passed provisionally**;
+  three empirical conditional starts and distant simulated starts meet, and a
+  2,000-record joint recovery gives month-distribution RMSE about 0.0044;
+- baseline start-month predictive adequacy --- **passed for calendar months,
+  failed for serial dependence**; 11 of 12 month shares and the whole-year
+  revision rate are reproduced, but exact continuations remain too low and
+  other revisions too high; and
+- full 29-parameter observed-information inference --- **pending**; the
+  gross-only January-heaping estimate is effectively on the boundary and
+  should not receive a regular Wald interpretation;
+- exact-anchor retention nesting and conditional identification --- **passed**;
+  zero reproduces the flexible baseline likelihood exactly, the empirical
+  profile has a clear interior maximum, and 20 conditional recovery samples
+  recover the generating probability with small mean bias;
+- exact-anchor predictive adequacy --- **failed but improved**; exact
+  continuations rise from 60.6% to 61.8% against 64.7% observed and other
+  revisions fall from 32.4% to 31.4% against 28.3% observed;
+- longer 30-parameter multistart refinement --- **passed provisionally**;
+  low- and high-retention screens are decisively inferior, a second joint
+  block adds only 1.71 likelihood points, and the final conditional polish adds
+  0.001 point, although the capped joint blocks retain convergence code 1;
+- full 30-parameter recovery --- **passed for estimation and headline
+  transition rates, inconclusive for the reporting decomposition**; three
+  5,000-record samples give entry- and exit-rate RMSEs of about 0.12 and 0.11
+  percentage points, while
+  retention and the two revision probabilities remain noisy and offset one
+  another;
+- full-rank OPG analytical inference --- **passed provisionally**; the exact
+  retention SE is 0.574 percentage points, but the information matrix is
+  ill-conditioned, retention correlates 0.885 with tenure contamination, and
+  gross-only January heaping is a boundary quantity; and
+- exact central observed-information inference --- **pending**, with 48 of
+  1,801 likelihood points cached;
+- local-revision normalization and exact nesting --- **passed**; the
+  one-to-six-month kernel renormalizes at zero tenure, excludes zero from its
+  support, and setting its probability to zero reproduces the exact-anchor
+  log likelihood exactly;
+- local-revision conditional identification and multistart screening ---
+  **passed provisionally**; the profile has a clear interior maximum, low and
+  high starts are inferior, and central reporting-block refinement improves
+  the preferred basin, although the deliberately capped blocks retain
+  convergence code 1; and
+- local-revision predictive adequacy --- **failed but substantially
+  improved**; the predicted one-to-six-month share rises from 3.0% to 10.8%
+  against 11.4% observed, and the likelihood gain is concentrated in records
+  with local changes, but exact and residual-revision moments remain outside
+  the simulation intervals;
+- shared-reliability exact nesting and dispersed starts --- **passed
+  provisionally**; zero dispersion reproduces the independent likelihood,
+  all starts improve on it, and the preferred basin is clearly superior,
+  although the short joint blocks terminate at their iteration caps;
+- shared-reliability predictive adequacy --- **failed but informative**; the
+  local-revision and zero/one-irregularity predictions improve, but the model
+  overpredicts two irregularities and leaves several duration moments outside
+  their simulation intervals; and
+- cross-clock reliability interpretation --- **limited by the three-wave
+  design**; within-clock clustering identifies the dispersions, but the data
+  do not directly reveal repeated tenure and repeated timegap clocks for the
+  same person;
+- separate-dispersion joint convergence --- **passed**; broad reporting and
+  transition blocks materially improve the initial fit, two cached joint
+  continuations add 78.9 and 49.4 likelihood points, and a third returns the
+  identical parameter vector with convergence code zero;
+- fair common-dispersion refinement --- **passed**; projecting the converged
+  nuisance block into the restricted model, polishing the common shift, and
+  checking the full restricted score reduces the equality-restriction LR to
+  144.6 without altering the transition rates;
+- separate-dispersion recovery --- **passed provisionally**; one 10,000-person
+  conditional recovery sample gives the same optimum from three starts and
+  good latent-class discrimination, but more replications and full-nuisance
+  recovery are still required;
+- separate-dispersion OPG inference --- **passed numerically but limited for
+  the restriction contrast**; the 33-parameter matrix is positive definite
+  and full rank, but has condition number about 55 million, one hazard
+  direction needs a smaller perturbation, and its Wald approximation conflicts
+  with the directly optimized LR test; and
+- separate-dispersion nuisance-adjusted profile inference --- **passed**; all
+  retained points converge, two-start screens select the higher-likelihood
+  warm branch on both sides, and the 95% profile interval for the
+  timegap-minus-tenure dispersion is about 0.1100 to 0.1520, excluding the
+  equality restriction and resolving the OPG/LR conflict in favor of the
+  direct likelihood evidence; and
+- separate-dispersion predictive adequacy --- **failed**; exact continuations
+  improve modestly, but local revisions, residual revisions, timegap
+  inconsistencies, and zero/one/two-irregularity shares remain outside the
+  simulation intervals.
+
+# 8. Development log
+
+| Date | Change | Evidence or decision |
+|---|---|---|
+| `r format(Sys.Date(), '%Y-%m-%d')` | Added start-date reconstruction and A/B/C audit | Current-job start dates are persistent but frequently revised; January and whole-year patterns are prominent; strict job resets are visible. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Selected the first model extension | Add a one-parameter employed-to-employed job-change mixture before enriching the reporting-error or AR(2) processes. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Implemented and estimated the job-change mixture | The joint fit converged at (q=`r sprintf('%.4f', job_comparison$job_change_prob[2])`); fit improves sharply and estimated gross tenure contamination declines. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Re-estimated on Panels B and C | The reset probability is stable in B and somewhat lower in C, while all three contamination estimates decline with stricter matching. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Completed numerical validation | The preferred mode is stable and tightly profiled, but full-model recovery fails because the continuous likelihood mixes duration components with incompatible units. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Replaced continuous densities with monthly masses | The discrete likelihood normalizes, substantially improves recovery, and estimates a Panel A reset probability near 0.97%. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Repeated discrete-model recovery | Six fits at two sample sizes converge; bias and RMSE contract sharply at 40,000 observations and dispersed starts do not find a better mode. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Completed discrete-model inference | The observed information is full rank and positive definite; analytical and nuisance-adjusted profile intervals agree closely. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Re-estimated the corrected model on Panels B and C | All six multistart fits converge; reset and contamination estimates decline as matching becomes stricter, but the reset process remains present. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Estimated persistent gross start-date reporting | The extension nests exactly and can recover positive persistence in simulation, but Panel A places the MLE at zero and leaves all substantive rates unchanged. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Estimated January-heaped gross reporting | The normalized one-parameter extension passes recovery checks, all three Panel A starts agree near 24%, fit improves sharply, and the main transition estimates change little. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Added analytical inference for January heaping | The 16-parameter observed-information matrix is full rank and positive definite; the main rates and heaping parameter are precise. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Estimated correlated whole-year date revisions | The normalized extension passes recovery and multistart checks; its empirical implications are reported above. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Completed revision-model inference and predictive diagnostics | Local information and profile inference are regular, but the fitted model does not reproduce the calendar moments and shifts likelihood away from non-target patterns. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Allowed gross reports to revise preceding clean dates | Three starts converge near a 9.6% clean-anchor revision rate; fit and the targeted predictive moment improve sharply, but missing baseline start-month seasonality remains. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Estimated a shared flexible start-month baseline | The likelihood improves by about 42,982 points, January receives 26.46% baseline mass, gross-only January heaping collapses to zero, and transition estimates remain stable. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Validated the start-month extension | Distant starts meet and joint recovery succeeds after a one-sided gradient safeguard; calendar predictions pass, while remaining failures isolate serial report dependence. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Added exact reported-start-date retention | The nested channel is strongly supported and conditionally recoverable; it improves exact-continuation predictions without materially changing entry or exit rates, but does not remove the full serial-reporting gap. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Refined and jointly validated exact retention | Longer multistart work stabilizes the empirical point estimate near 20%; three full re-estimations recover pooled transitions reasonably well but reveal weak finite-sample separation among retention and revision probabilities. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Added analytical inference diagnostics | The efficient OPG approximation is full rank and gives tight errors for headline transitions, while its condition number, reporting-channel correlations, and boundary heaping estimate document the remaining limitations. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Estimated normalized local start-date revisions | The conditional probability is about 33.8%, multistart reporting blocks favor the same basin, and the predicted local-revision share moves from 3.0% to 10.8% against 11.4% observed without materially changing entry or exit rates. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Added shared person-level duration-reporting reliability | The one-parameter equal-weight mixture strongly improves fit and duration-pattern clustering while leaving transition estimates stable, but its common cross-clock dispersion is a maintained restriction and predictive gaps remain. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Relaxed equal tenure and timegap reliability dispersion | Symmetric restricted/unrestricted refinement converges at dispersions 2.09 and 2.22 with LR 144.6; transition rates remain stable, conditional recovery succeeds, and full-nuisance OPG errors are informative for headline rates but unreliable for the restriction contrast. |
+| `r format(Sys.Date(), '%Y-%m-%d')` | Profiled the clock-specific dispersion difference | Multistart nuisance-adjusted profiling gives a 95% interval of about 0.1100 to 0.1520 for timegap minus tenure dispersion, decisively excluding equality and resolving the conflict with the ill-conditioned OPG Wald interval. |
+
+\clearpage
+
+# 9. Four-wave AR(1) bridge to the AR(2) extension
+
+The next substantive extension is employment-history dependence, rather than
+further refinement of the separation between duration-reliability classes.
+The four-wave bridge retains the preferred three-wave measurement model:
+discrete-month tenure, piecewise duration hazards, current-job resets,
+calendar and local reporting revisions, joint timegap contamination, and
+equal prior weights for the two reliability classes. No additional employment
+heterogeneity class has been introduced.
+
+`EM-tenure/R/four_wave_eps.R` sums over all 16 four-wave latent employment
+histories. `EM-tenure/estimate_monthly_four_wave_ar1.R` prepares Panel A,
+caches incremental optimisation blocks, and constructs a waves 1--3
+comparison using exactly the people and weights in the four-wave sample.
+The initial employment probability remains free. The likelihood is estimated
+directly, not with the old three-wave EM sufficient-statistic updates.
+
+## Sample and estimates
+
+**Subsequent validation warning:** Section 10 identifies a timegap likelihood
+normalization defect, repaired in Section 11. The estimates below remain
+saved, numerically converged pre-repair results. Section 12 reports the
+separate empirical refit under the repaired likelihood when validated.
+
+There are 317,437 records with four observed employment statuses and 316,889
+with the required state-appropriate duration reports (548 exclusions).
+The likelihood collapses these to 101,916 distinct observation cells without
+changing their weighted contribution. Zero-month tenure is retained;
+unreported-state durations remain missing. Never-worked reports follow the
+same recoding convention as in the three-wave model. Interview months remain
+nominal quarter-end months, not recovered exact interview dates.
+
+```{r four-wave-bridge-results, echo=FALSE, results='asis'}
+bridge_dir <- file.path("..", "EM-tenure", "output", "results",
+  "job_change_monthly", "four_wave_ar1")
+if (!dir.exists(bridge_dir)) bridge_dir <- file.path("EM-tenure", "output",
+  "results", "job_change_monthly", "four_wave_ar1")
+bridge_path <- file.path(bridge_dir, "stage_summary_latest.csv")
+if (file.exists(file.path(bridge_dir, "convergence_summary_latest.csv")))
+  bridge_path <- file.path(bridge_dir, "convergence_summary_latest.csv")
+if (file.exists(bridge_path)) {
+  bridge <- read.csv(bridge_path)
+  selected <- if ("independently_converged" %in% names(bridge))
+    seq_len(nrow(bridge)) else unique(c(1L, which.max(bridge$loglik)))
+  bridge_fields <- c("entry_rate", "exit_rate", "status_misclassification",
+    "initial_employment", "loglik")
+  bridge_table <- data.frame(Measure = c("Entry rate", "Exit rate",
+    "Misclassification rate", "Initial employment", "Log likelihood"))
+  bridge_titles <- c(preliminary="Preliminary", exact1="Refined",
+    start_minus="Start (-)", start_plus="Start (+)", start="Inherited")
+  for (j in selected) {
+    title <- if (bridge$stage[j] %in% names(bridge_titles))
+      unname(bridge_titles[bridge$stage[j]]) else bridge$stage[j]
+    values <- as.numeric(unlist(bridge[j, bridge_fields], use.names=FALSE))
+    bridge_table[[title]] <- c(sprintf("%.5f", values[1:4]),
+      formatC(values[5], format="f", digits=2, big.mark=","))
+  }
+  print(knitr::kable(bridge_table, digits=5,
+    caption="Four-wave AR(1): numerical refinement and starting-point checks"))
+} else cat("Four-wave optimisation checkpoints are not yet consolidated.\n")
+```
+
+The preliminary column is an unconverged checkpoint. All three completed
+refinement runs have optimizer code zero and final maximum projected central
+scores between $1.5\times10^{-6}$ and $3.0\times10^{-6}$ per observation,
+below the declared $10^{-5}$ criterion.
+The optimizer's scaled tolerance is chosen to imply this unscaled criterion;
+the latter is checked separately after termination. Start (+) has the highest
+log likelihood and is selected in `converged_comparison_latest.rds`. The
+three likelihoods differ by at most 0.056; entry, exit, and status-error
+rates differ by less than 0.00004 percentage points. This supports numerical
+stability of these rates, not precise identification of every reporting
+parameter.
+
+Entry and exit rates pool the three quarterly intervals, weighting each
+individual-interval by the survey weight and posterior probability of the
+relevant origin state. Misclassification is the common employment-status
+error probability, not a duration-contamination probability. The reliability
+mixture's tenure and timegap midpoint parameters should not be interpreted
+as mean contamination probabilities.
+
+Relative to the preliminary four-wave point, quarterly entry rises from
+2.446% to 2.603%, exit rises slightly from 4.033% to 4.060%, status
+misclassification falls from 2.822% to 2.765%, and initial employment is
+essentially unchanged (48.685% versus 48.705%). The log likelihood improves
+by about 665.8. This is a numerical improvement within the **same model and
+sample**, not a test of a new specification. The preliminary fit understated
+entry more than exit; the broad finding of substantial misclassification
+remains. Likelihood levels on different three-wave and four-wave samples
+must not be compared as an LR test. The optional same-person three-wave
+re-estimation is omitted at the author's request.
+
+## Checks and outstanding work
+
+The continuation now has a separately validated compiled evaluator
+(`four_wave_fast.R` and `src/four_wave_monthly.cpp`). It uses the reference R
+probability tables and caches repeated spell and reporting-pattern calculations;
+no likelihood terms or model restrictions are changed. On the saved full sample,
+the log-likelihood difference is less than $10^{-7}$ and maximum posterior
+differences are below $10^{-13}$. Perturbed-parameter, zero-status-error,
+disabled-revision, and serial/parallel comparisons also pass. A benchmark using
+eight threads takes about 1.3 seconds per full likelihood evaluation, rather
+than roughly a minute for the earlier R implementation.
+
+`refine_four_wave_ar1_fast.R` jointly refines all 33 parameters, retains
+improving checkpoints, and checks a central-difference projected score after
+the optimizer stops. The diagonal of the saved three-wave information matrix
+is used only for numerical parameter scaling; it is not a substitute for
+four-wave standard errors and requires no three-wave re-estimation.
+The same-person three-wave re-estimation has been dropped from the work plan
+at the author's request.
+
+For the final continuation, category-averaged and missing-duration risks are
+calculated with exact piecewise-exponential integrals. The integral splits at
+the duration-hazard knots and their quarter-shifted counterparts. Fifty tests
+against independent numerical integration and limiting cases pass. At the
+saved preliminary point this changes the total log likelihood by about
+$-0.000037$ and the largest posterior probability by less than $2\times10^{-8}$;
+its purpose is to remove amplified quadrature noise from the numerical score,
+not to change the model. The three-wave estimator is not modified. Central
+finite differences are used for the final joint refinement.
+
+- Tests pass for all 16 histories, posterior normalization, the zero-status-error
+  limit, three-wave joint-timegap equivalence, and four-wave timegap probability
+  normalization. Preparation tests cover zero tenure, never-worked recoding,
+  missing flags, and exclusion of invalid state-appropriate durations.
+- Sharing and compressing repeated job-segment calculations reproduces the
+  saved full-sample likelihood and posterior probabilities exactly. This is
+  a computational change, not a model change.
+- Accepted bounded optimisation steps are flagged as non-converged. Early
+  checkpoints with a zero code are corrected when consolidated; step
+  acceptance is not evidence that the likelihood has been maximized.
+- All three four-wave runs pass optimizer and central-score convergence
+  checks. The full-sample likelihood and posterior agree with the R reference
+  at the fitted parameters. Starting-point checks are saved separately in
+  `multistart_summary_latest.csv`; all fit objects and diagnostics are retained.
+- The two nearby starts perturb all 33 transformed parameters by
+  $+0.05\sin(j)$ and $-0.05\sin(j)$, respectively, from the saved
+  `start_multistart_exact.rds` point. Continuations resume saved checkpoints
+  without applying the perturbation again.
+- Nearby-start agreement is a numerical stability check, not proof of a global
+  optimum or strong identification of the reliability-class separation.
+- The first four-wave simulation gate fails (Section 10); Section 11 records
+  the repair and renewed validation. Analytical standard errors and the
+  duration-model AR(2) extension have not been estimated.
+
+# 10. Four-wave simulation-recovery gate
+
+## Changes and scope
+
+- Extended the existing sequential simulator to four waves, retaining its
+  three-wave defaults and adding the exact piecewise-risk option.
+- Generated three independent samples of 20,000 records at the selected
+  Panel A four-wave parameters (seeds 260904--260906). These are simulations,
+  not additional empirical panels or bootstrap replications.
+- Checked the mean record-level score at the known truth before fitting.
+  Its Monte Carlo standard error is the sample standard deviation of the
+  score divided by the square root of the simulated sample size.
+- Added exhaustive probability-mass and timegap-clock checks. No empirical
+  fit or likelihood formula was changed, and no simulation recovery fit was
+  run after these gates failed.
+
+## Results
+
+The short-duration entry-hazard score is negative in all three samples
+(individual standardized scores -5.18, -5.26, and -5.50). The pooled mean is
+-0.01225 with Monte Carlo standard error 0.001331: a standardized discrepancy
+of -9.20. This fails the conservative screening threshold of five Monte Carlo
+standard errors. It establishes a generator/likelihood mismatch, not a
+precisely quantified bias in the empirical entry rate.
+
+```{r four-wave-recovery-score, echo=FALSE, results='asis'}
+recovery_dir <- file.path("..", "EM-tenure", "output", "results",
+  "job_change_monthly", "four_wave_ar1", "recovery")
+if (!dir.exists(recovery_dir)) recovery_dir <- sub("^../", "", recovery_dir)
+score_file <- file.path(recovery_dir, "sequential_score_summary_latest.csv")
+if (file.exists(score_file)) {
+  score <- read.csv(score_file)
+  fields <- c("log_hd1", "log_hd3", "pi", "alpha")
+  score <- score[match(fields, score$parameter), ]
+  shown <- data.frame(Parameter=c("Entry log-hazard: 0--3 months",
+    "Entry log-hazard: 1--3 years", "Status-error logit",
+    "Initial-employment logit"),
+    `Mean score`=score$mean_score, `Monte Carlo SE`=score$mcse,
+    `Standardized score`=score$z_score, check.names=FALSE)
+  print(knitr::kable(shown, digits=c(0,6,6,2),
+    caption="Generator/likelihood score check: 60,000 simulated records"))
+}
+```
+
+An independent finite-support check exposes a defect in the likelihood itself.
+The illustrative nested case uses constant tenure hazards of 20 per year,
+uniform start months, no job resets or serial tenure-revision channels,
+initial employment 0.5, tenure contamination 0.2, and timegap hazards
+either constant at 0.4 or equal to (4, 1, 0.5, 0.3, 0.2). It enumerates all
+four-wave observed status/duration combinations with tenure 0--24 months,
+including all seven timegap categories: 1,048,576 cells.
+
+```{r four-wave-recovery-mass, echo=FALSE, results='asis'}
+mass_file <- file.path(recovery_dir, "probability_mass_m24.csv")
+if (file.exists(mass_file)) {
+  mass <- read.csv(mass_file)[c(7,6,4,8), ]
+  shown <- data.frame(`Duration-dependent entry`=ifelse(mass$varying_hazard,"Yes","No"),
+    `Status error`=mass$status_error,
+    `Timegap error`=ifelse(mass$timegap_error<1e-7,"Approximately zero","0.30"),
+    `Total probability`=sprintf("%.9f",mass$probability_mass),check.names=FALSE)
+  print(knitr::kable(shown,caption="Exhaustive normalization check in a nested example"))
+}
+```
+
+When duration dependence, status errors, and timegap contamination are all
+present, total mass is **0.999327180679**, rather than one. Increasing the
+tenure cutoff from 12 to 24 months leaves the discrepancy essentially
+unchanged. A conservative omitted-tail bound at 24 months is below
+$1.7\times10^{-10}$; it cannot explain the missing mass of about 0.000673.
+The R reference and compiled implementation give the same result at the
+12-month cutoff. Constant-hazard and near-zero-error controls sum to one
+within numerical/tail tolerance. This is a counterexample to normalization,
+not an estimate of the defect's size at the empirical parameters.
+
+## Diagnosis and interpretation
+
+- **Future-report-dependent fallback:** the four-wave E-step uses a joint
+  timegap likelihood only when an entire latent nonemployment spell is
+  observed as nonemployment. Otherwise it falls back to adjacent-pair terms.
+  Thus a fourth reported employment status can change the likelihood factor
+  for the first three timegap reports. In the illustrative case, the joint
+  three-report distribution and pairwise fallback differ by 0.2286 in total
+  variation. Individually normalized components do not guarantee a normalized
+  full likelihood when transition risks also depend on the reports.
+- **A separate simulator mismatch:** the simulator retains a continuous
+  nonemployment clock and ages it across waves. The likelihood instead
+  multiplies category-to-category transition probabilities, effectively
+  discarding within-category information from earlier reports. Exact
+  interval-intersection probabilities and that category-Markov approximation
+  differ even with negligible timegap contamination (total variation 0.02143
+  in the same illustrative hazard case).
+- These findings are about probability construction, not merely weak
+  identification of the two reliability classes. They do not establish how
+  much the empirical entry, exit, or misclassification rates will change.
+  Earlier numerical convergence and implementation-equivalence checks still
+  hold, but the four-wave results are not yet validated for interpretation.
+  Earlier normalization checks covered individual emissions and posterior
+  weights, not the sum of the complete joint probability over observable
+  records; those are different tests.
+
+The repair should use one joint timegap-spell likelihood for every observed
+subset, integrating missing or contaminated reports and retaining the clean
+clock's interval restrictions across all waves. The simulator must implement
+that same probability law. Re-run normalization and score checks first; only
+then run the small parameter-recovery fits. This repair was deferred at the
+initial validation stage and subsequently authorized; see Section 11.
+
+Reproduction scripts are `validate_four_wave_simulation.R`,
+`audit_four_wave_probability_mass.R`, and `summarise_four_wave_recovery.R`.
+For the mass audit, use `FOUR_WAVE_MASS_MAX_MONTH=24` for the tight-tail check;
+use 12 with `FOUR_WAVE_MASS_REFERENCE=true` for the independent R comparison.
+Set `FOUR_WAVE_TIMEGAP_CLOCK=legacy_pairwise` to reproduce these historical
+failures. The consolidated `recovery/recovery_status_latest.rds` records the
+failed gates, zero recovery fits, and unchanged empirical estimates.
+
+# 11. Repaired continuous timegap clock and recovery
+
+## Changes
+
+- Replaced the four-wave joint/pairwise fallback with one joint timegap
+  likelihood for every latent nonemployment spell and every observed subset.
+- Each clean report restricts the same spell-start duration. Missing reports
+  are integrated out, and all contamination patterns are summed. Information
+  from earlier categories is retained rather than discarded at each wave.
+- Applied the same calculation in the R reference and compiled evaluator.
+  The existing sequential simulator already retains and ages this clock;
+  its four-wave exact-risk option now matches the repaired likelihood.
+- Kept the initial timegap distribution, transition-risk formulas, tenure
+  reporting model, and three-wave estimator unchanged. In particular, this
+  repair does not introduce a new within-quarter distribution for timegap at
+  a nonemployment spell's onset. That remains a separate modelling question.
+- Preserved legacy evaluation explicitly as `legacy_pairwise`; repaired
+  four-wave evaluation defaults to `continuous_joint`. Historical fit objects
+  and failed diagnostics are not overwritten.
+
+For a clean report in category interval $[a_t,b_t)$ at offset $t$, the
+spell-start clock satisfies $D_0\in[a_t-t\Delta,b_t-t\Delta)$. Its joint
+clean-report probability is
+
+$$
+P\left\{\max(0,\max_t(a_t-t\Delta))\le D_0
+<\min_t(b_t-t\Delta)\right\},\qquad \Delta=0.25.
+$$
+
+An empty intersection has probability zero. Gross reports instead contribute
+their marginal category probabilities; unobserved reports impose no
+restriction. Mixture weights retain the existing clock-specific reliability
+classes. This enforces clean-clock consistency across all observed waves
+without requiring every status report to be correct.
+
+## Probability and score checks
+
+All eight exhaustive probability cases now sum to one within numerical
+tolerance, including the former failing case. Summing out any report gives
+the same joint distribution for the remaining reports. Fifty-six new unit
+checks cover observed subsets, boundary contamination probabilities, interval
+intersections, and missing early reports. The repaired full-sample compiled
+likelihood agrees with R within $4.6\times10^{-8}$; maximum posterior
+differences are below $1.3\times10^{-14}$.
+
+Repeating the same three 20,000-person simulation samples removes the score
+failure: the short-duration entry-hazard discrepancy falls from -9.20 to
++1.86 Monte Carlo standard errors. No pooled score among the 33 parameters
+exceeds 1.87 in absolute value. These checks support the repaired probability
+law; they do not by themselves establish finite-sample recovery or precision.
+
+```{r four-wave-clock-repair-checks, echo=FALSE, results='asis'}
+repaired_dir <- file.path(dirname(recovery_dir),"recovery_continuous_clock")
+new_score_file <- file.path(repaired_dir,"sequential_score_summary_latest.csv")
+if (file.exists(new_score_file)) {
+  old <- read.csv(file.path(recovery_dir,"sequential_score_summary_latest.csv"))
+  new <- read.csv(new_score_file)
+  keep <- c("log_hd1","log_hd3","pi","alpha")
+  comparison <- data.frame(Parameter=c("Entry log-hazard: 0--3 months",
+    "Entry log-hazard: 1--3 years","Status-error logit","Initial-employment logit"),
+    Legacy=old$z_score[match(keep,old$parameter)],
+    Repaired=new$z_score[match(keep,new$parameter)])
+  print(knitr::kable(comparison,digits=2,
+    caption="Standardized score at the generating parameters: before and after repair"))
+}
+```
+
+## Small full-parameter recovery exercise
+
+`estimate_four_wave_recovery.R` estimates all 33 parameters on two independent
+5,000-person samples, using two nearby starting points for the first sample
+and one for the second (seeds 261004 and 261005). It uses the same bounded
+likelihood optimization and a separate projected central-score tolerance of
+$10^{-5}$. The saved empirical scaling vector is only a numerical
+preconditioner. No nuisance parameter is fixed at its generating value.
+
+```{r four-wave-clock-recovery-fits, echo=FALSE, results='asis'}
+fits_file <- file.path(repaired_dir,"fit_summary_latest.csv")
+if (file.exists(fits_file)) {
+  recovery_fits <- read.csv(fits_file)
+  for (rep in unique(recovery_fits$replication)) {
+    fits <- recovery_fits[recovery_fits$replication==rep,]
+    tab <- data.frame(Measure=c("Entry rate","Exit rate","Misclassification rate",
+      "Initial employment"),
+      Generating=c(fits$entry_truth[1],fits$exit_truth[1],
+        fits$pi_truth[1],fits$alpha_truth[1]))
+    for (j in seq_len(nrow(fits))) tab[[fits$start[j]]] <-
+      c(fits$entry_estimate[j],fits$exit_estimate[j],fits$pi_estimate[j],fits$alpha_estimate[j])
+    print(knitr::kable(tab,digits=5,caption=paste("Simulation recovery: sample",rep)))
+  }
+  print(knitr::kable(recovery_fits[c("replication","start","n","converged","score","loglik")],
+    digits=c(0,0,0,0,8,3),caption="Recovery convergence diagnostics"))
+} else cat("Full-parameter recovery fits are not yet consolidated.\n")
+```
+
+The generating transition rates use the true parameters and their posterior
+risk weights on the same simulated sample, so differences isolate parameter
+estimation rather than differences in sample composition. Full hazard
+coefficients are saved in `coefficient_recovery_latest.csv` and shown below;
+fit objects also
+retain all reporting parameters and numerical diagnostics. This is a small
+implementation/recovery check, not a large Monte Carlo bias study or a
+bootstrap standard-error exercise. Empirical Panel A rates are not updated
+by these simulated fits.
+
+All three fits converge with maximum projected central scores between
+$2.54\times10^{-6}$ and $2.93\times10^{-6}$. The two starts for sample 1 differ
+by less than 0.001 log-likelihood units and 0.00013 percentage points in the
+main rates. Across the two samples, entry, exit, and status misclassification
+are each within 0.16 percentage points of their generating values. Initial
+employment differs by -1.10 and +0.16 percentage points, respectively.
+The high short-duration entry hazard and lower long-duration hazards remain
+visible in the recovered coefficients. These results support the repaired
+implementation and approximate recovery of economically relevant quantities;
+two samples do not establish finite-sample unbiasedness, precise reliability
+separation, or a globally unique optimum.
+
+```{r four-wave-clock-recovery-hazards, echo=FALSE, results='asis'}
+coef_file <- file.path(repaired_dir,"coefficient_recovery_latest.csv")
+if (file.exists(coef_file) && file.exists(fits_file)) {
+  coef <- read.csv(coef_file)
+  fits <- read.csv(fits_file)
+  keep <- c(paste0("entry_hazard_",1:5),paste0("exit_hazard_",1:5))
+  bands <- c("0--3 months","3--12 months","1--3 years","3--5 years","5+ years")
+  tab <- data.frame(Hazard=c(paste("Entry:",bands),paste("Exit:",bands)),
+    Generating=coef$truth[match(keep,coef$parameter)])
+  for (rep in unique(fits$replication)) {
+    candidates <- fits[fits$replication==rep & fits$converged,]
+    if (!nrow(candidates)) next
+    label <- candidates$start[which.max(candidates$loglik)]
+    selected <- coef[coef$replication==rep & coef$start==label,]
+    tab[[paste("Sample",rep)]] <- selected$estimate[match(keep,selected$parameter)]
+  }
+  print(knitr::kable(tab,digits=4,
+    caption="Duration-hazard recovery (annual hazards, not quarterly transition probabilities)"))
+}
+```
+
+New outputs are under `four_wave_ar1/recovery_continuous_clock`; the failed
+legacy checks remain under `four_wave_ar1/recovery`. The empirical continuation
+defaults to a new `clock_joint1` label and rejects stale-source checkpoints.
+
+# 12. Repaired four-wave AR(1): empirical Panel A refit
+
+## Changes and scope
+
+- Re-estimate all 33 parameters under the repaired continuous-clock likelihood
+  on the same 316,889 Panel A records (101,916 collapsed likelihood cells).
+- Start at the best converged pre-repair fit, preserve the old fit, and use a
+  separate output label. Require optimizer convergence and an independent
+  projected central score no greater than $10^{-5}$ per unit of sample weight.
+- Keep the duration hazards, tenure reporting specification, fixed equal
+  reliability-class shares, and free initial employment probability unchanged.
+  Do not re-estimate the three-wave comparator or introduce AR(2) in this step.
+- Compare quarterly entry and exit probabilities using the same pooled
+  posterior-origin-risk and survey weights. Misclassification refers to
+  employment-status error, not duration contamination.
+
+```{r four-wave-clock-empirical, echo=FALSE, results='asis'}
+empirical_dir <- file.path(dirname(recovery_dir),"continuous_clock_empirical")
+empirical_file <- file.path(empirical_dir,"comparison_latest.rds")
+if (file.exists(empirical_file)) {
+  empirical <- readRDS(empirical_file)
+  stopifnot(isTRUE(empirical$best$converged),
+    isTRUE(empirical$best$independent_score_pass))
+  cmp <- empirical$comparison
+  tab <- data.frame(Measure=c("Entry rate","Exit rate","Misclassification rate",
+    "Initial employment"), `Pre-repair`=100*cmp$legacy,
+    Repaired=100*cmp$repaired, `Change (pp)`=cmp$change_percentage_points,
+    check.names=FALSE)
+  print(knitr::kable(tab,digits=3,
+    caption="Panel A four-wave AR(1): main rates (percent)"))
+  cat(sprintf("\nRepaired log likelihood: %.3f; maximum projected central score: %.3g.\n",
+    empirical$best$loglik,empirical$best$gradient_max))
+  cat(sprintf("\nRe-optimization improves the repaired objective by %.3f relative to the old parameter vector.\n",
+    empirical$repaired_objective_gain))
+} else cat("The empirical refit has not yet been consolidated; no revised rates are reported here.\n")
+```
+
+```{r four-wave-clock-empirical-hazards, echo=FALSE, results='asis'}
+if (file.exists(empirical_file)) {
+  print(knitr::kable(empirical$hazards,digits=4,
+    col.names=c("Hazard","Duration","Pre-repair","Repaired"),
+    caption="Panel A duration coefficients: annual hazards"))
+}
+```
+
+## Findings and interpretation
+
+- The repaired empirical fit converges with optimizer code zero and a
+  separately recomputed maximum projected central score of
+  $5.53\times10^{-6}$. All 33 parameters were optimized from the best
+  converged legacy starting vector. This is one empirical starting point,
+  not a new dispersed-start exercise.
+- Entry rises from 2.603% to 2.693% per quarter; exit rises from 4.060% to
+  4.092%. Employment-status misclassification falls from 2.765% to 2.646%,
+  and initial employment rises from 48.705% to 49.108%.
+- Thus the repair changes the estimates modestly rather than overturning
+  their main interpretation. Estimated status misclassification remains
+  material, while exit probability conditional on employment remains above
+  entry probability conditional on nonemployment. Those probabilities have
+  different populations at risk and should not be directly subtracted to
+  infer the change in employment.
+- The largest duration-hazard adjustment is in the shortest nonemployment
+  band: its annual entry hazard rises from about 0.509 to 0.563. Longer-duration
+  entry hazards remain substantially lower; exit hazards change comparatively
+  little. These are annual hazard coefficients, not the weighted quarterly
+  entry probabilities in the main comparison.
+
+The old likelihood is retained for historical auditing, not as a nested-model
+benchmark: changing a defective probability construction means that its
+difference from the repaired likelihood is not an LR statistic. The gain
+reported above compares two parameter vectors under the *same repaired*
+objective. Neither convergence nor the recovery checks establish strong
+identification of the two reliability dispersions or a globally unique optimum.
+No analytical or bootstrapped standard errors are estimated in this step.
+
+At the new fitted parameter vector, the independent full-sample R evaluator
+agrees with the compiled likelihood within $4.52\times10^{-8}$ and with its
+posteriors within $1.24\times10^{-14}$. The repaired log likelihood is
+-2,894,475.050, a gain of 414.246 over evaluating the old parameter vector
+under the repaired law. The focused regression suite passes 249 checks.
+
+Execution note: a trailing parsing error was reported after the optimizer,
+independent score check, fit save, and rate printing had completed; the runner
+had been edited while active. The current runner parses cleanly. A fresh
+process loaded the saved fit and successfully performed the independent
+full-sample checks and consolidation above. The error did not require a new
+estimation or affect the saved parameter estimates.
+
+Run `refine_four_wave_ar1_fast.R` with label `clock_joint1`, using
+`fit_fast_start_plus_latest.rds` as the start, then run
+`summarise_four_wave_clock_empirical.R`. The collector verifies the full-sample
+R reference at the new parameters and stores rates, annual hazards, all
+transformed coefficients, posteriors, convergence diagnostics, and source/input
+fingerprints in `four_wave_ar1/continuous_clock_empirical`. These files do not
+replace the legacy results or the separate simulation-recovery outputs.
+
+# 13. Four-wave duration model with two AR(2) return effects
+
+A compact candidate paper Table 9, including history-specific entry and exit
+probabilities, is provided in `four_wave_duration_results.Rmd`. Rebuild its
+LaTeX and unrounded CSV snapshot with
+`scripts/build_four_wave_duration_paper_table.R`; this reads the saved fits
+without re-estimation. Existing paper Tables 1--8 are unchanged. Analytical
+uncertainty and the questionnaire-motivated sensitivity checks remain pending.
+
+## Changes and identifying restrictions
+
+- Add one entry and one exit coefficient to the repaired Panel A model;
+  re-estimate all 35 parameters jointly. Keep duration-reporting mechanisms,
+  duration reliability classes, and the estimation sample unchanged.
+- For transitions 2-to-3 and 3-to-4, shift the log odds of a transition when
+  the current latent state differs from the preceding latent state. Positive
+  coefficients mean an increased probability of returning to the prior state.
+- Retain free initial employment and the AR(1) law for transition 1-to-2.
+  This is an explicit initial-pair restriction, not an assertion of stationarity
+  or an estimate of unobserved pre-panel history. A free initial-pair model is
+  deferred to a sensitivity check.
+- Use forward numerical gradients during optimization and an independent
+  central score for acceptance. Every accepted fit must have optimizer code
+  zero and maximum projected central score at most $10^{-5}$. Use a main
+  start and two perturbed starts, with all nuisance parameters free.
+
+Writing $S_t=1$ for employment and $r_{01,t},r_{10,t}$ for the existing
+duration-dependent AR(1) probabilities, for $t=2,3$:
+
+$$
+\begin{aligned}
+\operatorname{logit}P(S_{t+1}=1\mid S_t=0,\ldots)
+ &=\operatorname{logit}(r_{01,t})+b_N\,1\{S_{t-1}=1\},\\
+\operatorname{logit}P(S_{t+1}=0\mid S_t=1,\ldots)
+ &=\operatorname{logit}(r_{10,t})+b_E\,1\{S_{t-1}=0\}.
+\end{aligned}
+$$
+
+Thus $\exp(b_N)$ is the entry-odds multiplier after a recent exit and
+$\exp(b_E)$ is the exit-odds multiplier after a recent entry, holding the
+baseline duration-dependent probability fixed. These are **odds ratios, not
+hazard ratios**. Apply them after the existing integration over category or
+unobserved wrong-state durations. Do not alter the marginal duration-reporting
+distributions or impose a new stationary duration distribution.
+
+The implementation reuses the validated AR(1) likelihood through the exact
+identity $L_2=L_1\sum_hP_1(h\mid\text{reports})P_2(h)/P_1(h)$. The AR(1)
+likelihood and posterior are recomputed at every new nuisance vector: neither
+is fixed during estimation. The independent R reference instead constructs
+the AR(2) history prior directly before combining reporting probabilities.
+Class and job-change posterior aggregates must also be recomputed under AR(2);
+they cannot simply be copied from the AR(1) evaluator.
+
+## Validation and recovery
+
+Zero effects reproduce the full-sample repaired AR(1) likelihood and
+posteriors. Nonzero effects agree with the independent direct-prior R
+calculation. Four exhaustive finite-support joint-probability checks sum to
+one, within the tenure-tail allowance. Three 10,000-person simulations check
+all 35 likelihood scores at known nonzero coefficients. The largest pooled
+absolute discrepancy is 2.18 Monte Carlo standard errors; the entry and exit
+AR(2) discrepancies are 0.83 and -0.01. Twenty-four added unit checks cover nesting,
+reference agreement, the seeded simulator, and which histories receive each
+effect. These checks concern implementation, not precision of empirical effects.
+
+```{r four-wave-ar2-recovery, echo=FALSE, results='asis'}
+ar2_dir <- file.path(dirname(dirname(recovery_dir)),"four_wave_ar2")
+ar2_recovery_file <- file.path(ar2_dir,"recovery/recovery_latest.rds")
+if (file.exists(ar2_recovery_file)) {
+  ar2_recovery <- readRDS(ar2_recovery_file)
+  print(knitr::kable(ar2_recovery$summary[c("replication","start","converged",
+    "ar2_entry_truth","ar2_entry","ar2_exit_truth","ar2_exit")],digits=4,row.names=FALSE,
+    caption="AR(2) recovery with all 35 parameters free: two 5,000-person samples"))
+} else cat("The full-parameter recovery exercise has not yet been consolidated.\n")
+```
+
+## Empirical comparison
+
+All three full-parameter recovery fits converge, with independent projected
+central scores below $4.4\times10^{-6}$. The two starts on sample 1 differ by
+less than 0.0004 likelihood units and 0.00024 in either AR(2) coefficient.
+The generating entry coefficient is 1.099; estimates are 1.245 and 0.964
+across the two samples. The generating exit coefficient is 0.693; estimates
+are 0.472 and 0.620. These are encouraging implementation checks, not a
+large-sample bias or coverage study. After projecting out all nuisance-score
+directions in the 30,000-person score simulation, the two-by-two information
+matrix has eigenvalues 70.78 and 56.65: the two return effects have separately
+varying scores in this experiment.
+
+```{r four-wave-ar2-empirical, echo=FALSE, results='asis'}
+ar2_file <- file.path(ar2_dir,"empirical/comparison_latest.rds")
+if (file.exists(ar2_file)) {
+  ar2_results <- readRDS(ar2_file)
+  rows <- ar2_results$summary[match(c("AR1",ar2_results$best_label),ar2_results$summary$model),]
+  labels <- c("Entry rate (%)","Exit rate (%)","Misclassification rate (%)",
+    "Initial employment (%)","Log likelihood","N")
+  column <- function(x) c(sprintf("%.3f",100*unlist(x[c("entry","exit","misclassification","initial_employment")])),
+    formatC(x$loglik,format="f",digits=3,big.mark=","),format(x$n,big.mark=","))
+  print(knitr::kable(data.frame(Measure=labels,AR1=column(rows[1,]),AR2=column(rows[2,])),
+    row.names=FALSE,caption="Repaired four-wave duration model: AR(1) and AR(2), Panel A"))
+  b <- unname(unlist(rows[2,c("ar2_entry","ar2_exit")]))
+  print(knitr::kable(data.frame(Measure=c("Entry return effect (log odds)",
+    "Exit return effect (log odds)","Entry return odds ratio","Exit return odds ratio"),
+    AR1=c(0,0,1,1),AR2=c(b,exp(b))),digits=3,row.names=FALSE,
+    caption="Return effects: both coefficients are fixed at zero in AR(1)"))
+  cat(sprintf("\nLog-likelihood gain: %.3f; twice the gain: %.3f.\n",
+    ar2_results$likelihood_gain,ar2_results$lr_statistic))
+  print(knitr::kable(ar2_results$summary[-1,c("model","loglik","score","ar2_entry","ar2_exit")],
+    digits=c(0,3,8,4,4),row.names=FALSE,caption="AR(2) starting-point and convergence checks"))
+} else cat("No validated empirical AR(2) comparison has been consolidated yet.\n")
+```
+
+All main rates pool the three transitions using survey weights and posterior
+origin-risk weights; only the last two transition probabilities contain an
+AR(2) term. Initial employment is the estimated initial probability. The
+misclassification parameter concerns employment status, not duration reports.
+Unlike the historical pre-repair comparison, these two models are nested under
+one repaired probability law. Any formal LR inference still requires regularity
+and identification assumptions; the likelihood gain alone is not a validation
+of causal state dependence.
+
+```{r four-wave-ar2-implications, echo=FALSE, results='asis'}
+if (file.exists(ar2_file)) {
+  for (direction in c("Entry","Exit")) {
+    rows <- ar2_results$implications[ar2_results$implications$transition==direction,]
+    measures <- c("raw_reversal","not_confirmed","genuine_reversed","genuine_persistent")
+    tab <- data.frame(Measure=c("Raw reversal","Not confirmed","Genuine, reversed","Genuine, persistent"),
+      AR1=100*as.numeric(rows[rows$model=="AR1",measures]),
+      AR2=100*as.numeric(rows[rows$model=="AR2",measures]))
+    table_tex <- knitr::kable(tab,format="latex",booktabs=TRUE,digits=2,longtable=FALSE,
+      label=paste0("four-wave-ar2-",tolower(direction),"-implications"),
+      caption=paste("Posterior decomposition of apparent",tolower(direction),"transitions (\\%)"))
+    table_tex <- sub("\\begin{table}","\\begin{table}[H]",table_tex,fixed=TRUE)
+    cat("\n```{=latex}\n",table_tex,"\n```\n",sep="")
+  }
+}
+```
+
+This decomposition pools transitions 1-to-2 and 2-to-3, which have an observed
+follow-up wave. A transition is confirmed only when the latent origin and
+destination match its apparent direction. The three model-based categories partition
+apparent transitions into not confirmed, genuine but reversed next wave, and
+genuine and persistent next wave. All four reports inform the posterior; this
+is a retrospective decomposition, not a forecast using just two reports.
+"Not confirmed" does not distinguish misreporting from record-matching errors.
+
+```{r four-wave-ar2-hazards, echo=FALSE, results='asis'}
+if (file.exists(ar2_file)) print(knitr::kable(ar2_results$hazards,digits=4,
+  caption="Baseline annual duration hazards: the AR(2) odds adjustment is additional"))
+```
+
+## Findings and interpretation
+
+- All three empirical starts converge with independent projected central
+  scores between $3.68\times10^{-6}$ and $7.70\times10^{-6}$. Their entry,
+  exit, and status-misclassification rates differ by less than 0.00007
+  percentage points, and their return coefficients by less than 0.00027.
+  The highest-likelihood run is `plus`; its log likelihood exceeds repaired
+  AR(1) by 2,196.404 (twice the gain is 4,392.807). The small likelihood
+  spread across starts is 0.112, not evidence that every nuisance parameter
+  is strongly identified or that a global optimum has been proved.
+- The entry return coefficient is 1.299 and the exit return coefficient
+  1.931: odds multipliers of 3.666 and 6.895, respectively. These duration
+  controls do not absorb the tendency to return to the preceding state.
+  Current-job tenure is not the same as uninterrupted employment duration
+  when workers can change jobs while remaining employed; this is one reason
+  surviving history effects need not contradict duration dependence.
+- Average quarterly entry rises from 2.693% to 3.206%, and exit from 4.092%
+  to 4.775%. Status misclassification falls modestly, from 2.646% to 2.441%;
+  initial employment barely changes (49.108% versus 49.102%). The main
+  interpretation is more genuine turnover, not a large revision to initial
+  employment or the disappearance of misclassification.
+- Among apparent entries, the share inferred to be genuine and reversed
+  next wave rises from 6.48% to 13.99%; among apparent exits it rises from
+  5.54% to 10.06%. Persistent-transition shares change much less. Nevertheless,
+  55.80% of apparent entries and 45.88% of apparent exits are not confirmed
+  in their reported direction under AR(2). The model therefore attributes
+  more short-lived movement to genuine transitions while retaining an
+  important role for misclassification, from either reporting or matching
+  errors. These are shares of all apparent transitions, not a decomposition
+  conditional on observing a reversal.
+- After projecting out all 33 nuisance-score directions, the empirical
+  two-effect information matrix has eigenvalues 1,226.75 and 1,634.83
+  (condition number 1.33), unchanged across three projection tolerances.
+  This supports local separation of the two return effects; it does not
+  remove the earlier caveat about weak duration-reliability separation.
+  No parameter reaches its numerical bound in the selected fit.
+
+The full-sample direct-prior R and reweighted compiled likelihoods agree to
+displayed machine precision; the maximum posterior difference is
+$3.84\times10^{-15}$. Analytical return-coefficient scores agree with the
+numerical scores within $4.3\times10^{-11}$. The weighted posterior mean status
+misclassification is 2.44142%, consistent with the common fitted probability.
+The focused suite passes 273 checks, including the audit table chunks.
+
+## Remaining checks
+
+- Check sensitivity to the initial-pair restriction before a structural
+  interpretation. Keep broader reliability-mixture refinements secondary.
+- Retain the separate caveat from Section 11: the timegap clock at a newly
+  entered nonemployment spell is still drawn from the existing marginal law,
+  rather than restricted to an onset within the last quarter. The AR(2)
+  extension does not repair or validate that substantive modelling assumption.
+- Interpret any surviving AR(2) effects as conditional associations, potentially
+  reflecting residual duration misspecification, omitted heterogeneity, or
+  reporting assumptions. No analytical or bootstrap standard errors are
+  computed in this first extension.
+
+Reproduce with `validate_four_wave_ar2.R`, `recover_four_wave_ar2.R`,
+`estimate_four_wave_ar2.R`, and `summarise_four_wave_ar2.R`, in that order.
+Outputs reside in the four-wave AR(2) results directory; repaired AR(1) and
+historical pre-repair objects are preserved.
+
+# 14. Subsequent extensions
+
+The flexible baseline repairs the calendar distribution, exact retention and
+local revisions capture part of the serial dependence, and separate
+clock-specific reliability dispersions capture additional clustering of
+duration irregularities. Following the decision to limit further work on
+reliability-class separation, the remaining work should proceed in this order:
+
+The repaired Panel A AR(1) refit is reported in Section 12. Its AR(2)
+extension, recovery, nearby-start checks, local-identification diagnostic,
+and first reversal comparison are completed in Section 13. The same-person
+three-wave re-estimation remains omitted at the author's request.
+
+1. check sensitivity to the initial-pair rule and the clean timegap
+   distribution at a new nonemployment spell, changing one assumption at a time;
+2. if a structural interpretation of the return effects is required, assess
+   finer short-duration controls and remaining observed or unobserved
+   heterogeneity rather than treating AR(2) coefficients as causal effects;
+3. compute approximate analytical uncertainty once the preferred specification
+   is settled, treating weak nuisance directions explicitly; and
+4. retain uncertainty about reliability-class separation as a limitation.
+   Additional class-share and bootstrap sensitivity work
+   is secondary rather than a prerequisite for the employment extension.

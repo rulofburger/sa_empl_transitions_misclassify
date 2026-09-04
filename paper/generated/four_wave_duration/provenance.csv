@@ -1,0 +1,5 @@
+"input","path","md5"
+"ar2","EM-tenure/output/results/job_change_monthly/four_wave_ar2/empirical/comparison_latest.rds","df0d713a9fd0a47be5d03db65e7eab6a"
+"ar1","EM-tenure/output/results/job_change_monthly/four_wave_ar1/continuous_clock_empirical/comparison_latest.rds","1e9ef85dd1c848318c96438414fa149d"
+"data","EM-tenure/output/results/job_change_monthly/four_wave_ar1/prepared_cells_latest.rds","c2d73d889e07a3ee898c292a0a7eb8a3"
+"builder","scripts/build_four_wave_duration_paper_table.R","a4fda2786d8cd91491a59cd11e4ad406"

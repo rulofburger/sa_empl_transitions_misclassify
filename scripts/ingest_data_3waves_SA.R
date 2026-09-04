@@ -5,6 +5,8 @@ qlfs_3wave_panel_file <- getOption(
   "sa_empl_transitions.qlfs_3wave_panel",
   "df_qlfs_A.rds"
 )
+preserve_zero_tenure <- isTRUE(getOption(
+  "sa_empl_transitions.preserve_zero_tenure", FALSE))
 if (length(qlfs_3wave_panel_file) != 1L ||
     !qlfs_3wave_panel_file %in% paste0("df_qlfs_", c("A", "B", "C"), ".rds")) {
   stop("Unknown three-wave QLFS panel: ", qlfs_3wave_panel_file)
@@ -280,9 +282,12 @@ imputed_ten <- mapply(
   function(y1, y2, y3, g1, g2, g3) {
     .impute_nearest(
       v1 = g1, v2 = g2, v3 = g3,
-      valid1 = !is.na(g1) & g1 > 0,
-      valid2 = !is.na(g2) & g2 > 0,
-      valid3 = !is.na(g3) & g3 > 0,
+      valid1 = !is.na(g1) & (g1 > 0 |
+        (preserve_zero_tenure & y1 == 1 & g1 == 0)),
+      valid2 = !is.na(g2) & (g2 > 0 |
+        (preserve_zero_tenure & y2 == 1 & g2 == 0)),
+      valid3 = !is.na(g3) & (g3 > 0 |
+        (preserve_zero_tenure & y3 == 1 & g3 == 0)),
       floor_val = .floor_dur
     )
   },
@@ -290,6 +295,26 @@ imputed_ten <- mapply(
   df_qlfs$tenure1, df_qlfs$tenure2, df_qlfs$tenure3,
   SIMPLIFY = TRUE
 )
+if (preserve_zero_tenure) {
+  # The legacy continuous model used a small positive floor when no valid
+  # tenure donor existed. That artificial value is not a reported month and
+  # must not enter the discrete-month likelihood. Retain valid reported zeros,
+  # but leave employed observations without any valid donor missing so the
+  # ordinary complete-case filter below removes them.
+  tenure_donor <- cbind(
+    is.finite(df_qlfs$tenure1) & (df_qlfs$tenure1 > 0 |
+      (df_qlfs$y1 == 1L & df_qlfs$tenure1 == 0)),
+    is.finite(df_qlfs$tenure2) & (df_qlfs$tenure2 > 0 |
+      (df_qlfs$y2 == 1L & df_qlfs$tenure2 == 0)),
+    is.finite(df_qlfs$tenure3) & (df_qlfs$tenure3 > 0 |
+      (df_qlfs$y3 == 1L & df_qlfs$tenure3 == 0)))
+  no_tenure_donor <- rowSums(tenure_donor) == 0L
+  y_mat <- cbind(df_qlfs$y1, df_qlfs$y2, df_qlfs$y3)
+  for (wave in 1:3) {
+    bad <- no_tenure_donor & y_mat[, wave] == 1L
+    imputed_ten[wave, bad] <- NA_real_
+  }
+}
 df_qlfs$tenure1 <- imputed_ten[1L, ]
 df_qlfs$tenure2 <- imputed_ten[2L, ]
 df_qlfs$tenure3 <- imputed_ten[3L, ]
@@ -305,9 +330,11 @@ stopifnot(all(df_qlfs$timegap_cat1 %in% 1:7, na.rm = TRUE))
 stopifnot(all(df_qlfs$timegap_cat2 %in% 1:7, na.rm = TRUE))
 stopifnot(all(df_qlfs$timegap_cat3 %in% 1:7, na.rm = TRUE))
 # All employed obs should now have positive tenure (after imputation of nonemployed waves)
-stopifnot(all(df_qlfs$tenure1[df_qlfs$y1 == 1] > 0, na.rm = TRUE))
-stopifnot(all(df_qlfs$tenure2[df_qlfs$y2 == 1] > 0, na.rm = TRUE))
-stopifnot(all(df_qlfs$tenure3[df_qlfs$y3 == 1] > 0, na.rm = TRUE))
+tenure_valid <- if (preserve_zero_tenure) function(x) x >= 0 else
+  function(x) x > 0
+stopifnot(all(tenure_valid(df_qlfs$tenure1[df_qlfs$y1 == 1]), na.rm = TRUE))
+stopifnot(all(tenure_valid(df_qlfs$tenure2[df_qlfs$y2 == 1]), na.rm = TRUE))
+stopifnot(all(tenure_valid(df_qlfs$tenure3[df_qlfs$y3 == 1]), na.rm = TRUE))
 
 # ---------------------------------------------------------------------------
 # DROP ROWS WITH MISSING TENURE OR TIMEGAP (for EM-tenure estimation)

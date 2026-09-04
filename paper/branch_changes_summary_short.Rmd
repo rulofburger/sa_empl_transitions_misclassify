@@ -976,6 +976,8 @@ the additional error-equation predictors, not a different estimation sample.
   hazards.
 - Added contamination in reported time since work and tested local and joint
   alternatives.
+- Split tenure contamination into bounded local month errors and gross
+  marginal draws, with a boundary-aware likelihood check.
 
 \Needspace{42\baselineskip}
 
@@ -986,6 +988,9 @@ piece <- read.csv(file.path(project_root,
 robust <- read.csv(file.path(project_root,
   "EM-tenure/output/results/timegap_contamination_robustness/model_comparison_latest.csv"),
   check.names = FALSE)
+hybrid <- read.csv(file.path(project_root,
+  "EM-tenure/output/results/tenure_local_gross/model_comparison_latest.csv"),
+  check.names = FALSE)
 tenure_inf <- read.csv(file.path(project_root,
   "EM-tenure/output/results/analytical_inference/table7_analytical_se_latest.csv"))
 tenure_tab <- rbind(
@@ -994,10 +999,14 @@ tenure_tab <- rbind(
     weighted_exit = piece$weighted_exit[1:3],
     weighted_entry = piece$weighted_entry[1:3]),
   robust[2:4, c("model", "loglik", "pi", "eps_g", "eps_d",
-                 "weighted_exit", "weighted_entry")])
+                 "weighted_exit", "weighted_entry")],
+  data.frame(model = hybrid$model[2], loglik = hybrid$loglik[2],
+    pi = hybrid$pi[2], eps_g = hybrid$eps_total[2],
+    eps_d = hybrid$eps_d[2], weighted_exit = hybrid$weighted_exit[2],
+    weighted_entry = hybrid$weighted_entry[2]))
 tenure_tab$model <- c("Constant, exact", "Power law, exact",
   "Piecewise, exact", "Independent error", "Local error",
-  "Joint per-wave error")
+  "Joint per-wave error", "Local + gross tenure")
 inference_value <- function(quantity, field) vapply(tenure_tab$model, function(m) {
   z <- tenure_inf[tenure_inf$model == m & tenure_inf$quantity == quantity, field]
   if (length(z) != 1L) stop("Missing Table 7 inference: ", m, " / ", quantity)
@@ -1020,7 +1029,7 @@ cat("\\setcounter{table}{6}\n\\begin{table}[H]\n\\centering\n",
     "\\caption{Tenure-contamination misclassification and transition rates}\n",
     "\\scriptsize\n\\setlength{\\tabcolsep}{4pt}\n",
     "\\resizebox{\\textwidth}{!}{%\n",
-    "\\begin{tabular}{@{}lrrrrrr@{}}\n\\toprule\n & ",
+    "\\begin{tabular}{@{}lrrrrrrr@{}}\n\\toprule\n & ",
     paste(tenure_tab$model, collapse = " & "), " \\\\\n\\midrule\n", sep = "")
 for (label in rownames(values)) {
   cat(label, " & ", paste(sprintf("%.2f", values[label, ]),
@@ -1034,16 +1043,19 @@ cat("\\addlinespace\nLog likelihood & ",
                   big.mark = ","), collapse = " & "), " \\\\\n",
     "N & ", paste(rep("402,923", nrow(tenure_tab)), collapse = " & "),
     " \\\\\n\\addlinespace\n",
-    "Transition-hazard form & Constant & Power law & Piecewise & Piecewise & Piecewise & Piecewise \\\\\n",
-    "Tenure-error model & Independent marginal & Independent marginal & Independent marginal & Independent marginal & Independent marginal & Independent marginal \\\\\n",
-    "Timegap-error model & None (exact) & None (exact) & None (exact) & Independent marginal & Local category & Joint per-wave marginal",
+    "Transition-hazard form & Constant & Power law & Piecewise & Piecewise & Piecewise & Piecewise & Piecewise \\\\\n",
+    "Tenure-error model & Gross marginal & Gross marginal & Gross marginal & Gross marginal & Gross marginal & Gross marginal & Local + gross marginal \\\\\n",
+    "Timegap-error model & None (exact) & None (exact) & None (exact) & Independent marginal & Local category & Joint per-wave marginal & Joint per-wave marginal",
     " \\\\\n\\bottomrule\n\\end{tabular}}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Rates are in percent and follow the common entry, exit, misclassification, and initial-employment order used in the other main tables; model-specific duration-error rates follow. Entry and exit are posterior risk-set and survey-weighted quarterly probabilities. Parentheses contain numerical observed-information/delta-method standard errors from the full covariance matrix. In every model, a contaminated tenure report is an independent draw from the marginal tenure distribution; otherwise it must follow the exact clock. `Exact' means that no separate timegap-contamination process is allowed; status misclassification and tenure contamination remain allowed.}\n",
+    "{\\footnotesize\\textit{Notes.} Rates are in percent and follow the common entry, exit, misclassification, and initial-employment order used in the other main tables; model-specific duration-error rates follow. Entry and exit are posterior risk-set and survey-weighted quarterly probabilities. Parentheses contain numerical observed-information/delta-method standard errors from the full covariance matrix. Gross tenure errors are independent marginal draws. The final model also permits symmetric local errors of one to six months with fixed exponentially declining weights; its local probability is estimated at the zero boundary, so common standard errors equal those in the preceding nested column. `Exact' means that no separate timegap-contamination process is allowed.}\n",
     "\\end{table}\n", sep = "")
 ```
 
 For the joint model, 16.62% is the per-report probability. It implies a 30.48%
 probability that at least one report in a two-report pair is contaminated.
+The local-plus-gross extension estimates zero local tenure contamination and
+25.21% gross contamination, so its other point estimates equal the preferred
+joint per-wave model.
 
 \Needspace{12\baselineskip}
 
@@ -1087,6 +1099,15 @@ probability that at least one report in a two-report pair is contaminated.
 | Comparable two-report timegap contamination (%) | 28.04 | 39.20 | 30.48 |
 | Analytical SE | 0.11 | 0.15 | 0.12 |
 
+| Quantity | Local + gross tenure |
+|:--|--:|
+| Parameters | 15 (14 interior) |
+| AIC | 4,640,619.9 |
+| Total tenure contamination (%) | 25.21 |
+| Local tenure contamination (%) | 0.00 (boundary) |
+| Gross tenure contamination (%) | 25.21 |
+| Comparable two-report timegap contamination (%) | 30.48 |
+
 **Appendix Table A7, Panel C. Effect of integrating unavailable wrong-state clocks**
 
 | Quantity | Imputed clock | Integrated clock |
@@ -1125,6 +1146,9 @@ diagnostic is 264,244. Refined maximum scaled gradients are $2.0\times10^{-4}$
 for the exact piecewise fit, $2.1\times10^{-6}$ for the local-error fit, and
 $2.5\times10^{-6}$ for the joint model. These are numerical diagnostics, not
 substitutes for the standard errors reported in Table 7.
+For the local-plus-gross tenure extension, the likelihood falls by 4.0 even
+when only 0.1% of total tenure contamination is reassigned to the local branch.
+All 18 dispersed positive-share candidates fit worse than the boundary.
 
 ## Interpretation
 
@@ -1137,6 +1161,10 @@ substitutes for the standard errors reported in Table 7.
   to 2--3%, while tenure contamination remains close to 25%.
 - The joint per-wave model fits best and leaves transition rates and duration
   profiles almost unchanged relative to the simpler contamination model.
+- The proposed one-to-six-month local tenure-error component receives zero
+  probability. The data prefer to retain the full 25.21% tenure-contamination
+  rate as gross marginal error; adding the unused component raises AIC by two
+  and leaves all substantive estimates unchanged.
 - Only about 3 percentage points of timegap contradictions can be explained by
   an unobserved within-quarter employment spell; hidden resets are not the main
   source of the contamination estimate.
@@ -1150,6 +1178,9 @@ substitutes for the standard errors reported in Table 7.
   joint status and duration distributions.
 - Test alternative contamination densities, rounding and heaping rules, and
   tail cut-points while retaining transition-duration consistency.
+- Replace the symmetric local month kernel with explicit six- and twelve-month
+  heaping operators before concluding that all non-exact tenure reports are
+  genuinely uninformative about the latent clock.
 
 # 8. Apparent-transition implications: Table 8
 
@@ -1168,7 +1199,9 @@ model_order <- c(
   "Table 5 col 6: AR(2), reliability error",
   "Table 6 cols 3/4: FMM, common error",
   "Table 6 cols 7/8: FMM, type error",
-  "Table 7 col 4: independent duration error")
+  "Table 7 col 4: independent duration error",
+  "Table 9 col 1: duration AR(1)",
+  "Table 9 col 2: duration AR(2)")
 model_labels <- c(
   `Table 1 col 1: raw/no error` = "Table 1 (1): raw/no error",
   `Table 1 col 2: symmetric error` = "Table 1 (2): symmetric error",
@@ -1178,7 +1211,9 @@ model_labels <- c(
   `Table 5 col 6: AR(2), reliability error` = "Table 5 (6): AR(2), reliability predictors",
   `Table 6 cols 3/4: FMM, common error` = "Table 6 (3/4): FMM, common error",
   `Table 6 cols 7/8: FMM, type error` = "Table 6 (7/8): FMM, type intercepts",
-  `Table 7 col 4: independent duration error` = "Table 7 (4): independent duration error*")
+  `Table 7 col 4: independent duration error` = "Table 7 (4): independent duration error*",
+  `Table 9 col 1: duration AR(1)` = "Table 9 (1): duration AR(1)*",
+  `Table 9 col 2: duration AR(2)` = "Table 9 (2): duration AR(2)*")
 cat("\\setcounter{table}{7}\n\\begin{table}[H]\n\\centering\n",
     "\\caption{Implications for apparent two-wave transitions}\n",
     "\\scriptsize\n\\setlength{\\tabcolsep}{7pt}\n",
@@ -1200,12 +1235,23 @@ for (direction in direction_order) {
   if (direction != tail(direction_order, 1L)) cat("\\addlinespace\n")
 }
 cat("\\bottomrule\n\\end{tabular}\\\\[4pt]\n",
-    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages. Except for the starred Table 7 row, calculations condition only on the two status reports forming an apparent transition and integrate out the subsequent report. Classification only means that reported status changes but latent status does not. Genuine reversal means that latent status changes and returns to its original state in the next period; genuine persistence means that it remains in the new state. The three outcomes are mutually exclusive and exhaustive. The paired Table 6 references denote the stable and mobile columns of one FMM specification, with class membership integrated out. *In Table 7, duration reports are identifying measurement equations and impose consistency restrictions on latent paths; its row therefore uses the fitted full-record posterior, including tenure and timegap evidence, and is not a strictly status-pair-only comparison. Models use their own estimation samples, so cross-table differences combine specification and sample differences.}\n",
+    "{\\footnotesize\\textit{Notes.} Entries are survey-weighted percentages. Unstarred rows condition only on the two status reports forming an apparent transition and integrate out the subsequent report. Classification only means reported status changes but latent status does not. Genuine reversal means latent status changes and returns next period; genuine persistence means it remains in the new state. These outcomes are mutually exclusive and exhaustive; a latent change opposite to the reported direction is still a genuine change. Paired Table 6 references are the two types of one FMM, integrated over membership. *Table 7 and Table 9 use full-record posteriors including duration evidence, not status-pair-only conditioning. Table 9 pools apparent transitions 1--2 and 2--3 with their follow-up waves, using all four reports. Its rates are conditional on apparent switching, not the population status-error probability. Models use their own samples. Table 9 uses the current unrevised onset and employer-return assumptions; its uncertainty is pending.}\n",
     "\\end{table}\n", sep = "")
 ```
 
 This comparison is deliberately placed after the model-specific tables because
 it synthesizes their implications for interpreting apparent transitions.
+
+The new four-wave duration models in the separate candidate Table 9 document
+use the same Panel A sample. Update their rows without re-estimation by running:
+
+```sh
+Rscript scripts/update_table8_duration_models.R
+```
+
+Unlike the earlier audit's "not confirmed in the reported direction" measure,
+Table 8 counts any latent status change as genuine, even if its direction is
+opposite to the reported change. The long summary includes this same table.
 
 # 9. No-error duration counterfactual (Appendix Table A8)
 
